@@ -1086,6 +1086,18 @@ const menu = attempt('MainMenu constructs (builds #menu-root)', () => new menuMo
   ok('메인화면 — [멀티플레이] 가 멀티 화면을 연다', multiView === 'multi', String(multiView));
   menu._heroAct('start');
   ok('메인화면 — [게임 시작] 이 start 를 보낸다', started === true);
+  // 사용자 요청: 첫 화면의 [게임 시작] 버튼을 없애고, 싱글·멀티 옆에 [불러오기] 를 붙였다.
+  //  (스텁은 이전 버튼 묶음을 지우지 못하므로 마지막 묶음만 본다)
+  const stacks = documentStub.body.querySelectorAll('.menu-hero-actions');
+  const lastStack = stacks[stacks.length - 1];
+  ok('메인화면 — [게임 시작] 버튼이 없다', lastStack.querySelectorAll('[data-act="start"]').length === 0);
+  const loadBtns = lastStack.querySelectorAll('[data-act="load"]');
+  ok('메인화면 — [불러오기] 버튼이 싱글·멀티 2개 있다', loadBtns.length === 2, `load=${loadBtns.length}`);
+  ok(
+    '메인화면 — [불러오기] 가 모드별로 붙는다',
+    loadBtns.map((b) => b.dataset.mode).sort().join(',') === 'multi,world',
+    loadBtns.map((b) => b.dataset.mode).join(',')
+  );
 }
 if (menu) {
   ok('hidden right after construction', menu.visible === false);

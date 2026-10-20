@@ -449,6 +449,8 @@ class Game {
       this.notify('그래픽이 복구되었습니다', 'success');
     });
 
+    // 메뉴 [불러오기] — 저장한 게임을 이어서 한다(싱글·멀티 공통).
+    this.ui.menu.on('load', () => this.load());
     // 메뉴
     this.ui.menu.on('start', (opts) => this.start(opts));
     // 멀티플레이는 메인 화면의 전용 로비(초대코드)에서 시작한다.

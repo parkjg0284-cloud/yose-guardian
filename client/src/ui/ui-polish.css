@@ -372,5 +372,29 @@
 #menu-root[data-view="solo"] .menu-card[data-screen="multi"] { display: none !important; }
 /* 멀티 화면: 싱글 카드(새 게임·추천 시드) 숨김 */
 #menu-root[data-view="multi"] .menu-card[data-screen="solo"] { display: none !important; }
+
+/* ── 시작 화면: 창(패널) 없이 배경 위에 제목·버튼만 (사용자 요청) ──
+   싱글/멀티를 누르면 그때부터 패널 모양이 돌아온다. */
+#menu-root[data-view="main"] .menu {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  width: auto;
+  max-width: none;
+  max-height: none;
+  overflow: visible;
+}
+
+/* 싱글 플레이 / 멀티플레이 옆의 [불러오기] */
+#menu-root .menu-cta-row { display: flex; align-items: stretch; gap: 8px; }
+#menu-root .menu-cta-row .menu-cta { flex: 1 1 auto; }
+#menu-root .menu-cta-row .menu-cta-load {
+  flex: 0 0 auto;
+  font-size: 13px;
+  padding: 0 14px;
+  opacity: .92;
+}
 /* 시작 화면에서는 '바로 가기' 카드도 숨긴다(H-95) */
 #menu-root[data-view="main"] .menu-shortcuts { display: none !important; }

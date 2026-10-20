@@ -851,22 +851,33 @@ export class MainMenu {
   /** 오른쪽 아래 4단 버튼 — 새로운 세계 · 멀티플레이 · 설정 · 게임종료(계약 §4.75). */
   _renderHeroActions(body) {
     const stack = h('div', 'menu-hero-actions');
-    const item = (act, icon, label, cls) => {
+    const item = (act, icon, label, cls, withLoad) => {
+      const rowEl = h('div', 'menu-cta-row');
       const b = h('button', `btn btn-lg menu-cta ${cls}`, `${icon} ${label}`);
       b.type = 'button';
       b.dataset.act = act;
       b.addEventListener('click', () => this._heroAct(act));
-      stack.appendChild(b);
+      rowEl.appendChild(b);
+      // 싱글·멀티 옆에 [불러오기] — 저장한 게임을 바로 이어서 한다(사용자 요청).
+      if (withLoad) {
+        const ld = h('button', 'btn menu-cta-load', '📂 불러오기');
+        ld.type = 'button';
+        ld.dataset.act = 'load';
+        ld.dataset.mode = act;
+        ld.title = '저장한 게임을 이어서 합니다';
+        ld.addEventListener('click', () => this._heroAct('load', { mode: act }));
+        rowEl.appendChild(ld);
+      }
+      stack.appendChild(rowEl);
       return b;
     };
     const loggedIn = Boolean(safe(() => auth.loggedIn, false));
     const user = safe(() => auth.user, null);
     const acctLabel = loggedIn ? '👤 ' + (user?.nickname || user?.username || '내 계정') : '🔑 로그인 / 회원가입';
     item('auth', loggedIn ? '👤' : '🔑', loggedIn ? (user?.nickname || user?.username || '내 계정') : '로그인 / 회원가입', 'is-ghost');
-    item('world', '🎮', '싱글 플레이', 'is-primary');
-    item('multi', '🧙', '멀티플레이', 'is-violet');
+    item('world', '🎮', '싱글 플레이', 'is-primary', true);
+    item('multi', '🧙', '멀티플레이', 'is-violet', true);
     item('options', '⚙️', '설정', 'is-ghost');
-    item('start', '▶', '게임 시작', 'is-primary');   // 오른쪽 아래 맨 끝 — 바로 시작(H-92)
     item('leave', '🚪', '게임종료', 'is-danger');
     // body 는 _renderMain 이 지웠다 다시 채우므로 스택은 **메뉴 루트**에 붙여 살아남게 한다(H-88b).
     const prev = this._heroStack;
@@ -886,7 +897,12 @@ export class MainMenu {
   }
 
   /** 스택 버튼 → 기존 메뉴 흐름으로 넘긴다. */
-  _heroAct(act) {
+  _heroAct(act, opts = {}) {
+    // 저장한 게임 불러오기 — 싱글/멀티 옆 버튼(사용자 요청).
+    if (act === 'load') {
+      this.emit('load', { mode: opts.mode || 'world' });
+      return;
+    }
     // 화면 전환 — 버튼을 눌러야 그 화면만 보인다(H-94).
     if (act === 'auth') {
       // 로그인 화면 — 회원가입/로그인을 여기서 한다.
