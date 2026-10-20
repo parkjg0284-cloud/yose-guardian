@@ -834,3 +834,30 @@
 .menu-card.menu-character { width: min(880px, 100%); }
 .menu-card.menu-help { width: min(900px, 100%); }
 #menu-root[data-view="tab"] .menu-body { width: 100%; }
+
+/* 도움말·탭 화면이 위아래로 잘리던 문제 (v1.0.18)
+   .menu 가 justify-content: center 라 내용이 상자보다 크면 위아래가 동시에 잘렸다 */
+#menu-root[data-view="tab"] .menu,
+#menu-root[data-view="solo"] .menu,
+#menu-root[data-view="multi"] .menu { justify-content: flex-start; }
+#menu-root[data-view="tab"] .menu-body,
+#menu-root[data-view="solo"] .menu-body,
+#menu-root[data-view="multi"] .menu-body { padding-bottom: 26px; }
+
+/* 도움말 블록 — 넘치면 블록 안에서 스크롤(카드가 화면을 넘지 않게) */
+.help-block { max-height: 232px; overflow: auto; }
+.help-block-scroll { max-height: 268px; }
+.help-grid { margin-bottom: 2px; }
+
+/* 도움말 — 더 낮은 창(1536x864 등)에서도 스크롤 없이 한 화면 (v1.0.18) */
+.help-block { max-height: 200px; }
+.help-block-scroll { max-height: 222px; }
+.menu-card.menu-help .tab-hero-sub { display: none; }
+.menu-card.menu-help { padding: 18px 22px 20px; }
+
+/* 1536x864 에서도 스크롤 없이 (v1.0.18) */
+.help-block { max-height: 188px; }
+.help-block-scroll { max-height: 206px; }
+.menu-card.menu-help { padding: 14px 20px 16px; }
+.menu-card.menu-help .help-grid { margin-top: 12px; }
+.menu-card.menu-tab .tab-actions { margin-top: 12px; }
