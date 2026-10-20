@@ -1,4 +1,4 @@
 ﻿{
   "url": "https://github.com/parkjg0284-cloud/yose-guardian/releases/latest/download/game.zip",
-  "note": "GitHub Releases 의 game.zip 주소입니다. parkjg0284-cloud/yose-guardian 를 본인 저장소로 바꾸세요. 로컬 서버로 시험할 때는 http://127.0.0.1:3001/game.zip"
+  "note": "게임 파일(game.zip) 주소입니다. 저장소를 옮기면 이 주소만 바꾸면 됩니다. 로컬 시험: http://127.0.0.1:3001/game.zip"
 }
