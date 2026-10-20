@@ -1124,15 +1124,24 @@ export class MainMenu {
     const card = h('div', 'menu-card');
     card.appendChild(h('h2', 'card-title', '시드 갤러리'));
     card.appendChild(row('안내', '마음에 드는 세계를 골라 시드 칸에 넣으세요. 게임 중에는 G 키로도 열 수 있습니다.'));
-    const grid = h('div', 'card-grid menu-grid');
+    const current = String(safe(() => this.game?.seed, ''));
+    const grid = h('div', 'seed-grid');
     for (const s of SEED_GALLERY) {
       const b = h('button', 'card menu-seed-item');
       b.type = 'button';
       b.dataset.act = 'menu-seed-pick';
       b.dataset.seed = s.seed;
-      b.appendChild(row(s.name, `#${s.seed}`));
-      b.appendChild(row('설명', s.desc));
-      b.appendChild(row('태그', (s.tags || []).join(' · ')));
+      const isCurrent = String(s.seed) === current;
+      if (isCurrent) b.classList.add('is-active');
+      const top = h('span', 'seed-top');
+      top.appendChild(h('span', 'seed-name', s.name));
+      top.appendChild(h('span', 'seed-code', `#${s.seed}`));
+      b.appendChild(top);
+      b.appendChild(h('span', 'seed-desc', s.desc));
+      const foot = h('span', 'seed-foot');
+      foot.appendChild(h('span', 'seed-tags', (s.tags || []).join(' · ')));
+      if (isCurrent) foot.appendChild(h('span', 'seed-now', '현재'));
+      b.appendChild(foot);
       grid.appendChild(b);
     }
     card.appendChild(grid);

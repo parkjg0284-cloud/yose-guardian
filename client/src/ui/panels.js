@@ -1853,7 +1853,11 @@ export class PanelManager {
   _renderSeeds(body) {
     const g = this.game;
     body.textContent = '';
-    body.appendChild(row('현재 시드', String(g?.seed ?? '없음')));
+    const current = String(g?.seed ?? '');
+    const head = h('div', 'seed-head-row');
+    head.appendChild(h('span', 'seed-current-label', `현재 시드 ${current || '없음'}`));
+    head.appendChild(h('span', 'seed-count', `${SEED_GALLERY.length}개 중 선택`));
+    body.appendChild(head);
     // 8개 시드가 잘리지 않고 한 화면에 담기도록 전용 그리드(4열 x 2줄).
     const cards = grid('seed-grid');
     for (const s of SEED_GALLERY) {
@@ -1861,10 +1865,17 @@ export class PanelManager {
       card.type = 'button';
       card.dataset.act = 'seed-pick';
       card.dataset.seed = s.seed;
-      card.appendChild(h('span', 'seed-name', s.name));
-      card.appendChild(h('span', 'seed-code', `#${s.seed}`));
+      const isCurrent = String(s.seed) === current;
+      if (isCurrent) card.classList.add('is-active');
+      const top = h('span', 'seed-top');
+      top.appendChild(h('span', 'seed-name', s.name));
+      top.appendChild(h('span', 'seed-code', `#${s.seed}`));
+      card.appendChild(top);
       card.appendChild(h('span', 'seed-desc', s.desc));
-      card.appendChild(h('span', 'seed-tags', (s.tags || []).join(' · ')));
+      const foot = h('span', 'seed-foot');
+      foot.appendChild(h('span', 'seed-tags', (s.tags || []).join(' · ')));
+      if (isCurrent) foot.appendChild(h('span', 'seed-now', '현재'));
+      card.appendChild(foot);
       cards.appendChild(card);
     }
     body.appendChild(cards);
