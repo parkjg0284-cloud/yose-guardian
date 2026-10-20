@@ -373,8 +373,10 @@
 /* 멀티 화면: 싱글 카드(새 게임·추천 시드) 숨김 */
 #menu-root[data-view="multi"] .menu-card[data-screen="solo"] { display: none !important; }
 
-/* ── 시작 화면: 창(패널) 없이 배경 위에 제목·버튼만 (사용자 요청) ──
-   싱글/멀티를 누르면 그때부터 패널 모양이 돌아온다. */
+/* ── 시작 화면: 창(패널) 없이 배경 위에 버튼만 (사용자 요청) ──
+   싱글/멀티를 누르면 그때부터 패널 모양·글자가 돌아온다. */
+#menu-root[data-view="main"] .menu-head,
+#menu-root[data-view="main"] .menu-foot { display: none !important; }
 #menu-root[data-view="main"] .menu {
   background: transparent;
   border: 0;

@@ -357,6 +357,10 @@ export class MainMenu {
         this.emit('multiplayer', { mode: this.state.mode, difficulty: this.state.difficulty });
         this.hide();
         break;
+      case 'menu-load':
+        // 불러오기 — 각 플레이 화면(싱글/멀티) 안의 버튼.
+        this.emit('load', { mode: d.mode || 'solo' });
+        break;
       case 'menu-server-connect': {
         // 마인크래프트처럼 주소만 넣고 접속 — 비우면 지금 서버(내 PC)로 돌아온다.
         const address = String(this._field('menu-server', '')).trim();
@@ -709,8 +713,15 @@ export class MainMenu {
     const coop = h('button', 'btn primary btn-primary', '멀티플레이 (초대코드)');
     coop.type = 'button';
     coop.dataset.act = 'menu-multiplayer';
+    // 저장한 게임 이어하기 — 플레이 화면 안에 둔다(사용자 요청).
+    const loadSolo = h('button', 'btn ghost btn-ghost', '📂 불러오기');
+    loadSolo.type = 'button';
+    loadSolo.dataset.act = 'menu-load';
+    loadSolo.dataset.mode = 'solo';
+    loadSolo.title = '저장한 게임을 이어서 합니다';
     acts.appendChild(solo);
     acts.appendChild(coop);
+    acts.appendChild(loadSolo);
     start.appendChild(acts);
 
     if (safe(() => this.game?.state) === 'paused') {
@@ -771,6 +782,13 @@ export class MainMenu {
     lobbyBtn.type = 'button';
     lobbyBtn.dataset.act = 'menu-multiplayer';
     multiActs.appendChild(lobbyBtn);
+    // 저장한 게임 이어하기 — 플레이 화면 안에 둔다(사용자 요청).
+    const loadMulti = h('button', 'btn ghost btn-ghost', '📂 불러오기');
+    loadMulti.type = 'button';
+    loadMulti.dataset.act = 'menu-load';
+    loadMulti.dataset.mode = 'multi';
+    loadMulti.title = '저장한 게임을 이어서 합니다';
+    multiActs.appendChild(loadMulti);
     const last = loadLastCode();
     if (last) {
       const again = h('button', `btn ghost btn-ghost`, `최근 코드 ${last} 로 참가`);
@@ -905,8 +923,8 @@ export class MainMenu {
     const user = safe(() => auth.user, null);
     const acctLabel = loggedIn ? '👤 ' + (user?.nickname || user?.username || '내 계정') : '🔑 로그인 / 회원가입';
     item('auth', loggedIn ? '👤' : '🔑', loggedIn ? (user?.nickname || user?.username || '내 계정') : '로그인 / 회원가입', 'is-ghost');
-    item('world', '🎮', '싱글 플레이', 'is-primary', true);
-    item('multi', '🧙', '멀티플레이', 'is-violet', true);
+    item('world', '🎮', '싱글 플레이', 'is-primary');
+    item('multi', '🧙', '멀티플레이', 'is-violet');
     item('options', '⚙️', '설정', 'is-ghost');
     item('leave', '🚪', '게임종료', 'is-danger');
     // body 는 _renderMain 이 지웠다 다시 채우므로 스택은 **메뉴 루트**에 붙여 살아남게 한다(H-88b).

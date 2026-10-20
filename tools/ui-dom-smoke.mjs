@@ -1086,18 +1086,26 @@ const menu = attempt('MainMenu constructs (builds #menu-root)', () => new menuMo
   ok('메인화면 — [멀티플레이] 가 멀티 화면을 연다', multiView === 'multi', String(multiView));
   menu._heroAct('start');
   ok('메인화면 — [게임 시작] 이 start 를 보낸다', started === true);
-  // 사용자 요청: 첫 화면의 [게임 시작] 버튼을 없애고, 싱글·멀티 옆에 [불러오기] 를 붙였다.
-  //  (스텁은 이전 버튼 묶음을 지우지 못하므로 마지막 묶음만 본다)
-  const stacks = documentStub.body.querySelectorAll('.menu-hero-actions');
-  const lastStack = stacks[stacks.length - 1];
-  ok('메인화면 — [게임 시작] 버튼이 없다', lastStack.querySelectorAll('[data-act="start"]').length === 0);
-  const loadBtns = lastStack.querySelectorAll('[data-act="load"]');
-  ok('메인화면 — [불러오기] 버튼이 싱글·멀티 2개 있다', loadBtns.length === 2, `load=${loadBtns.length}`);
+  // 사용자 요청: [게임 시작] 을 없애고, [불러오기] 는 각 플레이 화면(카드) 안으로 옮겼다.
+  //  싱글·멀티 카드는 함께 렌더되고 CSS 로 하나만 보이므로, 모드별 존재 여부로 검사한다.
+  ok('메인화면 — [게임 시작] 버튼이 없다', documentStub.body.querySelectorAll('[data-act="start"]').length === 0);
+  menu.show('main');
+  menu._heroAct('world');
+  const soloLoads = documentStub.getElementById('menu-root').querySelectorAll('[data-act="menu-load"]');
   ok(
-    '메인화면 — [불러오기] 가 모드별로 붙는다',
-    loadBtns.map((b) => b.dataset.mode).sort().join(',') === 'multi,world',
-    loadBtns.map((b) => b.dataset.mode).join(',')
+    '싱글 화면 — [불러오기] 가 카드 안에 있다',
+    soloLoads.some((b) => b.dataset.mode === 'solo'),
+    `modes=${soloLoads.map((b) => b.dataset.mode).join(',')}`
   );
+  menu.show('main');
+  menu._heroAct('multi');
+  const multiLoads = documentStub.getElementById('menu-root').querySelectorAll('[data-act="menu-load"]');
+  ok(
+    '멀티 화면 — [불러오기] 가 카드 안에 있다',
+    multiLoads.some((b) => b.dataset.mode === 'multi'),
+    `modes=${multiLoads.map((b) => b.dataset.mode).join(',')}`
+  );
+  menu.hide();
 }
 if (menu) {
   ok('hidden right after construction', menu.visible === false);
