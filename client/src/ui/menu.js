@@ -655,19 +655,30 @@ export class MainMenu {
   _renderMain(body) {
     // 화면 상태는 _heroAct 가 정한다 — 여기서 덮어쓰면 버튼으로 연 화면이 곧바로 닫힌다(H-95).
     this._renderHeroActions(body);
-    const start = h('div', 'menu-card');
-    start.dataset.screen = 'solo';   // 싱글 플레이 버튼을 눌러야 보인다
-    start.appendChild(h('h2', 'card-title', '새 게임'));
 
-    const modeRow = h('div', 'row stat-row');
-    modeRow.appendChild(h('span', 'row-label', '모드'));
-    const modeTabs = h('div', 'tabs panel-tabs');
-    // 무한 모드는 웨이브 100 클리어로 해금된다(계약 §4.58).
+    // ══ 싱글 플레이 — 금빛 카드 · 중간 크기(760px) ════════════════════
+    const start = h('div', 'menu-card menu-solo');
+    start.dataset.screen = 'solo';   // 싱글 플레이 버튼을 눌러야 보인다
+
+    const soloHero = h('div', 'solo-hero');
+    soloHero.appendChild(h('span', 'solo-hero-icon', '🎮'));
+    const soloText = h('div', 'solo-hero-text');
+    soloText.appendChild(h('h2', 'card-title', '싱글 플레이'));
+    soloText.appendChild(h('p', 'solo-hero-sub', '새 게임 — 시드를 고르고 혼자서 요새를 지킨다'));
+    soloHero.appendChild(soloText);
+    start.appendChild(soloHero);
+
+    const grid = h('div', 'solo-grid');
+
+    // 모드
+    const modeField = h('div', 'solo-field');
+    modeField.appendChild(h('span', 'solo-label', '모드'));
+    const modeTabs = h('div', 'solo-chips');
     const endlessOpen = isEndlessUnlocked();
     if (this.state.mode === 'endless' && !endlessOpen) this.state.mode = 'solo';
     for (const m of MODES) {
       const locked = m.id === 'endless' && !endlessOpen;
-      const b = h('button', 'tab panel-tab' + (m.id === this.state.mode ? ' active is-active' : ''), locked ? `${m.name} 🔒` : m.name);
+      const b = h('button', 'solo-chip' + (m.id === this.state.mode ? ' is-active' : ''), locked ? `${m.name} 🔒` : m.name);
       b.type = 'button';
       b.title = locked ? `웨이브 ${ENDLESS_UNLOCK_WAVE} 을 클리어하면 열립니다` : m.desc;
       b.dataset.act = 'menu-mode';
@@ -675,39 +686,65 @@ export class MainMenu {
       if (locked) b.dataset.locked = '1';
       modeTabs.appendChild(b);
     }
-    modeRow.appendChild(modeTabs);
-    start.appendChild(modeRow);
+    modeField.appendChild(modeTabs);
     const modeInfo = MODES.find((m) => m.id === this.state.mode);
     if (modeInfo) {
       const lockedInfo = modeInfo.id === 'endless' && !endlessOpen;
-      start.appendChild(row('모드 설명', lockedInfo ? `잠김 — 웨이브 ${ENDLESS_UNLOCK_WAVE} 을 클리어하면 열립니다` : modeInfo.desc));
+      modeField.appendChild(h('span', 'solo-note', lockedInfo ? `잠김 — 웨이브 ${ENDLESS_UNLOCK_WAVE} 을 클리어하면 열립니다` : modeInfo.desc));
     }
+    grid.appendChild(modeField);
 
-    const diffRow = h('div', 'row stat-row');
-    diffRow.appendChild(h('span', 'row-label', '난이도'));
-    const diffTabs = h('div', 'tabs panel-tabs');
+    // 난이도
+    const diffField = h('div', 'solo-field');
+    diffField.appendChild(h('span', 'solo-label', '난이도'));
+    const diffTabs = h('div', 'solo-chips');
     for (const d of DIFFICULTIES) {
-      const b = h('button', 'tab panel-tab' + (d.id === this.state.difficulty ? ' active is-active' : ''), d.name);
+      const b = h('button', 'solo-chip' + (d.id === this.state.difficulty ? ' is-active' : ''), d.name);
       b.type = 'button';
       b.title = d.desc;
       b.dataset.act = 'menu-diff';
       b.dataset.diff = d.id;
       diffTabs.appendChild(b);
     }
-    diffRow.appendChild(diffTabs);
-    start.appendChild(diffRow);
+    diffField.appendChild(diffTabs);
     const diffInfo = DIFFICULTIES.find((d) => d.id === this.state.difficulty);
     if (diffInfo) {
-      start.appendChild(
-        row('난이도 배율', `적 HP ×${diffInfo.hpMult} · 적 수 ×${diffInfo.countMult} · 골드 ×${diffInfo.goldMult}`)
+      diffField.appendChild(
+        h('span', 'solo-note', `적 HP ×${diffInfo.hpMult} · 적 수 ×${diffInfo.countMult} · 골드 ×${diffInfo.goldMult} — ${diffInfo.desc}`)
       );
-      start.appendChild(row('설명', diffInfo.desc));
     }
+    grid.appendChild(diffField);
+    start.appendChild(grid);
 
-    // 전직 — 게임을 시작하기 전에 직업을 고를 수 있다.
-    const classRow = h('div', 'row stat-row menu-class-row');
-    classRow.appendChild(h('span', 'row-label', '직업'));
-    const classVal = h('b', 'row-value', safe(() => this.game?.classes?.label, '') || '🧭 초심자');
+    // 시드 — 이 화면의 주인공
+    const seedBox = h('div', 'solo-seedbox');
+    const seedHead = h('div', 'solo-seedhead');
+    seedHead.appendChild(h('span', 'solo-label', '시드'));
+    const seedHint = h('span', 'solo-note', '비우면 무작위 6자리');
+    seedHead.appendChild(seedHint);
+    seedBox.appendChild(seedHead);
+    const seedRow = h('div', 'solo-seedrow');
+    const seedInput = h('input', 'input solo-seed-input');
+    seedInput.type = 'text';
+    seedInput.placeholder = '예: 42 · 777 · 2024';
+    seedInput.dataset.field = 'menu-seed';
+    seedInput.value = this._stored('menu-seed', safe(() => this.game?.seed, null) || urlSeed() || '');
+    seedRow.appendChild(seedInput);
+    const seedRandom = h('button', 'btn ghost btn-ghost', '🎲 무작위');
+    seedRandom.type = 'button';
+    seedRandom.dataset.act = 'menu-random-seed';
+    seedRow.appendChild(seedRandom);
+    const seedGallery = h('button', 'btn ghost btn-ghost', '🗂 갤러리');
+    seedGallery.type = 'button';
+    seedGallery.dataset.act = 'menu-seeds';
+    seedRow.appendChild(seedGallery);
+    seedBox.appendChild(seedRow);
+    start.appendChild(seedBox);
+
+    // 직업
+    const classRow = h('div', 'solo-classrow');
+    classRow.appendChild(h('span', 'solo-label', '직업'));
+    const classVal = h('b', 'solo-class', safe(() => this.game?.classes?.label, '') || '🧭 초심자');
     classVal.dataset.role = 'menu-class';
     classRow.appendChild(classVal);
     const classBtn = h('button', 'btn ghost btn-ghost', '전직/승급');
@@ -715,37 +752,35 @@ export class MainMenu {
     classBtn.dataset.act = 'menu-classes';
     classRow.appendChild(classBtn);
     start.appendChild(classRow);
-    start.appendChild(row('직업 규칙', '한 직업으로 전직하면 그 계열 무기만 쓸 수 있고 다른 계열 무기는 잠깁니다. (K 키)'));
+    start.appendChild(h('span', 'solo-note solo-note-block', '직업 규칙 · 한 직업으로 전직하면 그 계열 무기만 쓸 수 있습니다 (K)'));
 
-    const seedRow = h('div', 'row stat-row');
-    seedRow.appendChild(h('span', 'row-label', '시드'));
-    const seedInput = h('input', 'input');
-    seedInput.type = 'text';
-    seedInput.placeholder = '비우면 무작위 6자리';
-    seedInput.dataset.field = 'menu-seed';
-    seedInput.value = this._stored('menu-seed', safe(() => this.game?.seed, null) || urlSeed() || '');
-    seedRow.appendChild(seedInput);
-    const seedRandom = h('button', 'btn ghost btn-ghost', '무작위');
-    seedRandom.type = 'button';
-    seedRandom.dataset.act = 'menu-random-seed';
-    seedRow.appendChild(seedRandom);
-    start.appendChild(seedRow);
-
-    const acts = h('div', 'row menu-actions');
-    const solo = h('button', 'btn primary btn-primary', '혼자 지키기');
+    // 바로 가기 — 시드 갤러리·업적·전직·도감·미니게임 (화면은 그대로, 패널만 열린다)
+    const soloLinks = h('div', 'solo-links');
+    const quickLinks = [
+      ['🗂 시드 갤러리', 'menu-seeds'],
+      ['🏆 업적', 'menu-achievements'],
+      ['🧭 전직', 'menu-classes'],
+      ['📖 도감', 'menu-codex'],
+      ['🎯 미니게임', 'menu-minigame']
+    ];
+    for (const [label, act] of quickLinks) {
+      const b = h('button', 'solo-link', label);
+      b.type = 'button';
+      b.dataset.act = act;
+      soloLinks.appendChild(b);
+    }
+    start.appendChild(soloLinks);
+    const acts = h('div', 'solo-actions');
+    const solo = h('button', 'btn primary btn-primary solo-start', '혼자 지키기');
     solo.type = 'button';
     solo.dataset.act = 'menu-start';
-    const coop = h('button', 'btn primary btn-primary', '멀티플레이 (초대코드)');
-    coop.type = 'button';
-    coop.dataset.act = 'menu-multiplayer';
+    acts.appendChild(solo);
     // 저장한 게임 이어하기 — 플레이 화면 안에 둔다(사용자 요청).
-    const loadSolo = h('button', 'btn ghost btn-ghost', '📂 불러오기');
+    const loadSolo = h('button', 'btn ghost btn-ghost solo-load', '📂 불러오기');
     loadSolo.type = 'button';
     loadSolo.dataset.act = 'menu-load';
     loadSolo.dataset.mode = 'solo';
     loadSolo.title = '저장한 게임을 이어서 합니다';
-    acts.appendChild(solo);
-    acts.appendChild(coop);
     acts.appendChild(loadSolo);
     start.appendChild(acts);
 
@@ -757,72 +792,28 @@ export class MainMenu {
     }
     body.appendChild(start);
 
-    // ── 초대코드 멀티플레이 카드 (메인 화면) ──
-    const multi = h('div', 'menu-card menu-multiplayer');
+    // ══ 멀티플레이 — 보랏빛 카드 · 중간 크기(880px), 2단 구성 ═══════════
+    const multi = h('div', 'menu-card menu-multi');
     multi.dataset.screen = 'multi';   // 멀티플레이 버튼을 눌러야 보인다
-    multi.appendChild(h('h2', 'card-title', '초대코드 멀티플레이'));
-    multi.appendChild(row('설명', '방을 만들어 코드를 보내거나, 받은 코드를 넣으면 같은 요새에서 함께 싸웁니다.'));
 
-    // ── 서버 주소 (마인크래프트처럼 주소만 넣고 접속) ──
-    //  · 서버만 켜 둔 PC 의 주소(예: 192.168.0.10:3001)를 넣으면 그 서버에 붙는다.
-    //  · 비우고 [접속] 하면 지금 보고 있는 서버(내 PC)로 돌아온다.
-    const srvRow = h('div', 'row stat-row menu-server-row');
-    srvRow.appendChild(h('span', 'row-label', '서버 주소'));
-    const srvInput = h('input', 'input menu-server-input');
-    srvInput.type = 'text';
-    srvInput.placeholder = '예: 192.168.0.10:3001 (비우면 내 PC)';
-    srvInput.autocomplete = 'off';
-    srvInput.spellcheck = false;
-    srvInput.dataset.field = 'menu-server';
-    srvInput.value = this._stored('menu-server', '');
-    srvRow.appendChild(srvInput);
-    const srvBtn = h('button', 'btn primary btn-primary', '접속');
-    srvBtn.type = 'button';
-    srvBtn.dataset.act = 'menu-server-connect';
-    srvRow.appendChild(srvBtn);
-    multi.appendChild(srvRow);
-    const netUrl = safe(() => this.game?.net?.url, '') || '';
-    const netOn = Boolean(safe(() => this.game?.net?.connected, false));
-    multi.appendChild(row('지금 서버', `${netUrl || '—'} ${netOn ? '· 연결됨 ✅' : '· 연결 안 됨'} (같은 와이파이/공인 IP 를 넣으세요)`));
+    const multiHero = h('div', 'multi-hero');
+    multiHero.appendChild(h('span', 'multi-hero-icon', '🌐'));
+    const multiText = h('div', 'multi-hero-text');
+    multiText.appendChild(h('h2', 'card-title', '멀티플레이'));
+    multiText.appendChild(h('p', 'multi-hero-sub', '친구와 같은 요새에서 · 초대코드 또는 서버 주소로 만난다'));
+    multiHero.appendChild(multiText);
+    multi.appendChild(multiHero);
 
-    // ── 서버 주소 만들기 / 초대코드 만들기 (사용자 요청) ──
     const share = this._share || { address: '', code: '', link: '' };
-    const addrRow = h('div', 'row stat-row menu-share-row');
-    addrRow.appendChild(h('span', 'row-label', '내 서버 주소'));
-    const addrVal = h('b', 'row-value', share.address || '아직 없음');
-    addrVal.dataset.role = 'share-address';
-    addrRow.appendChild(addrVal);
-    const mkAddr = h('button', 'btn ghost btn-ghost', '🌐 주소 만들기');
-    mkAddr.type = 'button';
-    mkAddr.dataset.act = 'share-address';
-    addrRow.appendChild(mkAddr);
-    const cpAddr = h('button', 'btn ghost btn-ghost', '📋 복사');
-    cpAddr.type = 'button';
-    cpAddr.dataset.act = 'share-copy';
-    cpAddr.dataset.kind = 'address';
-    addrRow.appendChild(cpAddr);
-    multi.appendChild(addrRow);
-    multi.appendChild(row('안내', '친구가 위 주소를 [서버 주소] 칸에 넣으면 같은 서버에서 만납니다.'));
+    const multiGrid = h('div', 'multi-grid');
 
-    const inviteRow = h('div', 'row stat-row menu-share-row');
-    inviteRow.appendChild(h('span', 'row-label', '초대코드'));
-    const codeVal = h('b', 'row-value', share.code || '아직 없음');
-    codeVal.dataset.role = 'share-code';
-    inviteRow.appendChild(codeVal);
-    const mkCode = h('button', 'btn primary btn-primary', '🎟 초대코드 만들기');
-    mkCode.type = 'button';
-    mkCode.dataset.act = 'share-invite';
-    inviteRow.appendChild(mkCode);
-    const cpLink = h('button', 'btn ghost btn-ghost', '📋 초대 링크 복사');
-    cpLink.type = 'button';
-    cpLink.dataset.act = 'share-copy';
-    cpLink.dataset.kind = 'link';
-    inviteRow.appendChild(cpLink);
-    multi.appendChild(inviteRow);
-    multi.appendChild(row('안내', '코드를 만든 뒤 [초대 링크 복사] 로 보내면 친구가 한 번에 들어옵니다.'));
-
-    const codeRow = h('div', 'row stat-row');
-    codeRow.appendChild(h('span', 'row-label', `초대코드 ${INVITE_CODE_LENGTH}자리`));
+    // ① 초대코드로 참가
+    const joinBlock = h('div', 'multi-block');
+    const joinHead = h('div', 'multi-block-head');
+    joinHead.appendChild(h('span', 'multi-step', '①'));
+    joinHead.appendChild(h('span', 'multi-block-title', '초대코드로 참가'));
+    joinBlock.appendChild(joinHead);
+    const codeRow = h('div', 'multi-inline');
     const codeInput = h('input', 'input menu-invite-input');
     codeInput.type = 'text';
     codeInput.maxLength = INVITE_CODE_LENGTH;
@@ -837,8 +828,90 @@ export class MainMenu {
     joinBtn.dataset.act = 'menu-invite-join';
     joinBtn.disabled = !isValidInviteCode(codeInput.value);
     codeRow.appendChild(joinBtn);
-    multi.appendChild(codeRow);
-    const multiActs = h('div', 'row menu-actions');
+    joinBlock.appendChild(codeRow);
+    const last = loadLastCode();
+    joinBlock.appendChild(
+      h('span', 'multi-note', last ? `최근 코드 ${last} · 위 칸에 넣고 [참가]` : `초대코드 ${INVITE_CODE_LENGTH}자리 — 받은 코드를 넣으세요`)
+    );
+    multiGrid.appendChild(joinBlock);
+
+    // ② 서버 주소로 접속 (마인크래프트처럼)
+    const srvBlock = h('div', 'multi-block');
+    const srvHead = h('div', 'multi-block-head');
+    srvHead.appendChild(h('span', 'multi-step', '②'));
+    srvHead.appendChild(h('span', 'multi-block-title', '서버 주소로 접속'));
+    srvBlock.appendChild(srvHead);
+    const srvRow = h('div', 'multi-inline');
+    const srvInput = h('input', 'input menu-server-input');
+    srvInput.type = 'text';
+    srvInput.placeholder = '예: 192.168.0.10:3001';
+    srvInput.autocomplete = 'off';
+    srvInput.spellcheck = false;
+    srvInput.dataset.field = 'menu-server';
+    srvInput.value = this._stored('menu-server', '');
+    srvRow.appendChild(srvInput);
+    const srvBtn = h('button', 'btn primary btn-primary', '접속');
+    srvBtn.type = 'button';
+    srvBtn.dataset.act = 'menu-server-connect';
+    srvRow.appendChild(srvBtn);
+    srvBlock.appendChild(srvRow);
+    const netUrl = safe(() => this.game?.net?.url, '') || '';
+    const netOn = Boolean(safe(() => this.game?.net?.connected, false));
+    srvBlock.appendChild(h('span', 'multi-note', `지금 서버 ${netUrl || '—'} ${netOn ? '· 연결됨 ✅' : '· 연결 안 됨'}`));
+    multiGrid.appendChild(srvBlock);
+    multi.appendChild(multiGrid);
+
+    // ③ 초대코드 멀티플레이 — 방 만들기 / 내 주소
+    const makeBlock = h('div', 'multi-block multi-block-wide');
+    const makeHead = h('div', 'multi-block-head');
+    makeHead.appendChild(h('span', 'multi-step', '③'));
+    makeHead.appendChild(h('span', 'multi-block-title', '초대코드 멀티플레이 — 방 만들기'));
+    makeBlock.appendChild(makeHead);
+
+    const addrRow = h('div', 'multi-row');
+    addrRow.appendChild(h('span', 'multi-row-label', '내 서버 주소'));
+    const addrVal = h('b', 'multi-row-value', share.address || '아직 없음');
+    addrVal.dataset.role = 'share-address';
+    addrRow.appendChild(addrVal);
+    const mkAddr = h('button', 'btn ghost btn-ghost', '🌐 주소 만들기');
+    mkAddr.type = 'button';
+    mkAddr.dataset.act = 'share-address';
+    addrRow.appendChild(mkAddr);
+    const cpAddr = h('button', 'btn ghost btn-ghost', '📋 복사');
+    cpAddr.type = 'button';
+    cpAddr.dataset.act = 'share-copy';
+    cpAddr.dataset.kind = 'address';
+    addrRow.appendChild(cpAddr);
+    makeBlock.appendChild(addrRow);
+
+    const inviteRow = h('div', 'multi-row');
+    inviteRow.appendChild(h('span', 'multi-row-label', '초대코드'));
+    const codeVal = h('b', 'multi-row-value', share.code || '아직 없음');
+    codeVal.dataset.role = 'share-code';
+    inviteRow.appendChild(codeVal);
+    const mkCode = h('button', 'btn primary btn-primary', '🎟 초대코드 만들기');
+    mkCode.type = 'button';
+    mkCode.dataset.act = 'share-invite';
+    inviteRow.appendChild(mkCode);
+    const cpLink = h('button', 'btn ghost btn-ghost', '📋 초대 링크 복사');
+    cpLink.type = 'button';
+    cpLink.dataset.act = 'share-copy';
+    cpLink.dataset.kind = 'link';
+    inviteRow.appendChild(cpLink);
+    makeBlock.appendChild(inviteRow);
+
+    makeBlock.appendChild(h('span', 'multi-note', '친구는 위 주소를 [서버 주소] 칸에 넣거나, 초대 링크를 누르면 한 번에 들어옵니다.'));
+    multi.appendChild(makeBlock);
+
+    const multiLinks = h('div', 'multi-links');
+    for (const [label, act] of [['🏆 업적', 'menu-achievements'], ['📖 도감', 'menu-codex'], ['🎯 미니게임', 'menu-minigame']]) {
+      const b = h('button', 'multi-link-btn', label);
+      b.type = 'button';
+      b.dataset.act = act;
+      multiLinks.appendChild(b);
+    }
+    multi.appendChild(multiLinks);
+    const multiActs = h('div', 'multi-actions');
     const lobbyBtn = h('button', 'btn primary btn-primary', '멀티플레이 로비 열기');
     lobbyBtn.type = 'button';
     lobbyBtn.dataset.act = 'menu-multiplayer';
@@ -850,16 +923,15 @@ export class MainMenu {
     loadMulti.dataset.mode = 'multi';
     loadMulti.title = '저장한 게임을 이어서 합니다';
     multiActs.appendChild(loadMulti);
-    const last = loadLastCode();
     if (last) {
-      const again = h('button', `btn ghost btn-ghost`, `최근 코드 ${last} 로 참가`);
+      const again = h('button', 'btn ghost btn-ghost', `최근 코드 ${last} 로 참가`);
       again.type = 'button';
       again.dataset.act = 'menu-invite-join';
       again.dataset.code = last;
       multiActs.appendChild(again);
     }
     multi.appendChild(multiActs);
-    multi.appendChild(row('초대 링크', loadLastCode() ? inviteLink(loadLastCode()) : '—'));
+    multi.appendChild(h('span', 'multi-link', `초대 링크 · ${loadLastCode() ? inviteLink(loadLastCode()) : '—'}`));
     body.appendChild(multi);
 
     // ── 열린 방 목록 (같은 서버에 접속한 사람끼리 코드 없이 참가) ──
@@ -880,7 +952,7 @@ export class MainMenu {
     this._roomsEl = roomsBox;
     this._renderRooms();
 
-    const carousel = h('div', 'menu-card');
+    const carousel = h('div', 'menu-card menu-carousel');
     carousel.dataset.screen = 'solo';
     carousel.appendChild(h('h2', 'card-title', '추천 시드'));
     const entry = SEED_GALLERY[this._carousel] || SEED_GALLERY[0] || { seed: '', name: '-', desc: '', tags: [] };
