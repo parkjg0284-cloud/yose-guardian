@@ -192,4 +192,37 @@ npm install 이 실패한다
 
 
 ====================================================
+
+[12] 2026-10-20 — GitHub 업로드 · 배포 안전 수정
+----------------------------------------------------
+저장소 : https://github.com/parkjg0284-cloud/yose-guardian
+릴리스 : https://github.com/parkjg0284-cloud/yose-guardian/releases/latest
+브랜치 : main   원격 : origin (https://github.com/parkjg0284-cloud/yose-guardian.git)
+
+▶ 다운로드 파일 이름
+  릴리스 자산은 ASCII 이름이어야 깨지지 않는다(한글 이름은 "_" 로 바뀐다).
+    요세의수호자_설치.exe  →  YoseGuardian-Setup.exe
+  로컬에서 만든 exe 와 CI 가 만든 exe 는 같은 것이다.
+
+▶ 절대 지켜야 할 것 — 플레이어 데이터
+  server/data/*.db 를 패키지에 넣으면 계정·세이브가 그대로 공개된다.
+    tools/pack-release.mjs : data · *.db · *.log · node_modules 복사 제외
+    tools/build-single.mjs : game.zip 안에 db 가 있으면 빌드 중단
+  2026-10-20 실제로 한 번 유출됐고(계정 84개), 이력 재작성 + 강제 푸시로 제거했다.
+  교훈: game.zip 을 만들 때마다 "이 안에 남의 데이터가 있나" 를 먼저 확인한다.
+
+▶ CI (GitHub Actions)
+  test.yml    : Node 22·24 에서 npm run verify + Docker 빌드
+  release.yml : 태그 v* 푸시 → game.zip · 런처 zip · Setup.exe 만들어 릴리스에 첨부
+
+▶ Dockerfile (예전엔 CI 가 빨간불이었다)
+  build 스테이지 : npm install            (dev 포함 — vite 필요)
+  deps  스테이지 : npm install --omit=dev (실행용만)
+  실행  스테이지 : 두 스테이지 결과만 복사
+  예전: --omit=dev 로 설치한 뒤 빌드해서 exit 127 로 실패
+
+▶ git 이력
+  배포 사고 때문에 이력을 한 커밋으로 다시 만들었다(force push).
+  앞으로 커밋은 그냥 쌓으면 된다.
+
 끝.
