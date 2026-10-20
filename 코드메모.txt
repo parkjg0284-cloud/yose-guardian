@@ -328,4 +328,21 @@ npm install 이 실패한다
 
   · 테스트 : smoke 860/0 · ui-dom 327/0
 
+[18] 긴급 수정 — 게임이 시작되지 않던 문제 (v1.0.10)
+
+  증상 : 게임 실행 → 메뉴조차 안 뜨고 화면이 멈춤 (시작 불가)
+  원인 : main.js `_adminHint()` 가 safe() 를 쓰는데 main.js 에 정의가 없었다
+         → ReferenceError: safe is not defined → [boot] 치명적 오류로 부팅 중단
+         (v1.0.9 에서 관리자 안내를 되살릴 때 들어간 코드)
+  수정 : main.js 상단에 안전 실행 헬퍼 정의
+         const safe = (fn, fallback = undefined) => { try { return fn(); } catch { return fallback; } };
+  검증 : npm run boot (tools/boot-check.mjs) — 실제 Chrome headless 로
+         [부팅 → 싱글 플레이 → 혼자 지키기] 9개 검사 전부 통과
+
+  · 왜 테스트가 못 잡았나 : ui-dom 은 DOM 스텁만 검사하고 main.js 를 실제로 부팅하지 않는다.
+    → tools/boot-check.mjs (CDP) 를 추가해 실제 브라우저 부팅·시작·콘솔 오류를 본다.
+    → smoke 에도 "main.js 에 safe 정의가 있는가" 회귀 검사 추가(862개).
+
+  · 교훈 : 새 헬퍼를 쓰기 전에 그 파일 스코프에 정의/import 되어 있는지 확인할 것.
+
 끝.
