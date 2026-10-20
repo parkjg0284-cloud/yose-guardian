@@ -741,25 +741,20 @@ export class MainMenu {
     seedBox.appendChild(seedRow);
     start.appendChild(seedBox);
 
-    // 직업
+    // 직업 — 표시만 한다. 전직은 게임 안 중앙코어에서 한다(사용자 요청).
     const classRow = h('div', 'solo-classrow');
     classRow.appendChild(h('span', 'solo-label', '직업'));
     const classVal = h('b', 'solo-class', safe(() => this.game?.classes?.label, '') || '🧭 초심자');
     classVal.dataset.role = 'menu-class';
     classRow.appendChild(classVal);
-    const classBtn = h('button', 'btn ghost btn-ghost', '전직/승급');
-    classBtn.type = 'button';
-    classBtn.dataset.act = 'menu-classes';
-    classRow.appendChild(classBtn);
+    classRow.appendChild(h('span', 'solo-note', '전직은 게임 안 중앙코어 앞에서 (E)'));
     start.appendChild(classRow);
-    start.appendChild(h('span', 'solo-note solo-note-block', '직업 규칙 · 한 직업으로 전직하면 그 계열 무기만 쓸 수 있습니다 (K)'));
 
-    // 바로 가기 — 시드 갤러리·업적·전직·도감·미니게임 (화면은 그대로, 패널만 열린다)
+    // 바로 가기 — 시드 갤러리·업적·도감·미니게임 (화면은 그대로, 패널만 열린다)
     const soloLinks = h('div', 'solo-links');
     const quickLinks = [
       ['🗂 시드 갤러리', 'menu-seeds'],
       ['🏆 업적', 'menu-achievements'],
-      ['🧭 전직', 'menu-classes'],
       ['📖 도감', 'menu-codex'],
       ['🎯 미니게임', 'menu-minigame']
     ];

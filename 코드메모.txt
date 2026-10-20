@@ -424,4 +424,24 @@ npm install 이 실패한다
 
   [검증] verify 전체 통과(smoke 862·ui-dom 329·boss 80·wings 61) · boot-check 18/18
 
+[23] 전직은 중앙코어에서 (v1.0.15)
+
+  [요청] 캐릭터 쪽에 전직 빼주고 중앙코어에서 전직할 수 있게
+
+  [캐릭터 화면]
+    · [전직/승급] 버튼 삭제 · 바로가기 칩에서 '🧭 전직' 삭제
+    · 직업 이름만 표시 + 안내 '전직은 게임 안 중앙코어 앞에서 (E)'
+
+  [중앙코어]
+    · 원인: openClassPanel() 이 패널 id 를 'class' 로 열어서 아무것도 안 열렸다
+      → 실제 id 는 'classes' (panels.js) 로 수정
+    · 원인2: _nearCore() 가 this.core / world.core 를 봤지만 실제 코어는 world.base
+      → 항상 '가깝다'로 판정돼 아무 데서나 열렸다 → world.base.position 으로 수정
+    · 반경 16m(코어 keep-out 12m + 여유) · 24m 안이면 안내 토스트
+    · 코어 앞이면 HUD 프롬프트 'E 🔮 중앙코어 — 전직/승급'
+    · E 키(또는 interact) 로 전직 창, ESC 로 닫기
+
+  [검증] 코어 9/9 (멀면 안 열림 · 앞이면 열림 · ESC 닫힘 · 오류 없음)
+         verify 868/329/80/61 · boot-check 18/18
+
 끝.

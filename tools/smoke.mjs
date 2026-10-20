@@ -2923,6 +2923,19 @@ section('멀티 서버 주소 — 주소만 넣고 접속');
   // 접속하면 로그인/저장/순위표도 그 서버로 가야 한다.
   check('접속 시 REST 주소도 바뀐다', mainSrc.includes('setApiBase(target === self'));
 }
+// ───────────────────────── 전직은 중앙코어에서만 (v1.0.15)
+section('전직 — 캐릭터 화면에서 빼고 중앙코어에서');
+{
+  const menuSrc = readFileSync(new URL('../client/src/ui/menu.js', import.meta.url), 'utf8');
+  const mainSrc = readFileSync(new URL('../client/src/main.js', import.meta.url), 'utf8');
+  check('캐릭터 쪽에 [전직/승급] 버튼이 없다', !menuSrc.includes('전직/승급'));
+  check('캐릭터 쪽은 직업만 보여준다', menuSrc.includes("dataset.role = 'menu-class'"));
+  check('코어 안내 문구가 있다', menuSrc.includes('전직은 게임 안 중앙코어'));
+  check('코어 상호작용이 classes 패널을 연다', mainSrc.includes("panels.open?.('classes')"));
+  check('코어 위치는 world.base 를 쓴다', mainSrc.includes('this.world?.base?.position'));
+  check('코어 근처 E 프롬프트가 있다', mainSrc.includes('중앙코어 — 전직/승급'));
+}
+
 // ───────────────────────── H-97 메뉴 버튼 · 설정 안 로그인 · 관리자 제거
 section('메뉴 버튼 → 창 닫고 패널 · 설정에서 로그인/회원가입');
 {

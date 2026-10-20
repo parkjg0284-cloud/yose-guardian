@@ -2548,17 +2548,17 @@ class Game {
     const panels = this.ui?.panels;
     const notify = (msg, kind = 'warn') => this.ui?.hud?.notify?.(msg, kind);
     if (!panels) { notify('전직 패널을 열 수 없습니다'); return false; }
-    // 패널 id 는 'class' — 열리지 않으면 토글로 한 번 더 시도한다(버전 차이 방어).
-    try { panels.open?.('class'); } catch { void 0; }
-    if (!panels.hasOpen?.()) { try { panels.toggle?.('class'); } catch { void 0; } }
+    // 패널 id 는 'classes'(전직) — 열리지 않으면 토글로 한 번 더 시도한다(버전 차이 방어).
+    try { panels.open?.('classes'); } catch { void 0; }
+    if (!panels.hasOpen?.()) { try { panels.toggle?.('classes'); } catch { void 0; } }
     const opened = !!panels.hasOpen?.();
     if (!opened) notify('전직 패널을 열 수 없습니다');
     return opened;
   }
 
   /** 메인코어 반경 안인가 — 전직을 '코어에서' 하게 하는 조건 */
-  _nearCore(range = 9) {
-    const core = this.core?.position ?? this.world?.core?.position ?? this.world?.basePos ?? this.basePos ?? null;
+  _nearCore(range = 16) {
+    const core = this.world?.base?.position ?? this.core?.position ?? this.world?.core?.position ?? this.world?.basePos ?? this.basePos ?? null;
     const me = this.player?.position;
     if (!core || !me) return true; // 코어·플레이어를 못 찾으면 막지 않는다(테스트 스텁·초기 상태 대비)
     const dx = core.x - me.x; const dz = core.z - me.z;
@@ -2579,9 +2579,9 @@ class Game {
       if (this._nearCore()) this.openClassPanel();
       else this.ui?.hud?.notify?.('메인코어 가까이에서 전직할 수 있습니다', 'info');
     }
-    if (!this._coreHintShown && this._nearCore(14)) {
+    if (!this._coreHintShown && this._nearCore(24)) {
       this._coreHintShown = true;
-      this.ui?.hud?.notify?.('메인코어 — E 키로 전직', 'info');
+      this.ui?.hud?.notify?.('중앙코어 — 가까이 가서 E 키로 전직/승급', 'info');
     }
     const actionHeld = (action) => keyDown(input, action);
 
@@ -3167,6 +3167,12 @@ class Game {
     const origin = this.player?.eyePosition;
     const dir = this.player?.aimDirection;
     if (!origin || !dir || this.state !== 'playing') return;
+    // 중앙코어 앞 — E 로 전직/승급 (사용자 요청: 전직은 코어에서만)
+    if (this._nearCore(16) && !this.ui?.panels?.hasOpen?.()) {
+      hud.setPrompt?.('E', '🔮 중앙코어 — 전직/승급');
+      this._handPrompt = true;
+      return;
+    }
     // 건설 모드 — 설치 방향 안내(X 회전)
     if (this.build?.active) {
       hud.setPrompt?.('X', `방향 ${this._yawDegrees(this.build.yaw)}° · 좌클릭 설치`);
