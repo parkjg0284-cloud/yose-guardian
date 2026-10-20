@@ -2560,6 +2560,8 @@ class Game {
     const input = this.input;
     const pressed = (code) => input.consumePressed?.(code);
     const actionPressed = (action) => keyConsume(input, action);
+    // 관리자 콘솔 — 관리자 계정으로 로그인했을 때만 열린다(콘솔 내부에서 한 번 더 검사).
+    if (actionPressed('admin')) this.ui.admin?.toggle?.();
     if (actionPressed('travel')) this.teleports?.openTravel?.(this);
     if (actionPressed('arcana')) this.openArcana();
 
@@ -3320,9 +3322,11 @@ class Game {
     return this._gatherSinkRef;
   }
 
-  /** 관리자 안내 — 사용자 요청으로 콘솔·관리자 버튼을 모두 없앴다(항상 false). */
+  /** 관리자 계정 안내 — 관리자 아이디로 로그인하면 설정에서 콘솔을 열 수 있다(일반 계정은 안내 없음). */
   _adminHint() {
-    return false;
+    if (!safe(() => auth.isAdmin, false)) return false;
+    this.notify('관리자 계정 — 설정의 [관리자 콘솔 열기] 또는 ` / 로 엽니다', 'gacha');
+    return true;
   }
 
   // ── 루프

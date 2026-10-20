@@ -1260,6 +1260,15 @@ if (menu) {
     pm.close();
     return tabs.includes('login') && tabs.includes('register') && Boolean(user) && Boolean(pass);
   });
+  // 관리자 아이디로 로그인했을 때만 관리자 구역이 보인다.
+  attempt('설정 — 일반 계정에는 관리자 구역이 없다', () => {
+    pm.state.auth.tab = 'login';
+    pm.open('settings');
+    const root = documentStub.getElementById('panel-root');
+    const has = Boolean(root.querySelector('[data-act="admin-console"]'));
+    pm.close();
+    return !has;
+  });
   attempt('설정 — 회원가입은 아이디·비밀번호만 받는다', () => {
     pm.state.auth.tab = 'register';
     pm.open('settings');

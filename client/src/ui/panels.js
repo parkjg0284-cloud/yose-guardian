@@ -779,7 +779,11 @@ export class PanelManager {
       this._render('settings');
       break;
     }
-      case 'nickname-save':
+      case 'admin-console':
+      this.close();
+      this.game?.ui?.admin?.open?.();
+      break;
+    case 'nickname-save':
         this._saveNickname();
         break;
       case 'nickname-clear':
@@ -3038,6 +3042,17 @@ export class PanelManager {
     // ── 로그인 · 회원가입 (설정 안에서 바로 — 사용자 요청) ──
     body.appendChild(sectionTitle('로그인 · 회원가입'));
     this._renderAccount(body, 'settings-auth-msg');
+    // 관리자 아이디로 로그인했을 때만 보이는 구역(일반 계정에는 아무것도 없다).
+    if (safe(() => auth.isAdmin, false)) {
+      body.appendChild(sectionTitle('관리자 — 관리자 계정 전용'));
+      const adminRow = h('div', 'row');
+      const openConsole = h('button', 'btn primary btn-primary', '🛠 관리자 콘솔 열기');
+      openConsole.type = 'button';
+      openConsole.dataset.act = 'admin-console';
+      adminRow.appendChild(openConsole);
+      body.appendChild(adminRow);
+      body.appendChild(row('명령어', '/도움말 · /돈 100000 · /플라이 · /무기 … (게임 중 ` 또는 / 로도 열립니다)'));
+    }
     body.appendChild(row('버전', String(g?.VERSION ?? VERSION)));
 
     body.appendChild(sectionTitle('프레임 프리셋'));
@@ -3097,6 +3112,8 @@ export class PanelManager {
     for (const group of BOUND_KEY_GROUPS) {
       body.appendChild(sectionTitle(group.name));
       for (const action of group.actions) {
+        // 관리자 전용 키는 관리자 계정에게만 보여 준다.
+        if (action.id === 'admin' && !safe(() => auth.isAdmin, false)) continue;
         const line = h('div', 'row');
         line.appendChild(h('span', 'row-label', action.label));
         line.appendChild(h('span', 'key-chip', boundKeyLabel(boundPrimaryKey(action.id))));
@@ -3518,7 +3535,7 @@ export class PanelManager {
       const wantRemember = this._field('auth', 'auth-remember', '') === 'on' || this.state.auth.remember === true;
       this._saveRememberedUser(wantRemember ? username : '');
       st.message = `${safe(() => auth.user?.nickname, nickname) || username} 님, 환영합니다!`;
-      this._toast('로그인했습니다', 'good');
+      this._toast(safe(() => auth.isAdmin, false) ? '관리자 계정으로 로그인했습니다' : '로그인했습니다', 'good');
       this.emit('auth', { ok: true, user: safe(() => auth.user, null) });
       // 로그인 성공 — 환영 문구를 잠깐 보여 준 뒤 패널을 닫고 메인 화면으로 넘어간다(§4.36).
       this._scheduleAuthClose(kind);
