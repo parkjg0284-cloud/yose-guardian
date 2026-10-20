@@ -1,116 +1,117 @@
 {
-    "name": "fps-tower-defense",
-    "version": "1.0.0",
-    "private": true,
-    "description": "요새의 수호자 (Guardian of the Fortress) - FPS + Tower Defense + Co-op",
-    "workspaces": [
-        "server",
-        "client"
+  "name": "fps-tower-defense",
+  "version": "1.0.0",
+  "private": true,
+  "description": "요새의 수호자 (Guardian of the Fortress) - FPS + Tower Defense + Co-op",
+  "workspaces": [
+    "server",
+    "client"
+  ],
+  "scripts": {
+    "install:all": "npm install",
+    "release:pack": "node tools/pack-release.mjs",
+    "dev": "node tools/dev.mjs",
+    "supervise": "node tools/supervise.mjs",
+    "dl": "node tools/dl-server.mjs",
+    "dev:tunnel": "node tools/dev-tunnel.mjs",
+    "dev:server": "npm run dev --workspace server",
+    "dev:client": "npm run dev --workspace client",
+    "build": "npm run build --workspace client",
+    "start": "npm run start --workspace server -- --prod",
+    "app": "electron .",
+    "app:dist": "electron-builder --win portable",
+    "serve": "npm run build && npm run start",
+    "smoke": "node tools/smoke.mjs",
+    "headless": "node tools/headless.mjs",
+    "ui": "node tools/ui-dom-smoke.mjs",
+    "minigame": "node tools/mini-game-check.mjs",
+    "cmd-lint": "node tools/cmd-lint.mjs",
+    "e2e": "node tools/e2e-net.mjs",
+    "lancheck": "node tools/lan-guest-check.mjs",
+    "verify": "node tools/smoke.mjs && node tools/headless.mjs && node tools/ui-dom-smoke.mjs && node tools/boss-bugtest.mjs && node tools/wings-bugtest.mjs && node tools/character-bugtest.mjs && node tools/base-bugtest.mjs && node tools/mini-game-check.mjs && node tools/cmd-lint.mjs && npm run build",
+    "bugtest": "node tools/boss-bugtest.mjs",
+    "bugtest2": "node tools/wings-bugtest.mjs",
+    "bugtest3": "node tools/character-bugtest.mjs",
+    "bugtest4": "node tools/base-bugtest.mjs",
+    "lag-test": "node tools/lag-test.mjs",
+    "test:all": "node tools/smoke.mjs && node tools/headless.mjs && node tools/ui-dom-smoke.mjs && node tools/boss-bugtest.mjs && node tools/drill-tier-test.mjs && node tools/conveyor-test.mjs && node tools/command-freeze-test.mjs && node tools/lag-test.mjs",
+    "drill-test": "node tools/drill-tier-test.mjs",
+    "conveyor-test": "node tools/conveyor-test.mjs",
+    "base-load-test": "node tools/base-load-test.mjs",
+    "install-test": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/test-install.ps1",
+    "installer": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/build-installer.ps1",
+    "command-test": "node tools/command-freeze-test.mjs",
+    "single": "node tools/build-single.mjs",
+    "release:all": "npm run release:pack && npm run single && npm run launcher",
+    "set-repo": "node tools/set-repo.mjs",
+    "launcher": "node tools/build-launcher.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "electron": "^44.9.0",
+    "electron-builder": "^26.15.3"
+  },
+  "engines": {
+    "node": ">=22.5.0"
+  },
+  "main": "electron-main.js",
+  "build": {
+    "appId": "com.yose.guardian",
+    "productName": "요세의 수호자",
+    "directories": {
+      "buildResources": "build",
+      "output": "release"
+    },
+    "files": [
+      "electron-main.js",
+      "package.json",
+      "server/**/*",
+      "client/dist/**/*",
+      "!**/node_modules/**/*",
+      "!**/.tmp/**",
+      "!**/*.db",
+      "!**/*.db-shm",
+      "!**/*.db-wal",
+      "!**/*.map",
+      "!**/test/**",
+      "!**/tools/**"
     ],
-    "scripts": {
-        "install:all": "npm install",
-        "release:pack": "node tools/pack-release.mjs",
-        "dev": "node tools/dev.mjs",
-        "supervise": "node tools/supervise.mjs",
-        "dl": "node tools/dl-server.mjs",
-        "dev:tunnel": "node tools/dev-tunnel.mjs",
-        "dev:server": "npm run dev --workspace server",
-        "dev:client": "npm run dev --workspace client",
-        "build": "npm run build --workspace client",
-        "start": "npm run start --workspace server -- --prod",
-        "app": "electron .",
-        "app:dist": "electron-builder --win portable",
-        "serve": "npm run build && npm run start",
-        "smoke": "node tools/smoke.mjs",
-        "headless": "node tools/headless.mjs",
-        "ui": "node tools/ui-dom-smoke.mjs",
-        "minigame": "node tools/mini-game-check.mjs",
-        "cmd-lint": "node tools/cmd-lint.mjs",
-        "e2e": "node tools/e2e-net.mjs",
-        "lancheck": "node tools/lan-guest-check.mjs",
-        "verify": "node tools/smoke.mjs && node tools/headless.mjs && node tools/ui-dom-smoke.mjs && node tools/boss-bugtest.mjs && node tools/wings-bugtest.mjs && node tools/character-bugtest.mjs && node tools/base-bugtest.mjs && node tools/mini-game-check.mjs && node tools/cmd-lint.mjs && npm run build",
-        "bugtest": "node tools/boss-bugtest.mjs",
-        "bugtest2": "node tools/wings-bugtest.mjs",
-        "bugtest3": "node tools/character-bugtest.mjs",
-        "bugtest4": "node tools/base-bugtest.mjs",
-        "lag-test": "node tools/lag-test.mjs",
-        "test:all": "node tools/smoke.mjs && node tools/headless.mjs && node tools/ui-dom-smoke.mjs && node tools/boss-bugtest.mjs && node tools/drill-tier-test.mjs && node tools/conveyor-test.mjs && node tools/command-freeze-test.mjs && node tools/lag-test.mjs",
-        "drill-test": "node tools/drill-tier-test.mjs",
-        "conveyor-test": "node tools/conveyor-test.mjs",
-        "base-load-test": "node tools/base-load-test.mjs",
-        "install-test": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/test-install.ps1",
-        "installer": "powershell -NoProfile -ExecutionPolicy Bypass -File installer/build-installer.ps1",
-        "command-test": "node tools/command-freeze-test.mjs",
-        "single": "node tools/build-single.mjs",
-        "release:all": "npm run release:pack && npm run single",
-        "set-repo": "node tools/set-repo.mjs"
-    },
-    "devDependencies": {
-        "concurrently": "^9.1.2",
-        "electron": "^44.9.0",
-        "electron-builder": "^26.15.3"
-    },
-    "engines": {
-        "node": ">=22.5.0"
-    },
-    "main": "electron-main.js",
-    "build": {
-        "appId": "com.yose.guardian",
-        "productName": "요세의 수호자",
-        "directories": {
-            "buildResources": "build",
-            "output": "release"
-        },
-        "files": [
-            "electron-main.js",
-            "package.json",
-            "server/**/*",
-            "client/dist/**/*",
-            "!**/node_modules/**/*",
-            "!**/.tmp/**",
-            "!**/*.db",
-            "!**/*.db-shm",
-            "!**/*.db-wal",
-            "!**/*.map",
-            "!**/test/**",
-            "!**/tools/**"
+    "extraResources": [
+      {
+        "filter": [
+          "**/*"
         ],
-        "extraResources": [
-            {
-                "filter": [
-                    "**/*"
-                ],
-                "from": "client/dist",
-                "to": "client/dist"
-            },
-            {
-                "filter": [
-                    "**/*.js",
-                    "!**/data/**"
-                ],
-                "from": "server",
-                "to": "server"
-            }
+        "from": "client/dist",
+        "to": "client/dist"
+      },
+      {
+        "filter": [
+          "**/*.js",
+          "!**/data/**"
         ],
-        "win": {
-            "target": [
-                {
-                    "target": "portable",
-                    "arch": [
-                        "x64"
-                    ]
-                }
-            ],
-            "artifactName": "YoseGuardian-${version}-portable.exe"
-        },
-        "portable": {
-            "unpackDirName": "YoseGuardian",
-            "artifactName": "YoseGuardian-${version}-portable.exe"
-        },
-        "asar": true,
-        "asarUnpack": [
-            "server/**/*"
-        ],
-        "npmRebuild": false
-    }
+        "from": "server",
+        "to": "server"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "YoseGuardian-${version}-portable.exe"
+    },
+    "portable": {
+      "unpackDirName": "YoseGuardian",
+      "artifactName": "YoseGuardian-${version}-portable.exe"
+    },
+    "asar": true,
+    "asarUnpack": [
+      "server/**/*"
+    ],
+    "npmRebuild": false
+  }
 }
