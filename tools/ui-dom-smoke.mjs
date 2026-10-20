@@ -1261,6 +1261,23 @@ if (menu) {
     return tabs.includes('login') && tabs.includes('register') && Boolean(user) && Boolean(pass);
   });
   // 관리자 아이디로 로그인했을 때만 관리자 구역이 보인다.
+  // 시드 선택창 — 8개가 한 화면에 담기도록 4열 그리드 + 카드 압축
+  attempt('시드 선택 — 8개 카드가 전용 그리드에 담긴다', () => {
+    pm.open('seeds');
+    const root = documentStub.getElementById('panel-root');
+    const gridEl = root.querySelectorAll('.seed-grid')[0];
+    const cards = root.querySelectorAll('[data-act="seed-pick"]');
+    const names = root.querySelectorAll('.seed-name').length;
+    pm.close();
+    return Boolean(gridEl) && cards.length === 8 && names === 8;
+  });
+  attempt('설정 — 해상도 표시와 전체 화면 버튼이 있다', () => {
+    pm.open('settings');
+    const root = documentStub.getElementById('panel-root');
+    const fs = root.querySelectorAll('[data-act="settings-fullscreen"]')[0];
+    pm.close();
+    return Boolean(fs);
+  });
   attempt('설정 — 일반 계정에는 관리자 구역이 없다', () => {
     pm.state.auth.tab = 'login';
     pm.open('settings');

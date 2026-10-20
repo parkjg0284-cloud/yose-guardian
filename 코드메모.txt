@@ -345,4 +345,24 @@ npm install 이 실패한다
 
   · 교훈 : 새 헬퍼를 쓰기 전에 그 파일 스코프에 정의/import 되어 있는지 확인할 것.
 
+[19] 실행 창 1920x1080 + 시드 선택창 한 화면 (v1.0.11)
+
+  [해상도]
+  · 게임실행.vbs — Chrome/Edge 가 있으면 앱 모드(주소창 없음)로 연다
+      chrome.exe --app=http://127.0.0.1:3001 --window-size=1920,1080 --window-position=0,0
+      (브라우저가 없으면 예전처럼 기본 브라우저로 URL 만 연다)
+  · electron-main.js — width 1920 / height 1080 / useContentSize:true
+  · 설정 → [화면] 구역 — 현재 해상도 표시 + [⛶ 전체 화면] (ESC 로 나옴)
+  · 실측 : 별도 프로필로 앱 창을 띄워 창 크기 1920x1080 · 제목 "요새의 수호자" 확인
+
+  [시드 선택창]
+  · 문제 : 카드가 길게 늘어나 일부가 잘리고 스크롤이 필요했다
+  · 수정 : panels.js _renderSeeds → grid('seed-grid') + 카드 내부를 span 으로 압축
+           ui-polish.css 에 .seed-grid (4열 x 2줄, gap 10px) · 이름/코드/설명/태그 스타일
+           설명은 2줄 클램프, 좁은 화면은 3열/2열로 자동 전환
+  · 실측(헤드리스 1920x1080) : 카드 8개 · 4열 · 패널 409px · 본문 318px
+           scrollHeight 318 == clientHeight 318 (스크롤 없음) · 마지막 카드 bottom 623 < 본문 678
+
+  · 테스트 : smoke 862/0 · ui-dom 329/0 · boot-check 9/9
+
 끝.

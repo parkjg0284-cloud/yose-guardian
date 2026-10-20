@@ -779,7 +779,20 @@ export class PanelManager {
       this._render('settings');
       break;
     }
-      case 'admin-console':
+      case 'settings-fullscreen': {
+      const de = globalThis.document?.documentElement;
+      const isFull = Boolean(globalThis.document?.fullscreenElement);
+      if (isFull) {
+        globalThis.document?.exitFullscreen?.();
+        this._toast('전체 화면을 나왔습니다', 'info');
+      } else if (de?.requestFullscreen) {
+        Promise.resolve(de.requestFullscreen()).catch(() => this._toast('전체 화면을 켤 수 없습니다', 'warn'));
+      } else {
+        this._toast('이 브라우저는 전체 화면을 지원하지 않습니다', 'warn');
+      }
+      break;
+    }
+    case 'admin-console':
       this.close();
       this.game?.ui?.admin?.open?.();
       break;
@@ -1841,15 +1854,17 @@ export class PanelManager {
     const g = this.game;
     body.textContent = '';
     body.appendChild(row('현재 시드', String(g?.seed ?? '없음')));
-    const cards = grid();
+    // 8개 시드가 잘리지 않고 한 화면에 담기도록 전용 그리드(4열 x 2줄).
+    const cards = grid('seed-grid');
     for (const s of SEED_GALLERY) {
       const card = h('button', cardClass(null, { extra: 'menu-seed-item' }));
       card.type = 'button';
       card.dataset.act = 'seed-pick';
       card.dataset.seed = s.seed;
-      card.appendChild(row(s.name, `#${s.seed}`));
-      card.appendChild(row('설명', s.desc));
-      card.appendChild(row('태그', (s.tags || []).join(' · ')));
+      card.appendChild(h('span', 'seed-name', s.name));
+      card.appendChild(h('span', 'seed-code', `#${s.seed}`));
+      card.appendChild(h('span', 'seed-desc', s.desc));
+      card.appendChild(h('span', 'seed-tags', (s.tags || []).join(' · ')));
       cards.appendChild(card);
     }
     body.appendChild(cards);
@@ -3055,6 +3070,18 @@ export class PanelManager {
     }
     body.appendChild(row('버전', String(g?.VERSION ?? VERSION)));
 
+    // ── 화면 — 현재 해상도 표시 + 전체 화면(1920x1080 모니터에서 꽉 채운다) ──
+    body.appendChild(sectionTitle('화면'));
+    const viewW = Math.round(globalThis.innerWidth || 0);
+    const viewH = Math.round(globalThis.innerHeight || 0);
+    body.appendChild(row('해상도', `${viewW} x ${viewH} — 창 크기에 맞춰 함께 바뀝니다`));
+    const screenRow = h('div', 'row');
+    const fsBtn = h('button', 'btn ghost btn-ghost', '⛶ 전체 화면');
+    fsBtn.type = 'button';
+    fsBtn.dataset.act = 'settings-fullscreen';
+    screenRow.appendChild(fsBtn);
+    body.appendChild(screenRow);
+    body.appendChild(row('안내', '전체 화면은 ESC 로 나옵니다. 게임 창은 1920x1080 으로 열립니다.'));
     body.appendChild(sectionTitle('프레임 프리셋'));
     const cards = grid();
     const activePreset = String(g?.quality ?? g?.preset?.id ?? '');

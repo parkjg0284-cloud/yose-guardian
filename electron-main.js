@@ -44,7 +44,7 @@ async function startServer() {
 
 function createWindow() {
   win = new BrowserWindow({
-    width: 1600, height: 900, minWidth: 1024, minHeight: 640,
+    width: 1920, height: 1080, minWidth: 1024, minHeight: 640, useContentSize: true,
     backgroundColor: '#05060c',
     title: '요세의 수호자',
     autoHideMenuBar: true,
