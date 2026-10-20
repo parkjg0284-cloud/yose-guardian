@@ -29,7 +29,7 @@
   요세의수호자_설치.exe
 
 다시 빌드:
-  npm run single        → 요세의수호자_설치.exe (약 814KB)
+  npm run single        → 요세의수호자_설치.exe (약 624KB, 게임 내장)
   npm run release:all   → 런처 zip + 단일 exe 한 번에
 
 
@@ -118,7 +118,7 @@
   git push origin v1.0.0
 
 릴리스에 올라가는 파일:
-  · 요세의수호자_설치.exe   (단일 파일, 권장)
+  · YoseGuardian-Setup.exe  (단일 파일, 권장 — 저장소 exe 와 같은 파일)
   · YoseGuardian-launcher.zip
   · game.zip
 
