@@ -1267,6 +1267,45 @@ if (menu) {
     root.dispatch('click', { target: btn, preventDefault() {}, stopPropagation() {} });
     return sent && sent.address === '192.168.0.10:3001';
   });
+  // 서버 주소 만들기 / 초대코드로 초대
+  attempt('멀티 — [🌐 주소 만들기] 가 있다', () => {
+    menu.show('main');
+    menu._heroAct('multi');
+    const root = documentStub.getElementById('menu-root');
+    let sent = 0;
+    menu.on('share:address', () => { sent += 1; });
+    const btn = root.querySelectorAll('[data-act="share-address"]')[0];
+    if (!btn) return false;
+    root.dispatch('click', { target: btn, preventDefault() {}, stopPropagation() {} });
+    return sent === 1;
+  });
+  attempt('멀티 — [🎟 초대코드 만들기] 가 있다', () => {
+    menu.show('main');
+    menu._heroAct('multi');
+    const root = documentStub.getElementById('menu-root');
+    let sent = 0;
+    menu.on('share:invite', () => { sent += 1; });
+    const btn = root.querySelectorAll('[data-act="share-invite"]')[0];
+    if (!btn) return false;
+    root.dispatch('click', { target: btn, preventDefault() {}, stopPropagation() {} });
+    return sent === 1;
+  });
+  attempt('멀티 — 복사 버튼이 주소/링크 2개다', () => {
+    menu.show('main');
+    menu._heroAct('multi');
+    const root = documentStub.getElementById('menu-root');
+    const kinds = root.querySelectorAll('[data-act="share-copy"]').map((b) => b.dataset.kind).sort().join(',');
+    return kinds === 'address,link';
+  });
+  attempt('setShareInfo 가 만든 주소·코드를 화면에 보여준다', () => {
+    menu.setShareInfo({ address: 'http://192.168.0.10:3001', code: 'K7F2', link: 'http://192.168.0.10:3001/?code=K7F2' });
+    menu.show('main');
+    menu._heroAct('multi');
+    const root = documentStub.getElementById('menu-root');
+    const addr = root.querySelector('[data-role="share-address"]');
+    const code = root.querySelector('[data-role="share-code"]');
+    return Boolean(addr?.textContent?.includes('192.168.0.10')) && Boolean(code?.textContent?.includes('K7F2'));
+  });
   // 회귀: 메뉴의 설정/협동/로그인은 패널을 "한 번만" 토글해야 한다.
   // (emit + togglePanel 이중 호출 → 열리자마자 닫히고 메뉴까지 숨겨 빈 화면이 되던 버그)
   game.togglePanel = (id) => pm.toggle(id);

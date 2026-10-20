@@ -94,7 +94,9 @@ export class MainMenu {
   constructor({ game } = {}) {
     this.game = game || null;
     this._listeners = new Map();
-    this._fields = {};
+    // 서버 주소 / 초대코드 — main.js 가 만들어 준 값을 여기 담아 보여준다.
+    this._share = { address: '', code: '', link: '' };
+    this._fields = this._fields || {};
     this._carousel = 0;
     this._carouselTimer = 0;
     this._acctTimer = 0;
@@ -368,6 +370,15 @@ export class MainMenu {
         this.emit('server-connect', { address });
         break;
       }
+      case 'share-address':
+        this.emit('share:address', {});
+        break;
+      case 'share-invite':
+        this.emit('share:invite', { mode: this.state.mode, difficulty: this.state.difficulty });
+        break;
+      case 'share-copy':
+        this.emit('share:copy', { kind: d.kind || 'address' });
+        break;
       case 'menu-invite-join': {
         const code = normalizeInviteCode(d.code || this._field('menu-invite', ''));
         if (!isValidInviteCode(code)) {
@@ -488,6 +499,13 @@ export class MainMenu {
     this.emit('multiplayer:join', { code });
     this.hide();
     return true;
+  }
+
+  /** 내 세이브/서버 정보 갱신 — main.js 가 만들어 준 서버 주소·초대코드를 카드에 반영한다. */
+  setShareInfo(patch = {}) {
+    this._share = { ...(this._share || {}), ...patch };
+    safe(() => this.refresh());
+    return this._share;
   }
 
   _stored(name, fallback = '') {
@@ -759,6 +777,42 @@ export class MainMenu {
     const netUrl = safe(() => this.game?.net?.url, '') || '';
     const netOn = Boolean(safe(() => this.game?.net?.connected, false));
     multi.appendChild(row('지금 서버', `${netUrl || '—'} ${netOn ? '· 연결됨 ✅' : '· 연결 안 됨'} (같은 와이파이/공인 IP 를 넣으세요)`));
+
+    // ── 서버 주소 만들기 / 초대코드 만들기 (사용자 요청) ──
+    const share = this._share || { address: '', code: '', link: '' };
+    const addrRow = h('div', 'row stat-row menu-share-row');
+    addrRow.appendChild(h('span', 'row-label', '내 서버 주소'));
+    const addrVal = h('b', 'row-value', share.address || '아직 없음');
+    addrVal.dataset.role = 'share-address';
+    addrRow.appendChild(addrVal);
+    const mkAddr = h('button', 'btn ghost btn-ghost', '🌐 주소 만들기');
+    mkAddr.type = 'button';
+    mkAddr.dataset.act = 'share-address';
+    addrRow.appendChild(mkAddr);
+    const cpAddr = h('button', 'btn ghost btn-ghost', '📋 복사');
+    cpAddr.type = 'button';
+    cpAddr.dataset.act = 'share-copy';
+    cpAddr.dataset.kind = 'address';
+    addrRow.appendChild(cpAddr);
+    multi.appendChild(addrRow);
+    multi.appendChild(row('안내', '친구가 위 주소를 [서버 주소] 칸에 넣으면 같은 서버에서 만납니다.'));
+
+    const inviteRow = h('div', 'row stat-row menu-share-row');
+    inviteRow.appendChild(h('span', 'row-label', '초대코드'));
+    const codeVal = h('b', 'row-value', share.code || '아직 없음');
+    codeVal.dataset.role = 'share-code';
+    inviteRow.appendChild(codeVal);
+    const mkCode = h('button', 'btn primary btn-primary', '🎟 초대코드 만들기');
+    mkCode.type = 'button';
+    mkCode.dataset.act = 'share-invite';
+    inviteRow.appendChild(mkCode);
+    const cpLink = h('button', 'btn ghost btn-ghost', '📋 초대 링크 복사');
+    cpLink.type = 'button';
+    cpLink.dataset.act = 'share-copy';
+    cpLink.dataset.kind = 'link';
+    inviteRow.appendChild(cpLink);
+    multi.appendChild(inviteRow);
+    multi.appendChild(row('안내', '코드를 만든 뒤 [초대 링크 복사] 로 보내면 친구가 한 번에 들어옵니다.'));
 
     const codeRow = h('div', 'row stat-row');
     codeRow.appendChild(h('span', 'row-label', `초대코드 ${INVITE_CODE_LENGTH}자리`));

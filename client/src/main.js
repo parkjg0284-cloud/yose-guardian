@@ -62,9 +62,9 @@ import { PanelManager } from './ui/panels.js';
 import { FPSMonitor, applyFramePreset } from './ui/fps.js';
 import { MainMenu } from './ui/menu.js';
 import { Lobby } from './ui/lobby.js';
-import { codeFromUrl } from './utils/invite.js';
+import { codeFromUrl, inviteLink, resolveShareOrigin } from './utils/invite.js';
 import { playCutscene } from './ui/cutscene.js';
-import { net, auth, cloudSave, leaderboard, statsApi, normalizeServerAddress, setApiBase } from './net.js';
+import { net, auth, cloudSave, leaderboard, statsApi, netInfo, normalizeServerAddress, setApiBase } from './net.js';
 import { BARE_HAND, harvestHint, harvestNode, pickHarvestNode } from './systems/gathering.js';
 import { ADAPTIVE, AdaptiveResolution, formatScale, suggestPreset, stepUpId, MemoryGuard, formatMb } from './ui/adaptive.js';
 import { AdminConsole } from './ui/console.js';
@@ -453,6 +453,10 @@ class Game {
     this.ui.menu.on('load', () => this.load());
     // 메뉴 [서버 주소] — 다른 PC 에서 켠 서버로 붙는다(마인크래프트 멀티처럼).
     this.ui.menu.on('server-connect', ({ address } = {}) => this.connectServer(address));
+    // 메뉴 [주소 만들기] / [초대코드 만들기] / [복사]
+    this.ui.menu.on('share:address', () => this.shareServerAddress());
+    this.ui.menu.on('share:invite', () => this.createInviteCode());
+    this.ui.menu.on('share:copy', ({ kind } = {}) => this.copyShareText(kind));
     // 메뉴
     this.ui.menu.on('start', (opts) => this.start(opts));
     // 멀티플레이는 메인 화면의 전용 로비(초대코드)에서 시작한다.
@@ -2883,6 +2887,72 @@ class Game {
     );
     safe(() => this.ui?.menu?.refresh?.());
     return ok;
+  }
+
+  /** 남에게 알려줄 내 서버 주소 — 서버가 알려준 LAN 주소를 우선 쓴다(초대 링크와 같은 규칙). */
+  _shareOrigin() {
+    const origin = typeof location !== 'undefined' ? location.origin : '';
+    return resolveShareOrigin({ origin, lanUrls: safe(() => netInfo.urls(), []) || [] }) || origin;
+  }
+
+  /** [🌐 주소 만들기] — 친구가 접속할 내 서버 주소를 만들어 메뉴에 보여준다. */
+  async shareServerAddress() {
+    await safe(() => netInfo.load(true), null);
+    const address = this._shareOrigin();
+    this.ui?.menu?.setShareInfo?.({ address });
+    this.notify(
+      address ? `내 서버 주소: ${address} — 친구에게 알려 주세요` : '서버 주소를 찾지 못했습니다',
+      address ? 'success' : 'warn'
+    );
+    return address;
+  }
+
+  /** [🎟 초대코드 만들기] — 방을 만들고 초대코드·초대 링크를 메뉴에 보여준다. */
+  async createInviteCode() {
+    if (!this.net.connected) {
+      const ok = await this.net.connect(currentNickname() || undefined);
+      if (!ok) {
+        this.notify('서버에 연결되어 있지 않습니다 — 서버 주소를 확인하세요', 'warn');
+        return null;
+      }
+    }
+    const m = safe(() => this.ui?.menu?.state, null) || {};
+    const res = await safe(
+      () =>
+        this.net.createRoom({
+          nickname: currentNickname() || auth.user?.nickname || '수호자',
+          mode: 'coop',
+          difficulty: m.difficulty || this.difficulty || 'normal'
+        }),
+      null
+    );
+    if (!res?.ok) {
+      this.notify(`초대코드를 만들지 못했습니다 — ${res?.error || '서버 응답 없음'}`, 'error');
+      return null;
+    }
+    const code = res.code || res.state?.code || '';
+    const link = code ? inviteLink(code, this._shareOrigin()) : '';
+    this.ui?.menu?.setShareInfo?.({ code, link });
+    this.notify(`초대코드 ${code} 를 만들었습니다 — [초대 링크 복사] 로 보내세요`, 'success');
+    return code;
+  }
+
+  /** [📋 복사] — 서버 주소 또는 초대 링크를 클립보드로. */
+  async copyShareText(kind = 'address') {
+    const share = safe(() => this.ui?.menu?._share, null) || {};
+    const text = kind === 'link' ? share.link : share.address;
+    if (!text) {
+      this.notify(kind === 'link' ? '먼저 [초대코드 만들기] 를 눌러 주세요' : '먼저 [주소 만들기] 를 눌러 주세요', 'warn');
+      return false;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      this.notify(`복사했습니다 — ${text}`, 'success');
+      return true;
+    } catch {
+      this.notify(`복사가 막혔습니다. 직접 복사하세요: ${text}`, 'warn');
+      return false;
+    }
   }
 
   /** 내 세이브 목록(요약, 최신 순) — 설정 화면에서 쓴다(계약 §4.49). */
