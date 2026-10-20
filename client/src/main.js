@@ -459,13 +459,27 @@ class Game {
     this.ui.menu.on('share:copy', ({ kind } = {}) => this.copyShareText(kind));
     // 메뉴
     this.ui.menu.on('start', (opts) => this.start(opts));
-    // 멀티플레이는 메인 화면의 전용 로비(초대코드)에서 시작한다.
-    this.ui.menu.on('multiplayer', () => this.ui.lobby?.open?.());
-    this.ui.menu.on('multiplayer:join', ({ code } = {}) => this.ui.lobby?.open?.({ code, auto: true }));
+    // 멀티플레이는 메인 화면의 전용 로비(초대코드)에서 시작한다 — 메뉴 창을 닫고 연다.
+    this.ui.menu.on('multiplayer', () => {
+      this.ui.menu?.hide?.();
+      this.ui.lobby?.open?.();
+    });
+    this.ui.menu.on('multiplayer:join', ({ code } = {}) => {
+      this.ui.menu?.hide?.();
+      this.ui.lobby?.open?.({ code, auto: true });
+    });
     this.ui.lobby?.on?.('close', () => {
       if (this.state === 'menu') this.ui.menu?.show?.('main');
     });
-    this.ui.menu.on('settings', () => this.togglePanel('settings'));
+    // 메뉴 버튼 → 창을 먼저 닫고, 그 다음 패널이 뜬다(사용자 요청).
+    //  패널을 닫으면(state === 'menu') 다시 메뉴가 나온다.
+    this.ui.menu.on('settings', () => {
+      this.ui.menu?.hide?.();
+      this.togglePanel('settings');
+    });
+    this.ui.panels?.on?.('close', () => {
+      if (this.state === 'menu') this.ui.menu?.show?.('main');
+    });
     this.ui.menu.on('help', () => this.ui.menu.show('help'));
     // 메인화면 [게임종료] — 저장하고 창을 닫는다(계약 §4.75). 브라우저가 막으면 안내만 한다.
     this.ui.menu.on('quit', () => this.shutdown());
@@ -2623,7 +2637,6 @@ class Game {
       else this.rotateAimedTurret(back ? -1 : 1);
     }
     this._updateHoldRotate(dt, { shift: actionHeld('sprint') });
-    if (actionPressed('admin')) this.ui.admin?.toggle?.();
 
     for (let i = 1; i <= 9; i++) {
       if (pressed(`Digit${i}`)) {
@@ -3307,12 +3320,9 @@ class Game {
     return this._gatherSinkRef;
   }
 
-  /** 관리자 계정이면 시작 시 콘솔 안내 */
+  /** 관리자 안내 — 사용자 요청으로 콘솔·관리자 버튼을 모두 없앴다(항상 false). */
   _adminHint() {
-    if (!auth?.isAdmin) return false;
-    this.notify('관리자 계정 — ` 또는 / 로 관리자 콘솔 (/도움말)', 'gacha');
-    this.ui.admin?.log?.('관리자로 접속했습니다 — /도움말', 'ok');
-    return true;
+    return false;
   }
 
   // ── 루프

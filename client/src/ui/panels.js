@@ -779,9 +779,6 @@ export class PanelManager {
       this._render('settings');
       break;
     }
-    case 'settings-to-auth':
-      this.open('auth');
-      break;
       case 'nickname-save':
         this._saveNickname();
         break;
@@ -798,7 +795,7 @@ export class PanelManager {
       case 'auth-tab':
         this.state.auth.tab = d.tab || 'login';
         this.state.auth.message = '';
-        this._render('auth');
+        this._refreshAccount();
         break;
       case 'auth-login':
         this._authSubmit('login');
@@ -810,7 +807,7 @@ export class PanelManager {
         auth.logout();
         this.state.auth.message = '로그아웃했습니다.';
         this._toast('로그아웃했습니다', 'info');
-        this._render('auth');
+        this._refreshAccount();
         break;
       case 'craft-select':
         this.state.craft.table = d.table === WORKBENCH_ID || CRAFTING_TABLE_BY_ID[d.table] ? d.table : this.state.craft.table;
@@ -3035,12 +3032,12 @@ export class PanelManager {
     nickClear2.type = 'button';
     nickClear2.dataset.act = 'settings-nickname-clear';
     nickRow2.appendChild(nickClear2);
-    const toAuth = h('button', 'btn ghost btn-ghost', loggedInNow ? '계정 관리' : '로그인 / 회원가입');
-    toAuth.type = 'button';
-    toAuth.dataset.act = 'settings-to-auth';
-    nickRow2.appendChild(toAuth);
     body.appendChild(nickRow2);
     body.appendChild(row('안내', '닉네임은 멀티플레이·채팅에 표시됩니다. 계정 로그인과 별개로 저장됩니다.'));
+
+    // ── 로그인 · 회원가입 (설정 안에서 바로 — 사용자 요청) ──
+    body.appendChild(sectionTitle('로그인 · 회원가입'));
+    this._renderAccount(body, 'settings-auth-msg');
     body.appendChild(row('버전', String(g?.VERSION ?? VERSION)));
 
     body.appendChild(sectionTitle('프레임 프리셋'));
@@ -3342,27 +3339,20 @@ export class PanelManager {
     } catch { /* 저장소 차단 — 무시 */ }
   }
 
-  _renderAuth(body) {
+  /**
+   * 계정 UI — 설정 화면 안에서도 로그인/회원가입을 한다(사용자 요청).
+   * 상태·닉네임 줄 없이 탭(로그인/회원가입/리더보드)과 입력칸·버튼만 그린다.
+   */
+  /** 로그인/회원가입 화면을 다시 그린다 — 설정 안에 있으면 설정을, 아니면 계정 패널을 갱신한다. */
+  _refreshAccount() {
+    this._render(this.currentId === 'settings' ? 'settings' : 'auth');
+  }
+
+  _renderAccount(body, msgRole = 'auth-msg') {
     const st = this.state.auth;
+    if (!this._fields.auth) this._fields.auth = {};
     const user = safe(() => auth.user, null);
     const loggedIn = Boolean(safe(() => auth.loggedIn, false));
-    body.textContent = '';
-    const isAdmin = Boolean(user && (user.role === 'admin' || user.isAdmin === true));
-    body.appendChild(row('상태', loggedIn ? `로그인됨 — ${user?.nickname || user?.username || ''}${isAdmin ? ' 👑 관리자' : ''}` : '오프라인 (게스트 플레이 가능)'));
-    // 닉네임 — 계정이 없어도 만들 수 있다(계약 §4.54). 멀티·채팅에 이 이름이 뜬다.
-    body.appendChild(row('닉네임', `지금: ${currentNickname() || '(없음 — 캐릭터 이름/로그인 닉네임을 씁니다)'}`));
-    body.appendChild(this._inputRow('auth', '새 닉네임', 'profile-nickname', 'text', `1~${NICKNAME_MAX}자 · 비우고 저장하면 해제`, currentNickname()));
-    body.appendChild(row('중복 닉네임', '다른 사람과 같은 닉네임도 됩니다 — 겹쳐도 저장되고 그대로 표시됩니다.'));
-    const nickActs = h('div', 'row');
-    const nickSave = h('button', 'btn primary btn-primary', '닉네임 저장');
-    nickSave.type = 'button';
-    nickSave.dataset.act = 'nickname-save';
-    nickActs.appendChild(nickSave);
-    const nickClear = h('button', 'btn ghost btn-ghost', '닉네임 지우기');
-    nickClear.type = 'button';
-    nickClear.dataset.act = 'nickname-clear';
-    nickActs.appendChild(nickClear);
-    body.appendChild(nickActs);
     body.appendChild(
       this._tabs([
         { label: '로그인', act: 'auth-tab', data: { tab: 'login' }, active: st.tab === 'login' },
@@ -3371,7 +3361,7 @@ export class PanelManager {
       ])
     );
     const msg = h('div', 'row');
-    msg.dataset.role = 'auth-msg';
+    msg.dataset.role = msgRole;
     msg.appendChild(h('span', 'row-label', '알림'));
     msg.appendChild(h('span', 'row-value', st.message || ''));
     body.appendChild(msg);
@@ -3381,30 +3371,24 @@ export class PanelManager {
       body.appendChild(this._inputRow('auth', '아이디', 'auth-username', 'text', '영문/숫자/_ 3~20자', this._fields.auth['auth-username'] || remembered));
       if (!this._fields.auth['auth-username'] && remembered) this._fields.auth['auth-username'] = remembered;
       body.appendChild(this._inputRow('auth', '비밀번호', 'auth-password', 'password', '4자 이상'));
-      // 아이디 기억하기 — 체크하면 다음에 아이디가 자동으로 채워진다(비밀번호는 저장 안 함).
-      const remRow = h('label', 'row check-row');
-      const remChk = h('input', 'checkbox');
-      remChk.type = 'checkbox';
-      remChk.dataset.act = 'auth-remember';
-      remChk.dataset.field = 'auth-remember';
-      remChk.checked = Boolean(remembered);
-      remRow.appendChild(remChk);
-      remRow.appendChild(h('span', 'row-label', '아이디 기억하기'));
-      body.appendChild(remRow);
-      if (st.tab === 'register') body.appendChild(this._inputRow('auth', '닉네임', 'auth-nickname', 'text', '표시 이름 (선택)'));
+      // 아이디만 기억한다(비밀번호는 저장하지 않는다).
+      if (st.tab === 'login') {
+        const remRow = h('label', 'row check-row');
+        const remChk = h('input', 'checkbox');
+        remChk.type = 'checkbox';
+        remChk.dataset.act = 'auth-remember';
+        remChk.dataset.field = 'auth-remember';
+        remChk.checked = Boolean(remembered);
+        remRow.appendChild(remChk);
+        remRow.appendChild(h('span', 'row-label', '아이디 기억하기'));
+        body.appendChild(remRow);
+      }
       const acts = h('div', 'row');
       const submit = h('button', 'btn primary btn-primary', st.tab === 'login' ? '로그인' : '가입하기');
       submit.type = 'button';
       submit.dataset.act = st.tab === 'login' ? 'auth-login' : 'auth-register';
       submit.disabled = Boolean(st.loading);
       acts.appendChild(submit);
-      if (st.tab === 'login' && !loggedIn) {
-        const make = h('button', 'btn ghost btn-ghost', '계정 만들기 (아이디 생성)');
-        make.type = 'button';
-        make.dataset.act = 'auth-tab';
-        make.dataset.tab = 'register';
-        acts.appendChild(make);
-      }
       if (loggedIn) {
         const out = h('button', 'btn danger btn-danger', '로그아웃');
         out.type = 'button';
@@ -3414,9 +3398,7 @@ export class PanelManager {
       body.appendChild(acts);
       body.appendChild(row('안내', '서버가 없어도 게스트로 플레이할 수 있습니다.'));
       if (st.tab === 'register') {
-        body.appendChild(row('아이디 규칙', '영문/숫자/_ 3~20자 · 비밀번호 4자 이상 — 가입하면 바로 로그인됩니다.'));
-      } else if (!loggedIn) {
-        body.appendChild(row('아이디 만들기', '계정이 없으면 [회원가입] 탭 또는 위의 "계정 만들기" 버튼을 누르세요.'));
+        body.appendChild(row('가입 규칙', '아이디(영문/숫자/_ 3~20자)와 비밀번호(4자 이상)만 있으면 됩니다. 가입하면 바로 로그인됩니다.'));
       }
     } else {
       const wrap = h('div', 'row');
@@ -3441,6 +3423,31 @@ export class PanelManager {
       body.appendChild(out);
       this._renderLeaderboard(out);
     }
+    return body;
+  }
+
+  _renderAuth(body) {
+    const st = this.state.auth;
+    const user = safe(() => auth.user, null);
+    const loggedIn = Boolean(safe(() => auth.loggedIn, false));
+    body.textContent = '';
+    body.appendChild(row('상태', loggedIn ? `로그인됨 — ${user?.nickname || user?.username || ''}` : '오프라인 (게스트 플레이 가능)'));
+    // 닉네임 — 계정이 없어도 만들 수 있다(계약 §4.54). 멀티·채팅에 이 이름이 뜬다.
+    body.appendChild(row('닉네임', `지금: ${currentNickname() || '(없음 — 캐릭터 이름/로그인 닉네임을 씁니다)'}`));
+    body.appendChild(this._inputRow('auth', '새 닉네임', 'profile-nickname', 'text', `1~${NICKNAME_MAX}자 · 비우고 저장하면 해제`, currentNickname()));
+    body.appendChild(row('중복 닉네임', '다른 사람과 같은 닉네임도 됩니다 — 겹쳐도 저장되고 그대로 표시됩니다.'));
+    const nickActs = h('div', 'row');
+    const nickSave = h('button', 'btn primary btn-primary', '닉네임 저장');
+    nickSave.type = 'button';
+    nickSave.dataset.act = 'nickname-save';
+    nickActs.appendChild(nickSave);
+    const nickClear = h('button', 'btn ghost btn-ghost', '닉네임 지우기');
+    nickClear.type = 'button';
+    nickClear.dataset.act = 'nickname-clear';
+    nickActs.appendChild(nickClear);
+    body.appendChild(nickActs);
+    // 계정 탭·입력칸은 설정 화면과 같은 코드(_renderAccount)를 쓴다.
+    this._renderAccount(body);
   }
 
   _renderLeaderboard(container) {
@@ -3482,22 +3489,22 @@ export class PanelManager {
 
     if (!username || !password) {
       st.message = '아이디와 비밀번호를 모두 입력해 주세요.';
-      this._render('auth');
+      this._refreshAccount();
       return;
     }
     if (kind === 'register' && password.length < 4) {
       st.message = '비밀번호는 4자 이상이어야 합니다.';
-      this._render('auth');
+      this._refreshAccount();
       return;
     }
     if (kind === 'register' && !/^[a-zA-Z0-9_]{3,20}$/.test(username)) {
       st.message = '아이디는 영문/숫자/_ 3~20자만 가능합니다.';
-      this._render('auth');
+      this._refreshAccount();
       return;
     }
     st.loading = true;
     st.message = kind === 'login' ? '로그인 중...' : '가입 중...';
-    this._render('auth');
+    this._refreshAccount();
 
     let r = null;
     try {
@@ -3510,19 +3517,18 @@ export class PanelManager {
       // 아이디 기억하기 — 체크되어 있으면 저장, 아니면 지운다(비밀번호는 저장 안 함).
       const wantRemember = this._field('auth', 'auth-remember', '') === 'on' || this.state.auth.remember === true;
       this._saveRememberedUser(wantRemember ? username : '');
-      const admin = Boolean(safe(() => auth.isAdmin, false));
-      st.message = `${safe(() => auth.user?.nickname, nickname) || username} 님, 환영합니다!${admin ? " (관리자 권한)" : ""}`;
-      this._toast(admin ? '관리자로 로그인했습니다' : '로그인했습니다', 'good');
+      st.message = `${safe(() => auth.user?.nickname, nickname) || username} 님, 환영합니다!`;
+      this._toast('로그인했습니다', 'good');
       this.emit('auth', { ok: true, user: safe(() => auth.user, null) });
       // 로그인 성공 — 환영 문구를 잠깐 보여 준 뒤 패널을 닫고 메인 화면으로 넘어간다(§4.36).
       this._scheduleAuthClose(kind);
-      this._render('auth');
+      this._refreshAccount();
       return;
     } else {
       st.message = String(r?.error || '요청에 실패했습니다.');
       this._toast(st.message, 'warn');
     }
-    this._render('auth');
+    this._refreshAccount();
   }
 
   /** 로그인/가입 직후 자연스럽게 패널을 닫는다 — 메인 화면이 부드럽게 떠오른다 */
@@ -3937,7 +3943,7 @@ export class PanelManager {
     const name = sanitizeNickname(raw);
     if (!clear && !isValidNickname(name)) {
       st.message = `닉네임은 1~${NICKNAME_MAX}자로 입력하세요`;
-      this._render('auth');
+      this._refreshAccount();
       return false;
     }
     setNickname(clear ? '' : name);
@@ -3945,7 +3951,7 @@ export class PanelManager {
     this._fields.auth['profile-nickname'] = clear ? '' : name;
     st.message = clear ? '닉네임을 지웠습니다 — 캐릭터 이름/로그인 닉네임을 씁니다' : `닉네임을 ${name} 로 저장했습니다 (중복 닉네임 허용)`;
     this.emit('nickname', { nickname: clear ? '' : name });
-    this._render('auth');
+    this._refreshAccount();
     if (!clear && safe(() => auth.loggedIn, false)) {
       // 서버 반영은 비동기 — 실패해도 로컬 저장은 유지된다.
       Promise.resolve()
@@ -3953,7 +3959,7 @@ export class PanelManager {
         .then((r) => {
           if (r && r.ok === false) {
             st.message = `닉네임을 ${name} 로 저장했습니다 (서버 반영 실패 — 이 컴퓨터에만 저장됨)`;
-            this._render('auth');
+            this._refreshAccount();
           }
         })
         .catch(() => {});

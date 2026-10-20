@@ -1418,9 +1418,9 @@ check(
   const cssSrc = readFileSync(new URL('../client/src/ui/styles.css', import.meta.url), 'utf8');
   check('콘솔 UI — 관리자 게이트', consoleSrc.includes('isAdminUser(this.user ?? auth?.user ?? null)') && consoleSrc.includes('관리자 전용 콘솔입니다'));
   check('콘솔 UI — Enter 실행 · Escape 닫기 · ↑↓ 기록', consoleSrc.includes("key === 'Enter'") && consoleSrc.includes("key === 'Escape'") && consoleSrc.includes("key === 'ArrowUp'"));
-  check('main — ` 또는 / 로 콘솔 토글 + Escape 닫기',
-    mainSrcA.includes("actionPressed('admin')") && mainSrcA.includes('if (this.ui.admin?.isOpen) this.ui.admin.close();'));
-  check('main — 관리자 접속 안내', mainSrcA.includes('_adminHint()') && mainSrcA.includes('관리자 계정 — ` 또는 / 로 관리자 콘솔'));
+  // 사용자 요청(H-97): 관리자 콘솔 버튼·키·안내를 모두 없앴다.
+  check('main — 관리자 콘솔 토글이 없다', !mainSrcA.includes("actionPressed('admin')"));
+  check('main — 관리자 접속 안내가 없다', !mainSrcA.includes('관리자 계정 — ` 또는 / 로 관리자 콘솔'));
   check('스타일 — 관리자 콘솔 CSS', cssSrc.includes('.hud-console {') && cssSrc.includes('.hud-console-input'));
 }
 
@@ -2764,7 +2764,7 @@ section('점프 우선 · 키 변경 (계약 §4.56 · §4.55)');
   check('keys — 무결성 검사(변경·중복 거부·ESC 고정·복원)', validateKeyData().length === 0, validateKeyData().join(' · ') || '전부 통과');
   check('keys — 기본값은 기존 하드코딩과 같다', keyCodes('jump').join(',') === 'Space' && keyCodes('forward').join(',') === 'KeyW,ArrowUp' && keyCodes('sit').join(',') === 'ControlLeft,ControlRight' && keyLabel('KeyP') === 'P');
   check('keys — ESC 는 바꿀 수 없다', setKey('jump', 'Escape', { persist: false }).ok === false && keyCodes('jump').join(',') === 'Space');
-  check('keys — 26개 동작이 모두 라벨/그룹을 가진다', KEY_ACTIONS.length === 26 && KEY_ACTIONS.every((a) => a.label && a.group && a.def.length > 0), KEY_ACTIONS.length + '개');
+  check('keys — 25개 동작이 모두 라벨/그룹을 가진다', KEY_ACTIONS.length === 25 && KEY_ACTIONS.every((a) => a.label && a.group && a.def.length > 0), KEY_ACTIONS.length + '개');
   resetAllKeys({ persist: false });
 }
 // ───────────────────────── H-57 조합법 도감(지형별)
@@ -2922,6 +2922,26 @@ section('멀티 서버 주소 — 주소만 넣고 접속');
   check('게임이 server-connect 를 처리한다', mainSrc.includes("on('server-connect'") && mainSrc.includes('connectServer('));
   // 접속하면 로그인/저장/순위표도 그 서버로 가야 한다.
   check('접속 시 REST 주소도 바뀐다', mainSrc.includes('setApiBase(target === self'));
+}
+// ───────────────────────── H-97 메뉴 버튼 · 설정 안 로그인 · 관리자 제거
+section('메뉴 버튼 → 창 닫고 패널 · 설정에서 로그인/회원가입');
+{
+  const menuSrc = readFileSync(new URL('../client/src/ui/menu.js', import.meta.url), 'utf8');
+  const mainSrc = readFileSync(new URL('../client/src/main.js', import.meta.url), 'utf8');
+  const panelSrc = readFileSync(new URL('../client/src/ui/panels.js', import.meta.url), 'utf8');
+  const keysSrc = readFileSync(new URL('../client/src/keys.js', import.meta.url), 'utf8');
+  // 1) 버튼을 누르면 메뉴 창을 닫고 그 다음 패널이 뜬다.
+  check('설정 버튼이 메뉴를 먼저 닫는다', mainSrc.includes("this.ui.menu.on('settings'") && mainSrc.includes('this.ui.menu?.hide?.()'));
+  check('패널을 닫으면 메뉴가 다시 나온다', mainSrc.includes("this.ui.panels?.on?.('close'") && mainSrc.includes("this.ui.menu?.show?.('main')"));
+  // 2) 로그인/회원가입은 설정 안에서.
+  check('메인 화면에 로그인 버튼이 없다', !menuSrc.includes("item('auth'"));
+  check('설정 화면이 계정 UI 를 그린다', panelSrc.includes('_renderAccount(body') && panelSrc.includes('로그인 · 회원가입'));
+  check('계정 UI 에 로그인/회원가입 탭이 있다', panelSrc.includes("label: '회원가입'") && panelSrc.includes("label: '로그인'"));
+  check('회원가입에 닉네임 입력칸이 없다', !panelSrc.includes("'auth-nickname', 'text'"));
+  // 3) 관리자 콘솔/버튼 제거.
+  check('관리자 콘솔 키가 없다', !keysSrc.includes("id: 'admin'"));
+  check('관리자 콘솔 토글이 없다', !mainSrc.includes("actionPressed('admin')"));
+  check('관리자 안내 문구가 없다', !mainSrc.includes('관리자 계정 —') && !panelSrc.includes('👑 관리자'));
 }
 console.log(`스모크 테스트 결과: ${pass}개 통과 / ${fail}개 실패 (총 ${pass + fail}개)`);
 if (fail > 0) {

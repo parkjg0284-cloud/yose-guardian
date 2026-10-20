@@ -583,9 +583,8 @@ export class MainMenu {
   _accountLabel() {
     const user = safe(() => auth.user, null);
     const loggedIn = Boolean(safe(() => auth.loggedIn, false));
-    const isAdmin = Boolean(safe(() => auth.isAdmin, false));
     const who = `${nicknameFor(user)} 님 접속 중`;
-    return loggedIn ? (isAdmin ? `${who} · 👑 관리자` : who) : '게스트 (오프라인 가능)';
+    return loggedIn ? who : '게스트 (오프라인 가능)';
   }
 
   // ── 렌더 ────────────────────────────────────────
@@ -975,8 +974,7 @@ export class MainMenu {
     };
     const loggedIn = Boolean(safe(() => auth.loggedIn, false));
     const user = safe(() => auth.user, null);
-    const acctLabel = loggedIn ? '👤 ' + (user?.nickname || user?.username || '내 계정') : '🔑 로그인 / 회원가입';
-    item('auth', loggedIn ? '👤' : '🔑', loggedIn ? (user?.nickname || user?.username || '내 계정') : '로그인 / 회원가입', 'is-ghost');
+    // 로그인/회원가입은 설정 안으로 옮겼다(사용자 요청) — 메인 화면에는 계정 버튼을 두지 않는다.
     item('world', '🎮', '싱글 플레이', 'is-primary');
     item('multi', '🧙', '멀티플레이', 'is-violet');
     item('options', '⚙️', '설정', 'is-ghost');

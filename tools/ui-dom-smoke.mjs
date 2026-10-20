@@ -1089,6 +1089,8 @@ const menu = attempt('MainMenu constructs (builds #menu-root)', () => new menuMo
   // 사용자 요청: [게임 시작] 을 없애고, [불러오기] 는 각 플레이 화면(카드) 안으로 옮겼다.
   //  싱글·멀티 카드는 함께 렌더되고 CSS 로 하나만 보이므로, 모드별 존재 여부로 검사한다.
   ok('메인화면 — [게임 시작] 버튼이 없다', documentStub.body.querySelectorAll('[data-act="start"]').length === 0);
+  // 사용자 요청: 로그인/회원가입 버튼을 메인에서 없애고 설정 안으로 옮겼다.
+  ok('메인화면 — [로그인] 버튼이 없다', documentStub.body.querySelectorAll('[data-act="auth"]').length === 0);
   menu.show('main');
   menu._heroAct('world');
   const soloLoads = documentStub.getElementById('menu-root').querySelectorAll('[data-act="menu-load"]');
@@ -1246,6 +1248,27 @@ if (menu) {
     menu.show('help');
     const root = documentStub.getElementById('menu-root');
     return root.querySelectorAll('[data-act="menu-tab"]').some((b) => b.dataset.tab === 'help');
+  });
+  // 사용자 요청: 로그인·회원가입을 설정 안에서 한다.
+  attempt('설정 — 로그인·회원가입 탭이 설정 안에 있다', () => {
+    pm.state.auth.tab = 'login';
+    pm.open('settings');
+    const root = documentStub.getElementById('panel-root');
+    const tabs = root.querySelectorAll('[data-act="auth-tab"]').map((b) => b.dataset.tab);
+    const user = root.querySelector('[data-field="auth-username"]');
+    const pass = root.querySelector('[data-field="auth-password"]');
+    pm.close();
+    return tabs.includes('login') && tabs.includes('register') && Boolean(user) && Boolean(pass);
+  });
+  attempt('설정 — 회원가입은 아이디·비밀번호만 받는다', () => {
+    pm.state.auth.tab = 'register';
+    pm.open('settings');
+    const root = documentStub.getElementById('panel-root');
+    const hasNick = Boolean(root.querySelector('[data-field="auth-nickname"]'));
+    const submit = root.querySelector('[data-act="auth-register"]');
+    pm.close();
+    pm.state.auth.tab = 'login';
+    return !hasNick && Boolean(submit);
   });
   // 마인크래프트처럼 "서버 주소"만 넣고 그 서버에 붙는다.
   attempt('멀티 — 서버 주소 입력칸이 있다', () => {
