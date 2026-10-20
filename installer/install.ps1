@@ -130,6 +130,67 @@ if (-not (Test-Path (Join-Path $app 'node_modules\express'))) {
 } else { Write-Host '  [2/4] 라이브러리 이미 준비됨' }
 
 # ── ④ 실행 파일 / 제거 스크립트 ─────────────────────────────────────
+# ── 콘솔 창 없이 게임을 켜는 런처 (창이 남지 않는다) ─────────────────────
+$hiddenVbs = Join-Path $app '게임실행.vbs'
+$vbsValue = @(
+  'Option Explicit'
+  'Dim sh, fso, here, url, nodeExe, q, i'
+  'Set sh = CreateObject("WScript.Shell")'
+  'Set fso = CreateObject("Scripting.FileSystemObject")'
+  'here = fso.GetParentFolderName(WScript.ScriptFullName)'
+  'sh.CurrentDirectory = here'
+  'url = "http://127.0.0.1:3001"'
+  'q = Chr(34)'
+  ''
+  'If ServerUp(url) Then'
+  '  sh.Run url, 1, False'
+  '  WScript.Quit 0'
+  'End If'
+  ''
+  'nodeExe = FindNode()'
+  'If nodeExe = "" Then'
+  '  MsgBox "Node.js is not installed." & vbCrLf & "Install it from https://nodejs.org and run again.", 48, "Yose Guardian"'
+  '  WScript.Quit 1'
+  'End If'
+  ''
+  'sh.Run q & nodeExe & q & " server/index.js --prod", 0, False'
+  ''
+  'For i = 1 To 75'
+  '  WScript.Sleep 400'
+  '  If ServerUp(url) Then Exit For'
+  'Next'
+  ''
+  'sh.Run url, 1, False'
+  ''
+  'Function ServerUp(u)'
+  '  On Error Resume Next'
+  '  Dim http'
+  '  ServerUp = False'
+  '  Set http = CreateObject("WinHttp.WinHttpRequest.5.1")'
+  '  http.SetTimeouts 400, 400, 800, 800'
+  '  http.Open "GET", u & "/api/health", False'
+  '  http.Send'
+  '  If Err.Number = 0 Then'
+  '    If http.Status = 200 Then ServerUp = True'
+  '  End If'
+  '  Err.Clear'
+  '  On Error GoTo 0'
+  'End Function'
+  ''
+  'Function FindNode()'
+  '  Dim p'
+  '  FindNode = ""'
+  '  For Each p In Array(sh.ExpandEnvironmentStrings("%ProgramFiles%\nodejs\node.exe"), sh.ExpandEnvironmentStrings("%ProgramFiles(x86)%\nodejs\node.exe"), sh.ExpandEnvironmentStrings("%LOCALAPPDATA%\Programs\nodejs\node.exe"), here & "\node\node.exe")'
+  '    If fso.FileExists(p) Then'
+  '      FindNode = p'
+  '      Exit Function'
+  '    End If'
+  '  Next'
+  '  FindNode = "node"'
+  'End Function'
+)
+try { Set-Content -Path $hiddenVbs -Value $vbsValue -Encoding ASCII -ErrorAction Stop } catch { Write-Host '  [안내] 게임실행.vbs 를 쓰지 못했습니다' }
+
 $launcher = Join-Path $app '게임실행.cmd'
 Write-SafeFile -Path $launcher -Encoding OEM -Value @(
   '@echo off', 'cd /d "%~dp0"',
@@ -144,7 +205,7 @@ Write-SafeFile -Path $launcher -Encoding OEM -Value @(
   '  exit /b 1',
   ')',
   ':run',
-  'start "" http://127.0.0.1:3001', 'node server/index.js --prod')
+  'start "" wscript.exe //nologo "%~dp0게임실행.vbs"', 'exit /b 0')
 # ── 고른 폴더에 쓸 수 있는지 먼저 확인 — 못 쓰면(보호 폴더/권한) 안전한 기본 위치로 ──
 if ($app) {
   $writeOk = $false
