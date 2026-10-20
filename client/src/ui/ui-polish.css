@@ -826,3 +826,11 @@
 .help-block-scroll::-webkit-scrollbar { width: 8px; }
 .help-block-scroll::-webkit-scrollbar-thumb { background: rgba(154, 212, 160, 0.3); border-radius: 4px; }
 .help-block-scroll::-webkit-scrollbar-track { background: transparent; }
+
+/* 탭 화면 — 카드가 메뉴 상자보다 넓어 오른쪽이 잘리던 문제 (v1.0.17)
+   메뉴 폭을 카드에 맞춰 넓히고, 카드는 상자 안 100% 로 맞춘다 */
+#menu-root[data-view="tab"] .menu { width: min(980px, 96vw); }
+.menu-card.menu-seeds { width: min(920px, 100%); }
+.menu-card.menu-character { width: min(880px, 100%); }
+.menu-card.menu-help { width: min(900px, 100%); }
+#menu-root[data-view="tab"] .menu-body { width: 100%; }
