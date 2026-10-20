@@ -2936,6 +2936,20 @@ section('전직 — 캐릭터 화면에서 빼고 중앙코어에서');
   check('코어 근처 E 프롬프트가 있다', mainSrc.includes('중앙코어 — 전직/승급'));
 }
 
+// ───────────────────────── 탭 화면 새 UI · 멀티 한 창 (v1.0.16)
+section('탭 화면(캐릭터·시드·도움말) 새 UI · 멀티 한 창');
+{
+  const menuSrc = readFileSync(new URL('../client/src/ui/menu.js', import.meta.url), 'utf8');
+  const cssSrc = readFileSync(new URL('../client/src/ui/ui-polish.css', import.meta.url), 'utf8');
+  check('캐릭터 탭 — 전용 카드', menuSrc.includes('menu-card menu-tab menu-character'));
+  check('시드 갤러리 탭 — 전용 카드', menuSrc.includes('menu-card menu-tab menu-seeds'));
+  check('도움말 탭 — 전용 카드 + 4블록', menuSrc.includes('menu-card menu-tab menu-help') && menuSrc.includes('help-block'));
+  check('탭 카드 CSS — 중간 크기', cssSrc.includes('.menu-card.menu-tab') && cssSrc.includes('menu-seeds'));
+  check('멀티 — 열린 방이 한 카드 안에', menuSrc.includes('multi-block multi-block-wide') && !menuSrc.includes("menu-card menu-rooms"));
+  check('멀티 — ④ 열린 방 블록', menuSrc.includes("'④'"));
+  check('탭 화면 제목/푸터 숨김 CSS', cssSrc.includes('[data-view="tab"] .menu-head'));
+}
+
 // ───────────────────────── H-97 메뉴 버튼 · 설정 안 로그인 · 관리자 제거
 section('메뉴 버튼 → 창 닫고 패널 · 설정에서 로그인/회원가입');
 {

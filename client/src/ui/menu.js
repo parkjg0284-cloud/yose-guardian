@@ -927,23 +927,22 @@ export class MainMenu {
     }
     multi.appendChild(multiActs);
     multi.appendChild(h('span', 'multi-link', `초대 링크 · ${loadLastCode() ? inviteLink(loadLastCode()) : '—'}`));
-    body.appendChild(multi);
-
-    // ── 열린 방 목록 (같은 서버에 접속한 사람끼리 코드 없이 참가) ──
-    const roomsCard = h('div', 'menu-card menu-rooms');
-    roomsCard.dataset.screen = 'multi';
-    roomsCard.appendChild(h('h2', 'card-title', '열린 방 — 클릭해서 참가'));
-    roomsCard.appendChild(row('설명', '같은 주소로 들어온 사람이 만든 방이 자동으로 보입니다. 초대코드를 몰라도 참가할 수 있습니다.'));
-    const roomsActs = h('div', 'row menu-actions');
-    const roomsReload = h('button', 'btn ghost btn-ghost', '새로고침');
+    // ④ 열린 방 — 같은 서버에 접속한 사람끼리 코드 없이 참가 (멀티 한 창 안에)
+    const roomsBlock = h('div', 'multi-block multi-block-wide');
+    const roomsHead = h('div', 'multi-block-head');
+    roomsHead.appendChild(h('span', 'multi-step', '④'));
+    roomsHead.appendChild(h('span', 'multi-block-title', '열린 방 — 클릭해서 참가'));
+    const roomsReload = h('button', 'multi-mini', '새로고침');
     roomsReload.type = 'button';
     roomsReload.dataset.act = 'menu-rooms-refresh';
-    roomsActs.appendChild(roomsReload);
-    roomsCard.appendChild(roomsActs);
-    const roomsBox = h('div', 'menu-rooms-list');
+    roomsHead.appendChild(roomsReload);
+    roomsBlock.appendChild(roomsHead);
+    const roomsBox = h('div', 'menu-rooms-list multi-rooms-list');
     roomsBox.dataset.role = 'rooms';
-    roomsCard.appendChild(roomsBox);
-    body.appendChild(roomsCard);
+    roomsBlock.appendChild(roomsBox);
+    multi.appendChild(roomsBlock);
+
+    body.appendChild(multi);
     this._roomsEl = roomsBox;
     this._renderRooms();
 
@@ -1141,37 +1140,50 @@ export class MainMenu {
   }
 
   _renderCharacter(body) {
-    const card = h('div', 'menu-card');
-    card.appendChild(h('h2', 'card-title', '🧍 캐릭터 만들기'));
+    const card = h('div', 'menu-card menu-tab menu-character');
+
+    const hero = h('div', 'tab-hero');
+    hero.appendChild(h('span', 'tab-hero-icon', '🧍'));
+    const heroText = h('div', 'tab-hero-text');
+    heroText.appendChild(h('h2', 'card-title', '캐릭터'));
+    heroText.appendChild(h('p', 'tab-hero-sub', '이름과 외형을 정합니다 · 외형은 능력치에 영향을 주지 않습니다'));
+    hero.appendChild(heroText);
+    card.appendChild(hero);
 
     const current = this.character;
-    const nameInput = h('input', 'menu-input');
+    const fields = h('div', 'tab-fields');
+
+    const nameField = h('label', 'tab-field');
+    nameField.appendChild(h('span', 'solo-label', '내 이름'));
+    const nameInput = h('input', 'input tab-input');
     nameInput.type = 'text';
     nameInput.maxLength = CHARACTER_NAME_MAX;
     nameInput.placeholder = '이름 (최대 16자)';
     nameInput.value = this._field('character-name', current.name);
     nameInput.dataset.field = 'character-name';
     nameInput.dataset.role = 'character-name';
-    const nameRow = h('div', 'row stat-row');
-    nameRow.appendChild(h('span', 'row-label', '내 이름'));
-    nameRow.appendChild(nameInput);
-    card.appendChild(nameRow);
-    const nickInput = h('input', 'menu-input');
+    nameField.appendChild(nameInput);
+    fields.appendChild(nameField);
+
+    const nickField = h('label', 'tab-field');
+    nickField.appendChild(h('span', 'solo-label', '닉네임'));
+    const nickInput = h('input', 'input tab-input');
     nickInput.type = 'text';
     nickInput.maxLength = NICKNAME_MAX;
-    nickInput.placeholder = `닉네임 (최대 ${NICKNAME_MAX}자 · 중복 가능 · 비우면 이름을 씁니다)`;
+    nickInput.placeholder = `닉네임 (최대 ${NICKNAME_MAX}자 · 비우면 이름)`;
     nickInput.value = this._field('nickname', currentNickname());
     nickInput.dataset.field = 'nickname';
     nickInput.dataset.role = 'nickname';
-    const nickRow = h('div', 'row stat-row');
-    nickRow.appendChild(h('span', 'row-label', '닉네임'));
-    nickRow.appendChild(nickInput);
-    card.appendChild(nickRow);
-    card.appendChild(row('안내', '닉네임을 비워 두면 캐릭터 이름/로그인 닉네임을 씁니다. 외형은 능력치에 영향을 주지 않습니다.'));
-    card.appendChild(row('닉네임', '중복 닉네임도 됩니다 — 다른 사람과 같은 이름을 써도 저장됩니다.'));
+    nickField.appendChild(nickInput);
+    fields.appendChild(nickField);
+    card.appendChild(fields);
+    card.appendChild(h('span', 'tab-note', '중복 닉네임도 됩니다(중복 가능) · 비워 두면 캐릭터 이름/로그인 닉네임을 씁니다'));
 
-    const skinRow = h('div', 'row stat-row');
-    skinRow.appendChild(h('span', 'row-label', '외형'));
+    const skinHead = h('div', 'tab-section-head');
+    skinHead.appendChild(h('span', 'solo-label', '외형'));
+    skinHead.appendChild(h('span', 'tab-hint', `${CHARACTER_SKINS.length}종 · 클릭해서 고르기`));
+    card.appendChild(skinHead);
+
     const grid = h('div', 'character-grid');
     grid.dataset.role = 'character-skins';
     for (const skin of CHARACTER_SKINS) {
@@ -1187,34 +1199,31 @@ export class MainMenu {
       cell.appendChild(h('span', 'character-desc', skin.desc));
       grid.appendChild(cell);
     }
-    skinRow.appendChild(grid);
-    card.appendChild(skinRow);
+    card.appendChild(grid);
 
-    const preview = h('div', 'row stat-row');
+    const preview = h('div', 'tab-preview');
     preview.dataset.role = 'character-preview';
-    preview.appendChild(h('span', 'row-label', '미리보기'));
-    preview.appendChild(h('span', 'character-preview-text', characterLabel({ name: this._field('character-name', current.name), skin: current.skin })));
+    preview.appendChild(h('span', 'tab-preview-label', '미리보기'));
+    preview.appendChild(
+      h('span', 'character-preview-text', characterLabel({ name: this._field('character-name', current.name), skin: current.skin }))
+    );
     card.appendChild(preview);
 
-    const saveRow = h('div', 'row menu-actions');
-    const save = h('button', 'btn primary btn-primary', '캐릭터 저장');
+    const actions = h('div', 'tab-actions');
+    const save = h('button', 'btn primary btn-primary tab-primary', '캐릭터 저장');
     save.type = 'button';
     save.dataset.act = 'character-save';
-    saveRow.appendChild(save);
+    actions.appendChild(save);
     const randomize = h('button', 'btn ghost btn-ghost', '외형 무작위');
     randomize.type = 'button';
     randomize.dataset.act = 'character-random';
-    saveRow.appendChild(randomize);
-    card.appendChild(saveRow);
-    if (this._characterSavedNote) {
-      card.appendChild(h('div', 'menu-note', this._characterSavedNote));
-    }
+    actions.appendChild(randomize);
+    card.appendChild(actions);
+
+    if (this._characterSavedNote) card.appendChild(h('div', 'menu-note tab-note tab-note-ok', this._characterSavedNote));
+    card.appendChild(h('span', 'tab-note', '멀티플레이에서는 이 이름·외형이 그대로 보입니다 · 브라우저에 저장됩니다'));
+
     body.appendChild(card);
-    const tip = h('div', 'menu-card');
-    tip.appendChild(h('h2', 'card-title', '멀티플레이에서'));
-    tip.appendChild(row('표시', '방을 만들거나 참가할 때 이 이름·외형이 함께 전송되어 다른 플레이어 화면에 그대로 보입니다.'));
-    tip.appendChild(row('저장', '브라우저(localStorage)에 저장되어 다음 접속에도 유지됩니다.'));
-    body.appendChild(tip);
     return card;
   }
 
@@ -1240,9 +1249,18 @@ export class MainMenu {
   }
 
   _renderSeeds(body) {
-    const card = h('div', 'menu-card');
-    card.appendChild(h('h2', 'card-title', '시드 갤러리'));
-    card.appendChild(row('안내', '마음에 드는 세계를 골라 시드 칸에 넣으세요. 게임 중에는 G 키로도 열 수 있습니다.'));
+    const card = h('div', 'menu-card menu-tab menu-seeds');
+
+    const hero = h('div', 'tab-hero');
+    hero.appendChild(h('span', 'tab-hero-icon', '🗂'));
+    const heroText = h('div', 'tab-hero-text');
+    heroText.appendChild(h('h2', 'card-title', '시드 갤러리'));
+    heroText.appendChild(h('p', 'tab-hero-sub', '마음에 드는 세계를 골라 시드 칸에 넣으세요 · 게임 중에는 G 키'));
+    hero.appendChild(heroText);
+    const count = h('span', 'tab-count', `${SEED_GALLERY.length}개`);
+    hero.appendChild(count);
+    card.appendChild(hero);
+
     const current = String(safe(() => this.game?.seed, ''));
     const grid = h('div', 'seed-grid');
     for (const s of SEED_GALLERY) {
@@ -1265,42 +1283,60 @@ export class MainMenu {
     }
     card.appendChild(grid);
 
-    const back = h('button', 'btn primary btn-primary', '메인으로');
+    const actions = h('div', 'tab-actions');
+    const back = h('button', 'btn primary btn-primary tab-primary', '메인으로');
     back.type = 'button';
     back.dataset.act = 'menu-tab';
     back.dataset.tab = 'main';
-    card.appendChild(back);
+    actions.appendChild(back);
+    card.appendChild(actions);
     body.appendChild(card);
   }
 
   _renderHelp(body) {
-    const card = h('div', 'menu-card');
-    card.appendChild(h('h2', 'card-title', '조작'));
-    for (const [key, desc] of KEYBINDS) card.appendChild(row(key, desc));
-    body.appendChild(card);
+    const card = h('div', 'menu-card menu-tab menu-help');
 
-    const rules = h('div', 'menu-card');
-    rules.appendChild(h('h2', 'card-title', '규칙'));
+    const hero = h('div', 'tab-hero');
+    hero.appendChild(h('span', 'tab-hero-icon', '❓'));
+    const heroText = h('div', 'tab-hero-text');
+    heroText.appendChild(h('h2', 'card-title', '도움말'));
+    heroText.appendChild(h('p', 'tab-hero-sub', '조작 · 규칙 · 화면 설정을 한눈에'));
+    hero.appendChild(heroText);
+    card.appendChild(hero);
+
+    const grid = h('div', 'help-grid');
+
+    const keys = h('div', 'help-block help-block-scroll');
+    keys.appendChild(h('h3', 'help-title', '⌨ 조작'));
+    for (const [key, desc] of KEYBINDS) keys.appendChild(row(key, desc));
+    grid.appendChild(keys);
+
+    const rules = h('div', 'help-block');
+    rules.appendChild(h('h3', 'help-title', '📜 규칙'));
     for (const line of RULES) rules.appendChild(row('•', line));
-    body.appendChild(rules);
+    grid.appendChild(rules);
 
-    const frame = h('div', 'menu-card');
-    frame.appendChild(h('h2', 'card-title', '프레임 프리셋'));
+    const frame = h('div', 'help-block');
+    frame.appendChild(h('h3', 'help-title', '🖥 프레임 프리셋'));
     for (const p of FRAME_PRESETS) {
       frame.appendChild(row(p.name, `${p.desc} (그림자 ${p.shadow ? '켬' : '끔'} · 픽셀비 ${p.pixelRatio})`));
     }
-    body.appendChild(frame);
+    grid.appendChild(frame);
 
-    const credits = h('div', 'menu-card');
-    credits.appendChild(h('h2', 'card-title', '크레딧'));
+    const credits = h('div', 'help-block');
+    credits.appendChild(h('h3', 'help-title', '💠 크레딧'));
     for (const line of CREDITS) credits.appendChild(row('•', line));
-    body.appendChild(credits);
+    grid.appendChild(credits);
+    card.appendChild(grid);
 
-    const back = h('button', 'btn ghost btn-ghost', '메인으로');
+    const actions = h('div', 'tab-actions');
+    const back = h('button', 'btn primary btn-primary tab-primary', '메인으로');
     back.type = 'button';
     back.dataset.act = 'menu-tab';
     back.dataset.tab = 'main';
-    body.appendChild(back);
+    actions.appendChild(back);
+    card.appendChild(actions);
+    body.appendChild(card);
   }
 }
 
