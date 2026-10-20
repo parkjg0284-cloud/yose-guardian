@@ -372,6 +372,9 @@
 #menu-root[data-view="solo"] .menu-card[data-screen="multi"] { display: none !important; }
 /* 멀티 화면: 싱글 카드(새 게임·추천 시드) 숨김 */
 #menu-root[data-view="multi"] .menu-card[data-screen="solo"] { display: none !important; }
+/* 탭 화면(시드 갤러리·캐릭터·도움말): 싱글/멀티 카드는 숨기고 탭 내용만 보인다 */
+#menu-root[data-view="tab"] .menu-card[data-screen] { display: none !important; }
+#menu-root[data-view="tab"] .menu-hero-actions { display: none !important; }
 
 /* ── 시작 화면: 창(패널) 없이 배경 위에 버튼만 (사용자 요청) ──
    싱글/멀티를 누르면 그때부터 패널 모양·글자가 돌아온다. */

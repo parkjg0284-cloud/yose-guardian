@@ -131,6 +131,9 @@ export class MainMenu {
       this.root.addEventListener('click', this._bound.click);
       this.root.addEventListener('input', this._bound.input);
       this.root.addEventListener('keydown', this._bound.keydown);
+      // ESC — 하위 화면(싱글/멀티/설정/시드 갤러리…)이면 메인으로. 캡처 단계라 게임 키 처리보다 먼저 받는다.
+      this._bound.escape = (e) => this._onEscape(e);
+      globalThis.document?.addEventListener?.('keydown', this._bound.escape, true);
     }
   }
 
@@ -146,6 +149,8 @@ export class MainMenu {
     this.root.classList.remove('hidden');
     this.root.style.pointerEvents = '';
     this.emit('show', { tab: this._tab });
+    this._syncView();
+    this._syncHero();
     return true;
   }
 
@@ -285,6 +290,7 @@ export class MainMenu {
       this.root.removeEventListener('input', this._bound.input);
       this.root.removeEventListener('keydown', this._bound.keydown);
     }
+    if (this._bound.escape) globalThis.document?.removeEventListener?.('keydown', this._bound.escape, true);
     this._listeners.clear();
   }
 
@@ -642,6 +648,8 @@ export class MainMenu {
     this.root.appendChild(menu);
     if (this.root.classList.contains('hidden')) menu.classList.add('hidden');
     this._syncCarousel();
+    this._syncView();
+    this._syncHero();
   }
 
   _renderMain(body) {
@@ -1012,13 +1020,57 @@ export class MainMenu {
     }
     if (act === 'world' || act === 'multi' || act === 'options') {
       if (this.root) this.root.dataset.view = act === 'world' ? 'solo' : act === 'multi' ? 'multi' : 'options';
+      // 싱글/멀티/설정 화면에서는 큰 버튼(싱글·멀티·설정·종료)을 감춘다(사용자 요청).
+      this._syncHero();
       if (act === 'options') this.emit('settings', {});
       return;
     }
     if (act === 'start') {
       if (this.root) delete this.root.dataset.view;
+      this._syncHero();
       this.emit('start', { mode: this.state.mode, difficulty: this.state.difficulty });
     } else if (act === 'leave') this.emit('quit', {});
+  }
+
+  /** 탭(시드 갤러리·캐릭터·도움말)을 열면 view='tab' — 탭 내용이 보이게 한다. */
+  _syncView() {
+    const root = this.root;
+    if (!root) return null;
+    if (this._tab && this._tab !== 'main') {
+      root.dataset.view = 'tab';
+      return 'tab';
+    }
+    if (!root.dataset.view || root.dataset.view === 'tab') root.dataset.view = 'main';
+    return root.dataset.view;
+  }
+
+  /** 큰 버튼(싱글·멀티·설정·종료)은 **메인 화면에서만** 보인다. */
+  _syncHero() {
+    const stack = this._heroStack;
+    if (!stack) return false;
+    const view = this.root?.dataset?.view;
+    const onMain = !view || view === 'main';
+    const visible = safe(() => this.visible !== false, true);
+    stack.classList[onMain && visible ? 'remove' : 'add']('is-hidden');
+    return onMain;
+  }
+
+  /** ESC — 하위 화면(싱글/멀티/설정/시드 갤러리·도움말·캐릭터)이면 메인으로 돌아간다. */
+  _onEscape(e) {
+    if (!e || e.key !== 'Escape') return false;
+    const root = this.root;
+    if (!root || root.classList.contains('hidden')) return false;
+    const view = root.dataset?.view;
+    const onMain = (!view || view === 'main') && this._tab === 'main';
+    if (onMain) return false;   // 이미 메인 — 게임 쪽 ESC(일시정지)를 막지 않는다
+    e.preventDefault();
+    e.stopPropagation();
+    this._tab = 'main';
+    delete root.dataset.view;
+    this._render();
+    this._syncHero();
+    this.emit('main', {});
+    return true;
   }
 
   _renderCharacter(body) {

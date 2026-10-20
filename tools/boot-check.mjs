@@ -135,10 +135,71 @@ check('부팅 — 메뉴가 뜬다', (await evalJs(`document.getElementById('men
 check('부팅 — 치명적 오류 없음', !errors.some((e) => e.includes('치명적')), errors.find((e) => e.includes('치명적')) || '');
 check('부팅 — 콘솔 error 없음', errors.length === 0, errors[0] || '');
 
+// 화면 상태 — 큰 버튼/카드가 실제로 보이는지
+const viewState = () =>
+  evalJs(`(() => {
+    const root = document.getElementById('menu-root');
+    const hero = document.querySelector('.menu-hero-actions');
+    const shown = (el) => Boolean(el && el.getBoundingClientRect().height > 0);
+    return {
+      view: root?.dataset.view || '(없음)',
+      tab: window.__GAME__?.ui?.menu?._tab,
+      hero: Boolean(hero && shown(hero) && !hero.classList.contains('is-hidden')),
+      solo: shown(root?.querySelector('.menu-card[data-screen="solo"]')),
+      multi: shown(root?.querySelector('.menu-card[data-screen="multi"]'))
+    };
+  })()`);
+const pressEsc = async () => {
+  const k = { key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27, nativeVirtualKeyCode: 27 };
+  await send('Input.dispatchKeyEvent', { type: 'keyDown', ...k });
+  await send('Input.dispatchKeyEvent', { type: 'keyUp', ...k });
+};
+
+const main0 = await viewState();
+check('메뉴 — 메인에서 큰 버튼 4개가 보인다', main0.view === 'main' && main0.hero, JSON.stringify(main0));
+
 // 싱글 플레이 → 혼자 지키기
 check('메뉴 — [싱글 플레이] 클릭', await click('world'));
 await sleep(600);
 check('메뉴 — 싱글 화면으로 전환', (await evalJs(`document.getElementById('menu-root')?.dataset.view`)) === 'solo');
+const soloView = await viewState();
+check('싱글 — 큰 버튼(싱글·멀티·설정·종료)이 숨는다', !soloView.hero && soloView.solo, JSON.stringify(soloView));
+await pressEsc();
+await sleep(600);
+const backMain = await viewState();
+check('싱글 — ESC 로 메인 복귀', backMain.view === 'main' && backMain.tab === 'main' && backMain.hero, JSON.stringify(backMain));
+
+// 멀티플레이
+await click('multi');
+await sleep(600);
+const multiView = await viewState();
+check('멀티 — 큰 버튼이 숨는다', multiView.view === 'multi' && !multiView.hero && multiView.multi, JSON.stringify(multiView));
+await pressEsc();
+await sleep(600);
+const backMain2 = await viewState();
+check('멀티 — ESC 로 메인 복귀', backMain2.view === 'main' && backMain2.hero, JSON.stringify(backMain2));
+
+// 시드 갤러리 — 열리면 8개가 다 보이고, ESC 로 메인
+await click('world');
+await sleep(500);
+check('시드 — [바로 가기] 시드 갤러리 클릭', await click('menu-seeds'));
+await sleep(900);
+const gallery = await evalJs(
+  `(() => {
+    const root = document.getElementById('menu-root');
+    const cards = [...root.querySelectorAll('[data-act="menu-seed-pick"]')];
+    const shown = cards.filter((c) => c.getBoundingClientRect().height > 0);
+    const hero = document.querySelector('.menu-hero-actions');
+    return { view: root.dataset.view, tab: window.__GAME__.ui.menu._tab, cards: cards.length, shown: shown.length, hero: Boolean(hero && hero.getBoundingClientRect().height > 0 && !hero.classList.contains('is-hidden')) };
+  })()`
+);
+check('시드 갤러리 — 8개 카드가 보인다', gallery.tab === 'seeds' && gallery.shown === 8, JSON.stringify(gallery));
+check('시드 갤러리 — 큰 버튼이 숨는다', !gallery.hero, JSON.stringify(gallery));
+await pressEsc();
+await sleep(700);
+const afterGallery = await viewState();
+check('시드 갤러리 — ESC 로 메인 복귀', afterGallery.view === 'main' && afterGallery.tab === 'main' && afterGallery.hero, JSON.stringify(afterGallery));
+
 check('메뉴 — [혼자 지키기] 클릭', await click('menu-start'));
 await sleep(2500);
 const menuHidden = await evalJs(
