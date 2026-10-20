@@ -1,0 +1,20 @@
+﻿요세의 수호자 — 설치 파일
+
+■ 설치 파일 만들기
+    npm run installer
+  (또는) powershell -ExecutionPolicy Bypass -File installer\build-installer.ps1
+
+  → installer\요세의수호자_설치.exe 가 만들어집니다.
+    ① 프런트를 빌드하고 ② 실행에 필요한 파일만 묶어 ③ 자체 설치 exe 로 포장합니다.
+
+■ 설치 파일이 하는 일
+  1. 게임을 %LOCALAPPDATA%\YoseGuardian\app 에 풉니다.
+  2. 실행 파일(Yose Guardian.cmd)과 제거 스크립트(uninstall.cmd)를 만듭니다.
+  3. 바탕화면·시작 메뉴에 '요세의 수호자' 바로가기를 만듭니다.
+  4. 실행하면 브라우저가 열리고 게임 서버(127.0.0.1:8080)가 뜹니다.
+
+■ 준비물
+  Node.js 22 이상 (https://nodejs.org) — 없으면 실행 시 안내가 뜹니다.
+
+■ 참고
+  코드 서명이 없어 Windows SmartScreen 경고가 뜰 수 있습니다(추가 정보 → 실행).

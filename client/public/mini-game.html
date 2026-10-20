@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>요새의 수호자 — 미니게임: 피하기</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: #111;
+      color: white;
+      font-family: Arial, sans-serif;
+      overflow: hidden;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    #game {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background: #222;
+      overflow: hidden;
+      /* 터치 드래그로 화면이 스크롤되지 않게 한다 */
+      touch-action: none;
+    }
+
+    #player {
+      position: absolute;
+      width: 50px;
+      height: 50px;
+      background: dodgerblue;
+      border-radius: 10px;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      will-change: left, top;
+    }
+
+    /* 피격 순간 붉게 번쩍임 */
+    #player.hit {
+      background: #ff5252;
+    }
+
+    .enemy {
+      position: absolute;
+      width: 40px;
+      height: 40px;
+      background: crimson;
+      border-radius: 50%;
+      will-change: left, top;
+    }
+
+    /* 아슬아슬하게 피한 적은 표시해 준다 */
+    .enemy.near {
+      box-shadow: 0 0 0 3px rgba(255, 210, 90, 0.9);
+    }
+
+    #ui {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      z-index: 10;
+      font-size: 20px;
+    }
+
+    #best {
+      font-size: 15px;
+      opacity: 0.75;
+    }
+
+    #hint {
+      position: fixed;
+      top: 54px;
+      left: 20px;
+      z-index: 10;
+      font-size: 14px;
+      opacity: 0.6;
+    }
+
+    #home {
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      z-index: 10;
+      font-size: 14px;
+      color: #9ad;
+      background: rgba(20, 28, 40, 0.9);
+      border: 1px solid rgba(154, 221, 255, 0.35);
+      border-radius: 8px;
+      padding: 8px 12px;
+      cursor: pointer;
+    }
+
+    #home:hover {
+      opacity: 1;
+      filter: brightness(1.15);
+    }
+
+    .float {
+      position: absolute;
+      z-index: 5;
+      color: #ffd25a;
+      font-size: 18px;
+      font-weight: bold;
+      transform: translate(-50%, -50%);
+      animation: floatUp 0.7s ease-out forwards;
+      pointer-events: none;
+    }
+
+    @keyframes floatUp {
+      from { opacity: 1; }
+      to { opacity: 0; transform: translate(-50%, -160%); }
+    }
+
+    #gameOver {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 20;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+    }
+
+    #gameOver h1 {
+      font-size: 50px;
+      margin: 0 0 10px;
+    }
+
+    button {
+      padding: 12px 25px;
+      font-size: 18px;
+      cursor: pointer;
+      border: none;
+      border-radius: 8px;
+      background: dodgerblue;
+      color: white;
+    }
+
+    button:hover {
+      filter: brightness(1.12);
+    }
+  </style>
+</head>
+
+<body>
+
+<div id="game">
+
+  <div id="ui">
+    점수: <span id="score">0</span>
+    &nbsp;&nbsp;
+    체력: <span id="hp">❤❤❤</span>
+    <br>
+    <span id="best">최고 점수: 0</span>
+  </div>
+
+  <div id="hint">이동 — WASD / 방향키, 또는 화면을 드래그(터치)</div>
+  <button id="home" type="button">← 게임으로 돌아가기</button>
+
+  <div id="player"></div>
+
+  <div id="gameOver">
+    <h1>GAME OVER</h1>
+    <p>최종 점수: <span id="finalScore">0</span></p>
+    <p id="newRecord" style="display:none;color:#ffd25a;">최고 점수 갱신!</p>
+    <button onclick="restartGame()">다시 시작</button>
+  </div>
+
+</div>
+
+<script>
+  // ── 요세의 수호자 미니게임 : 피하기 ─────────────────────────────
+  // 적을 피해 오래 버티는 게임. 키보드 또는 터치 드래그로 이동한다.
+  // 원본 대비 수정 : ①프레임레이트와 무관한 이동(dt 기반) ②적 제거 시 인덱스 밀림 없음
+  //                  ③플레이어 위에 적이 스폰되지 않음 ④터치 조작 추가
+  //                  ⑤점수가 실력 기반(생존 + 아슬아슬한 회피 보너스)
+  // ───────────────────────────────────────────────────────────────
+
+  const game = document.getElementById("game");
+  const player = document.getElementById("player");
+  const scoreText = document.getElementById("score");
+  const hpText = document.getElementById("hp");
+  const bestText = document.getElementById("best");
+  const gameOver = document.getElementById("gameOver");
+  const finalScore = document.getElementById("finalScore");
+  const newRecord = document.getElementById("newRecord");
+
+  const START_HP = 3;
+  const PLAYER_SPEED = 300;      // 초당 픽셀 (원본 5px/프레임 @60fps 와 같은 속도)
+  const ENEMY_SPEED = 60;        // 초당 픽셀 (원본 1px/프레임)
+  const ENEMY_SPEED_SPREAD = 60; // 적마다 0~60 만큼 더 빠름
+  const ENEMY_GROW = 2.5;        // 시간이 지날수록 빨라지는 정도(px/s per s)
+  const HIT_RADIUS = 45;         // 충돌 거리
+  const NEAR_RADIUS = 90;        // 이 안으로 들어오면 "아슬아슬" 표시
+  const ESCAPE_RADIUS = 130;     // 다시 이 밖으로 나가면 회피 성공
+  const DODGE_SCORE = 10;        // 회피 보너스 점수
+  const SPAWN_MIN = 0.6;         // 스폰 간격(초) — 가장 빠를 때
+  const SPAWN_MAX = 1.5;         // 스폰 간격(초) — 시작
+  const SPAWN_RAMP = 90;         // 이 시간(초) 동안 간격이 최소까지 줄어든다
+  const SAFE_SPAWN = 170;        // 플레이어와 최소 이만큼 떨어져 스폰
+
+  let W = window.innerWidth;
+  let H = window.innerHeight;
+
+  let playerX = W / 2;
+  let playerY = H / 2;
+
+  let score = 0;
+  let hp = START_HP;
+  let elapsed = 0;      // 이번 판 생존 시간(초)
+  let spawnTimer = 0;
+  let scoreTimer = 0;
+  let running = true;
+  let paused = false;
+  let last = 0;
+
+  let keys = {};        // 눌린 키
+  let touch = null;     // 드래그 중인 손가락/마우스 위치
+  let enemies = [];
+
+  let best = 0;
+  try { best = Number(localStorage.getItem("miniGameBest")) || 0; } catch (e) { best = 0; }
+
+  // ── 입력 ──────────────────────────────────────────────────────
+  document.addEventListener("keydown", (e) => {
+    keys[e.key.toLowerCase()] = true;
+  });
+
+  document.addEventListener("keyup", (e) => {
+    keys[e.key.toLowerCase()] = false;
+  });
+
+  // 터치/마우스 : 누른 곳 쪽으로 이동 (없으면 무시)
+  game.addEventListener("pointerdown", (e) => {
+    touch = { x: e.clientX, y: e.clientY };
+  });
+
+  game.addEventListener("pointermove", (e) => {
+    if (touch) touch = { x: e.clientX, y: e.clientY };
+  });
+
+  const release = () => { touch = null; };
+  window.addEventListener("pointerup", release);
+  window.addEventListener("pointercancel", release);
+  window.addEventListener("blur", release);
+
+  // 탭을 벗어나면 잠시 멈춘다(돌아왔을 때 적이 쌓여 있지 않도록)
+  document.addEventListener("visibilitychange", () => {
+    paused = document.hidden === true;
+    last = 0;
+  });
+
+  window.addEventListener("resize", () => {
+    W = window.innerWidth;
+    H = window.innerHeight;
+    playerX = Math.max(25, Math.min(W - 25, playerX));
+    playerY = Math.max(25, Math.min(H - 25, playerY));
+    drawPlayer();
+  });
+
+  // ── 그리기 ────────────────────────────────────────────────────
+  function drawPlayer() {
+    player.style.left = playerX + "px";
+    player.style.top = playerY + "px";
+  }
+
+  function updateHud() {
+    scoreText.textContent = score;
+    hpText.textContent = hp > 0 ? "❤".repeat(hp) : "💀";
+    bestText.textContent = "최고 점수: " + best;
+  }
+
+  function flashPlayer() {
+    player.classList.add("hit");
+    setTimeout(() => player.classList.remove("hit"), 120);
+  }
+
+  function floatScore(text, x, y) {
+    const label = document.createElement("div");
+    label.className = "float";
+    label.textContent = text;
+    label.style.left = x + "px";
+    label.style.top = y + "px";
+    game.appendChild(label);
+    setTimeout(() => label.remove(), 700);
+  }
+
+  // ── 이동 ──────────────────────────────────────────────────────
+  function movePlayer(dt) {
+    let dx = 0;
+    let dy = 0;
+
+    if (keys["w"] || keys["arrowup"]) dy -= 1;
+    if (keys["s"] || keys["arrowdown"]) dy += 1;
+    if (keys["a"] || keys["arrowleft"]) dx -= 1;
+    if (keys["d"] || keys["arrowright"]) dx += 1;
+
+    if (dx !== 0 || dy !== 0) {
+      const len = Math.sqrt(dx * dx + dy * dy);   // 대각선도 같은 속도로
+      playerX += (dx / len) * PLAYER_SPEED * dt;
+      playerY += (dy / len) * PLAYER_SPEED * dt;
+    } else if (touch) {
+      const tx = touch.x - playerX;
+      const ty = touch.y - playerY;
+      const dist = Math.sqrt(tx * tx + ty * ty);
+      if (dist > 4) {
+        const step = Math.min(dist, PLAYER_SPEED * dt);
+        playerX += (tx / dist) * step;
+        playerY += (ty / dist) * step;
+      }
+    }
+
+    playerX = Math.max(25, Math.min(W - 25, playerX));
+    playerY = Math.max(25, Math.min(H - 25, playerY));
+    drawPlayer();
+  }
+
+  // ── 적 ────────────────────────────────────────────────────────
+  function spawnInterval() {
+    const t = Math.min(1, elapsed / SPAWN_RAMP);
+    return SPAWN_MAX - (SPAWN_MAX - SPAWN_MIN) * t;
+  }
+
+  function createEnemy() {
+    const speed = ENEMY_SPEED + Math.random() * ENEMY_SPEED_SPREAD + elapsed * ENEMY_GROW;
+
+    // 플레이어 바로 위에 스폰되지 않도록 안전한 자리를 찾는다(못 찾으면 가장 먼 자리)
+    let x = 0;
+    let y = 0;
+    let bestDist = -1;
+    for (let i = 0; i < 30; i += 1) {
+      const cx = 20 + Math.random() * Math.max(1, W - 40);
+      const cy = 20 + Math.random() * Math.max(1, H - 40);
+      const d = Math.sqrt((cx - playerX) ** 2 + (cy - playerY) ** 2);
+      if (d > bestDist) { bestDist = d; x = cx; y = cy; }
+      if (d >= SAFE_SPAWN) break;
+    }
+
+    const element = document.createElement("div");
+    element.className = "enemy";
+    element.style.left = x + "px";
+    element.style.top = y + "px";
+    game.appendChild(element);
+
+    enemies.push({ element: element, x: x, y: y, speed: speed, near: false });
+  }
+
+  function moveEnemies(dt) {
+    // 뒤에서부터 검사해 제거해야 인덱스가 밀리지 않는다
+    for (let i = enemies.length - 1; i >= 0; i -= 1) {
+      const enemy = enemies[i];
+
+      const dx = playerX - enemy.x;
+      const dy = playerY - enemy.y;
+      const before = Math.sqrt(dx * dx + dy * dy) || 1;
+
+      enemy.x += (dx / before) * enemy.speed * dt;
+      enemy.y += (dy / before) * enemy.speed * dt;
+      enemy.element.style.left = enemy.x + "px";
+      enemy.element.style.top = enemy.y + "px";
+
+      const dist = Math.sqrt((playerX - enemy.x) ** 2 + (playerY - enemy.y) ** 2);
+
+      if (dist < HIT_RADIUS) {
+        enemy.element.remove();
+        enemies.splice(i, 1);
+        hitPlayer();
+        continue;
+      }
+
+      if (!enemy.near && dist < NEAR_RADIUS) {
+        enemy.near = true;
+        enemy.element.classList.add("near");
+      } else if (enemy.near && dist > ESCAPE_RADIUS) {
+        // 아슬아슬하게 피했다 → 보너스
+        enemy.near = false;
+        enemy.element.classList.remove("near");
+        addScore(DODGE_SCORE, enemy.x, enemy.y);
+      }
+    }
+  }
+
+  function hitPlayer() {
+    hp -= 1;
+    updateHud();
+    flashPlayer();
+    if (hp <= 0) endGame();
+  }
+
+  // ── 점수 ──────────────────────────────────────────────────────
+  function addScore(amount, x, y) {
+    score += amount;
+    updateHud();
+    if (x != null && y != null) floatScore("+" + amount, x, y);
+  }
+
+  // ── 시작 / 종료 ───────────────────────────────────────────────
+  function endGame() {
+    running = false;
+    touch = null;
+
+    if (score > best) {
+      best = score;
+      newRecord.style.display = "block";
+      try { localStorage.setItem("miniGameBest", String(best)); } catch (e) { /* 저장 못 해도 진행 */ }
+    } else {
+      newRecord.style.display = "none";
+    }
+
+    finalScore.textContent = score;
+    updateHud();
+    gameOver.style.display = "flex";
+  }
+
+  function restartGame() {
+    for (const enemy of enemies) enemy.element.remove();
+    enemies = [];
+
+    score = 0;
+    hp = START_HP;
+    elapsed = 0;
+    spawnTimer = 0;
+    scoreTimer = 0;
+    keys = {};
+    touch = null;
+    last = 0;
+
+    playerX = W / 2;
+    playerY = H / 2;
+    drawPlayer();
+
+    gameOver.style.display = "none";
+    updateHud();
+    running = true;
+  }
+  window.restartGame = restartGame;
+
+  // ── 메인 루프 ─────────────────────────────────────────────────
+  function gameLoop(now) {
+    requestAnimationFrame(gameLoop);
+
+    const time = (typeof now === "number" ? now : Date.now()) / 1000;
+    // ① 시간 기준이 섞여도(dt 음수) 튀지 않게 0~0.05초로 자른다
+    const dt = last ? Math.max(0, Math.min(0.05, time - last)) : 0;
+    last = time;
+
+    if (!running || paused) return;
+
+    elapsed += dt;
+    spawnTimer += dt;
+    scoreTimer += dt;
+
+    movePlayer(dt);
+    moveEnemies(dt);
+
+    if (spawnTimer >= spawnInterval()) {
+      spawnTimer = 0;
+      createEnemy();
+    }
+
+    if (scoreTimer >= 1) {
+      scoreTimer -= 1;
+      addScore(1);   // 생존 점수
+    }
+  }
+
+  // ── 본편으로 돌아가기 ─────────────────────────────────────────
+  // 오버레이(iframe) 안이면 부모에게 알려 화면을 되돌리고,
+  // 주소로 직접 열었으면 본편 주소(/)로 이동한다.
+  const home = document.getElementById("home");
+  const inFrame = (() => { try { return window.self !== window.top; } catch (e) { return true; } })();
+
+  function exitToGame() {
+    if (inFrame) {
+      try { window.parent.postMessage({ type: "minigame:exit" }, "*"); return true; } catch (e) { /* 폴백 */ }
+    }
+    window.location.href = "/";
+    return false;
+  }
+
+  if (home) home.addEventListener("click", exitToGame);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape") exitToGame(); });
+
+  updateHud();
+  requestAnimationFrame(gameLoop);   // 첫 시간은 브라우저가 준다(직접 부르면 시간 기준이 섞인다)
+</script>
+
+</body>
+</html>

@@ -1,0 +1,49 @@
+name: 테스트
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        node: [22, 24]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: 의존성 설치
+        run: npm install --no-audit --no-fund
+      - name: 클라이언트 빌드
+        run: npm run build
+      - name: 스모크 테스트
+        run: node tools/smoke.mjs
+      - name: 헤드리스 시뮬레이션
+        run: node tools/headless.mjs
+      - name: UI DOM 테스트
+        run: node tools/ui-dom-smoke.mjs
+      - name: 버그 테스트
+        run: |
+          node tools/boss-bugtest.mjs
+          node tools/wings-bugtest.mjs
+          node tools/character-bugtest.mjs
+          node tools/base-bugtest.mjs
+          node tools/command-freeze-test.mjs
+      - name: 배치 파일 린트
+        run: node tools/cmd-lint.mjs
+
+  docker:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Docker 빌드 확인
+        run: docker build -t yose-guardian:test .

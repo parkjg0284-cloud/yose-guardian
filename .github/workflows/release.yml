@@ -1,0 +1,99 @@
+name: 릴리스
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '릴리스 태그 (예: v1.0.0)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm install --no-audit --no-fund
+
+      - name: 클라이언트 빌드
+        run: npm run build
+
+      - name: 게임 패키지 생성 (game.zip)
+        shell: pwsh
+        run: |
+          $stage = "stage"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          # dist 는 정확히 한 번만, 중첩되지 않게 복사한다
+          New-Item -ItemType Directory -Force -Path "$stage\client" | Out-Null
+          Copy-Item "client\dist" -Destination "$stage\client\dist" -Recurse -Force
+          Copy-Item server $stage\server -Recurse -Force
+          Copy-Item package.json $stage -Force
+          Copy-Item app.js $stage -Force -ErrorAction SilentlyContinue
+          Copy-Item 게임앱.vbs $stage -Force -ErrorAction SilentlyContinue
+          Copy-Item 게임앱실행.cmd $stage -Force -ErrorAction SilentlyContinue
+          Compress-Archive -Path "$stage\*" -DestinationPath game.zip -Force
+          Write-Host "game.zip: $([Math]::Round((Get-Item game.zip).Length/1KB,1))KB"
+
+      - name: 런처 패키지 생성
+        shell: pwsh
+        run: |
+          $l = "launcher-pack"
+          New-Item -ItemType Directory -Force -Path $l | Out-Null
+          Copy-Item launcher\* $l -Recurse -Force
+          # game.zip 을 함께 넣어 오프라인에서도 설치되게 한다(런처는 먼저 서버에서 최신을 시도한다)
+          Copy-Item game.zip $l -Force
+          Compress-Archive -Path "$l\*" -DestinationPath YoseGuardian-launcher.zip -Force
+          Write-Host "launcher: $([Math]::Round((Get-Item YoseGuardian-launcher.zip).Length/1KB,1))KB"
+
+      - name: 단일 파일 설치기 생성 (게임 내장)
+        shell: pwsh
+        run: |
+          node tools/build-single.mjs
+          # 릴리스 자산은 ASCII 이름이어야 깨지지 않는다 (한글 이름은 _ 로 바뀐다)
+          Copy-Item "요세의수호자_설치.exe" "YoseGuardian-Setup.exe" -Force
+          Write-Host "single: $([Math]::Round((Get-Item YoseGuardian-Setup.exe).Length/1KB,1))KB"
+
+      - name: 릴리스 생성
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
+          name: 요세의 수호자 ${{ github.event.inputs.tag || github.ref_name }}
+          draft: false
+          prerelease: false
+          files: |
+            YoseGuardian-Setup.exe
+            game.zip
+            YoseGuardian-launcher.zip
+          body: |
+            ## 요세의 수호자
+
+            ### 다운로드 — 하나만 받으면 됩니다
+
+            | 파일 | 설명 |
+            | --- | --- |
+            | **YoseGuardian-Setup.exe** | **권장** — 이 파일 하나로 설치 (게임 내장, 약 1MB) |
+            | YoseGuardian-launcher.zip | 런처 — 최신 게임을 내려받아 설치 |
+            | game.zip | 게임 본체 (런처·서버용) |
+
+            > 저장소를 직접 받았다면 `요세의수호자_설치.exe` 를 더블클릭해도 됩니다 (같은 파일).
+
+            ### 설치 방법 (가장 쉬움)
+            1. `요세의수호자_설치.exe` 내려받기
+            2. 더블클릭
+            3. 자동 설치 후 게임이 실행됩니다
+
+            ### 직접 실행 (개발자)
+            ```bash
+            npm install && npm run build && npm start
+            ```

@@ -1,0 +1,376 @@
+/* UI 다듬기 — 기존 테마 변수(--c-*, --glass-*, --radius*)만 사용한다(계약 §4.74).
+   styles.css 뒤에 로드되어 같은 우선순위에서 이긴다. 새 색을 만들지 않는다. */
+
+/* 1) 공통 요소 통일 — 버튼·포커스·스크롤바 */
+.panel-root button,
+.menu-root button,
+.lobby-shell button {
+  font-family: var(--font-ui);
+  transition: background .15s ease, border-color .15s ease, box-shadow .15s ease, transform .08s ease;
+}
+.panel-root button:not(:disabled):active,
+.menu-root button:not(:disabled):active {
+  transform: translateY(1px);
+}
+.panel-root button:focus-visible,
+.menu-root button:focus-visible,
+.panel-root input:focus-visible,
+.panel-root select:focus-visible,
+.panel-root textarea:focus-visible {
+  outline: 2px solid var(--c-gold);
+  outline-offset: 2px;
+}
+.panel-root button:disabled {
+  opacity: .45;
+  cursor: not-allowed;
+}
+.scroll-list,
+.panel-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-gold-dim) transparent;
+}
+.scroll-list::-webkit-scrollbar,
+.panel-body::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scroll-list::-webkit-scrollbar-thumb,
+.panel-body::-webkit-scrollbar-thumb {
+  background: var(--c-gold-dim);
+  border-radius: 999px;
+}
+
+/* 2) 패널 리듬 — 제목·부제·탭 */
+.panel-title {
+  letter-spacing: .02em;
+}
+.panel-subtitle {
+  color: var(--c-ink-dim);
+}
+.panel-tab {
+  border-radius: var(--radius-sm) var(--radius-sm) 0 0;
+}
+.panel-tab.is-current,
+.panel-tab.is-active {
+  box-shadow: inset 0 -2px 0 var(--c-gold);
+}
+.panel-header .panel-close {
+  border-radius: 999px;
+}
+
+/* 3) 카드 — 건설·연성·제작 공통 */
+.card-grid {
+  gap: var(--gap);
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: border-color .15s ease, background .15s ease, transform .08s ease;
+}
+.card:hover {
+  border-color: var(--line-gold);
+  transform: translateY(-1px);
+}
+.card.is-disabled {
+  opacity: .55;
+}
+.card.is-disabled:hover {
+  transform: none;
+}
+.card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+.card-desc {
+  margin: 0;
+}
+.card-cost {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: auto;
+  font-variant-numeric: tabular-nums;
+}
+.cost-gold,
+.cost-wood,
+.cost-mineral {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: var(--glass-1);
+  font-size: 12px;
+}
+.cost-lack {
+  color: var(--c-danger);
+  box-shadow: inset 0 0 0 1px var(--c-danger);
+}
+.progress {
+  height: 6px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--glass-2);
+}
+.progress-fill {
+  display: block;
+  height: 100%;
+  transition: width .2s ease;
+}
+.progress-fill.is-danger {
+  background: var(--c-danger);
+}
+.progress-fill.is-ok {
+  background: var(--c-ok);
+}
+
+/* 4) 마법연성(§4.70·§4.72) */
+.arcana-head {
+  margin: 0 0 8px;
+  font-size: 13px;
+}
+.arcana-grid {
+  grid-template-columns: repeat(auto-fill, minmax(224px, 1fr));
+}
+.arcana-card .card-title {
+  justify-content: flex-start;
+}
+.arcana-lv {
+  margin-left: auto;
+}
+.arcana-cost {
+  justify-content: space-between;
+}
+.arcana-buy {
+  min-width: 72px;
+}
+.arcana-warn {
+  display: block;
+  margin-bottom: 8px;
+  white-space: normal;
+  line-height: 1.35;
+}
+.perf-budget-bar {
+  margin: 6px 0 10px;
+}
+
+/* 5) HUD 가독성 — 숫자 정렬·그림자·간격 */
+.hud-root {
+  font-variant-numeric: tabular-nums;
+}
+.hud-stat,
+.hud-wave,
+.hud-vital,
+.hud-vital-player,
+.hud-banner {
+  text-shadow: 0 1px 3px rgba(0, 0, 0, .65);
+}
+.hud-label,
+.hud-stat-title {
+  color: var(--c-ink-dim);
+  letter-spacing: .04em;
+}
+.hud-val,
+.hud-wave-num {
+  font-weight: 700;
+}
+.hud-bar,
+.hud-boss-gauge {
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, .45);
+}
+.hud-bar-fill {
+  box-shadow: 0 0 6px rgba(0, 0, 0, .3);
+}
+.hud-vital-player {
+  min-width: 190px;
+}
+
+/* 6) 미니맵 · 프레임 그래프 대비 */
+.minimap-canvas,
+.fps-canvas {
+  border: var(--line-soft);
+  border-radius: var(--radius-sm);
+  background: #04070ee6;
+  box-shadow: var(--shadow-panel);
+}
+
+/* 7) 토스트·안내 — 읽기 좋게 */
+.toast {
+  box-shadow: var(--shadow-panel);
+}
+.toast-text {
+  line-height: 1.35;
+}
+
+/* 8) 목록·빈 화면 */
+.empty {
+  padding: 14px;
+  color: var(--c-ink-faint);
+  text-align: center;
+}
+.list-row,
+.row {
+  gap: 8px;
+}
+.row-value,
+.stat-row .row-value {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* ── 메인화면 새 단장(계약 §4.75) — 기존 변수만 사용한다 ───────────── */
+.menu-hero {
+  position: relative;
+  text-align: center;
+  padding: 6px 0 2px;
+}
+.menu-title {
+  margin: 0;
+  font-size: clamp(30px, 6.4vw, 62px);
+  letter-spacing: .04em;
+  color: var(--c-gold);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, .45), 0 0 28px rgba(240, 196, 105, .35);
+  animation: menu-float 4.2s ease-in-out infinite;
+}
+.menu-subtitle {
+  margin: 2px 0 0;
+  font-size: clamp(14px, 2.4vw, 22px);
+  letter-spacing: .34em;
+  text-indent: .34em; /* 글자 간격만큼 오른쪽으로 밀린 중심을 되돌린다 */
+  color: var(--c-violet);
+  text-shadow: 0 0 18px rgba(185, 140, 255, .45);
+}
+.menu-deco {
+  margin-top: 8px;
+  font-size: clamp(15px, 2.6vw, 22px);
+  opacity: .9;
+  letter-spacing: .5em;
+  text-indent: .5em;
+  animation: menu-bob 3.2s ease-in-out infinite;
+}
+@keyframes menu-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+@keyframes menu-bob {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(-3px) scale(1.03); }
+}
+
+/* 오른쪽 아래 4단 버튼 */
+.menu-hero-actions {
+  position: fixed;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(18px, env(safe-area-inset-bottom));
+  z-index: 9999; /* 어떤 패널·HUD 보다 위 — 메뉴 버튼이 가려지지 않게 */
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  width: min(268px, 62vw);
+}
+.menu-cta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 14px;
+  border: 1px solid var(--line-soft);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .09), rgba(255, 255, 255, .03));
+  box-shadow: var(--shadow-panel);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: .02em;
+  text-align: left;
+  cursor: pointer;
+  transition: transform .12s ease, border-color .15s ease, box-shadow .18s ease, background .18s ease;
+}
+.menu-cta:hover {
+  transform: translateX(-4px) scale(1.015);
+  border-color: var(--line-gold);
+  box-shadow: var(--shadow-panel), var(--glow-gold);
+}
+.menu-cta:active {
+  transform: translateX(-2px) scale(.99);
+}
+.menu-cta.is-primary {
+  border-color: var(--line-gold);
+  color: var(--c-gold);
+}
+.menu-cta.is-violet {
+  color: var(--c-violet);
+}
+.menu-cta.is-ghost {
+  color: var(--c-ink-dim);
+}
+.menu-cta.is-danger {
+  color: var(--c-danger);
+}
+.menu-cta.is-danger:hover {
+  border-color: var(--c-danger);
+  box-shadow: var(--shadow-panel), 0 0 16px rgba(255, 120, 120, .35);
+}
+/* 좁은 화면 — 스택을 아래 가운데로 내리고 폭을 채운다 */
+@media (max-width: 720px) {
+  .menu-hero-actions {
+    right: 50%;
+    bottom: 14px;
+    width: min(320px, 88vw);
+    transform: translateX(50%);
+    gap: 8px;
+  }
+  .menu-cta {
+    padding: 10px 14px;
+    font-size: 15px;
+  }
+}
+
+.menu-hero-actions.is-hidden {
+  display: none;
+}
+
+/* ── 메인화면(H-91): 배경 이미지 + 겹침 정리 ─────────────────────────
+   배경을 바꾸려면 client/public/menu-bg.jpg 를 교체하면 됩니다. */
+#menu-root {
+  background-image: linear-gradient(rgba(6, 8, 18, .5), rgba(6, 8, 18, .88)), url('/menu-bg.jpg');
+  background-size: contain;   /* 1920x1080 비율 그대로 — 확대/잘림 없음 */
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  background-color: #05060c;
+}
+.menu-body { padding-bottom: 148px; }   /* 오른쪽 아래 버튼 묶음이 카드를 덮지 않게 자리 확보 */
+.menu-title { text-shadow: 0 3px 18px rgba(0, 0, 0, .85), 0 0 26px rgba(255, 206, 120, .35); }
+.menu-subtitle { text-shadow: 0 2px 12px rgba(0, 0, 0, .9); }
+@media (max-width: 900px) {
+  .menu-deco { display: none; }
+  .menu-body { padding-bottom: 120px; }
+}
+@media (max-height: 620px) {
+  .menu-hero-actions { transform: scale(.92); transform-origin: bottom right; }
+}
+/* ── 시작 전 화면(H-92): 배경 + 싱글/멀티/설정 + 오른쪽 아래 게임 시작 ── */
+#menu-root .menu-hero-actions { gap: 14px; }
+#menu-root .menu-hero-actions .menu-cta { font-size: 17px; padding: 14px 20px; letter-spacing: .02em; }
+#menu-root .menu-hero-actions .menu-cta.is-primary { font-size: 20px; padding: 18px 22px; box-shadow: 0 10px 30px rgba(255, 190, 90, .28); }
+@media (max-width: 900px) { #menu-root .menu-hero-actions { width: min(320px, 88vw); } }
+#menu-root .menu-hero-actions [data-act="start"] { font-size: 21px; letter-spacing: .06em; }
+
+/* ── 시작 전 화면(H-93): 배경 + 버튼만, 각 화면은 버튼을 눌러야 나온다 ── */
+#menu-root[data-view="main"] .menu-body { opacity: 0 !important; pointer-events: none !important; }
+#menu-root[data-view="main"] .menu-tabs,
+#menu-root[data-view="main"] .menu-tab,
+#menu-root[data-view="main"] .menu-card { opacity: 0 !important; pointer-events: none !important; }
+/* ── 시작 전 화면(H-95): 버튼만 보이고, 각 화면은 해당 버튼을 눌러야 나온다 ── */
+/* 시작 화면(main): 카드·탭·본문 전부 숨김 */
+#menu-root[data-view="main"] .menu-card,
+#menu-root[data-view="main"] .menu-body,
+#menu-root[data-view="main"] .menu-tabs { display: none !important; }
+/* 싱글 화면: 멀티 카드(초대코드·열린 방) 숨김 */
+#menu-root[data-view="solo"] .menu-card[data-screen="multi"] { display: none !important; }
+/* 멀티 화면: 싱글 카드(새 게임·추천 시드) 숨김 */
+#menu-root[data-view="multi"] .menu-card[data-screen="solo"] { display: none !important; }
+/* 시작 화면에서는 '바로 가기' 카드도 숨긴다(H-95) */
+#menu-root[data-view="main"] .menu-shortcuts { display: none !important; }

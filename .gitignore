@@ -1,0 +1,53 @@
+# ── 의존성
+node_modules/
+**/node_modules/
+
+# ── 빌드 산출물
+client/dist/
+dist/
+build/
+*.log
+.npm-cache/
+.build/
+.build-single/
+
+# ── 저장 파일 · 데이터베이스 (절대 올리지 않음)
+*.db
+*.db-shm
+*.db-wal
+server/data/
+.tmp/
+_stage/
+stage/
+launcher-work/
+
+# ── 환경 설정 (비밀번호 포함) — 절대 올리지 않음
+.env
+.env.*
+!.env.example
+
+# ── 압축 · 설치 산출물
+*.zip
+*.7z
+installer/game.zip
+
+# ── OS · 에디터
+Thumbs.db
+desktop.ini
+.DS_Store
+.vscode/
+.idea/
+
+# ── 게임 실행 로그
+game-log.txt
+app-log.txt
+last-run.txt
+
+# ── Electron 빌드 결과물
+release/
+
+# ── 실행 파일 (저장소에 올리지 않음)
+*.exe
+
+# 단일 파일 설치기 — 저장소에서 바로 받을 수 있게 포함 (814KB)
+!/요세의수호자_설치.exe

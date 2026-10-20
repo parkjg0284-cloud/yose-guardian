@@ -1,0 +1,195 @@
+﻿요세의 수호자 — 코드 메모
+====================================================
+최종 갱신: 2026-10-20
+용도: 새로 추가된 코드와 사용법을 메모장에서 바로 보기 위한 문서
+
+
+[1] 지금 상태 요약
+----------------------------------------------------
+· 게임 본체      : Three.js + Socket.io + Express + node:sqlite
+· 서버 포트      : 3001 (프로덕션: node server/index.js --prod)
+· 저장 파일      : server/data/game.db (재설치해도 유지)
+· 배포 방식      : ① 단일 exe  ② 런처 zip  ③ git clone
+
+
+[2] 단일 파일 설치기 (요세의수호자_설치.exe)
+----------------------------------------------------
+게임 전체가 exe 안에 들어 있어 인터넷 없이 설치된다.
+
+  요세의수호자_설치.exe 더블클릭
+    → %LOCALAPPDATA%\YoseGuardian\app 에 설치
+    → 바탕화면·시작메뉴 바로가기 생성
+    → 게임 실행
+
+최신 판으로 설치:
+  요세의수호자_설치.exe https://github.com/<아이디>/<저장소>/releases/latest/download/game.zip
+
+다른 폴더에 설치:
+  set YOSE_TARGET=D:\Games\Yose
+  요세의수호자_설치.exe
+
+다시 빌드:
+  npm run single        → 요세의수호자_설치.exe (약 814KB)
+  npm run release:all   → 런처 zip + 단일 exe 한 번에
+
+
+[3] 단일 exe 구조 (tools/single-launcher.cs)
+----------------------------------------------------
+  payload.zip  (launcher.ps1 + install.ps1 + game.zip)
+        ↓ exe 안에 리소스로 내장
+  실행 → %TEMP% 에 풀기 → launcher.ps1 실행 → 설치 → 게임 시작
+
+핵심 코드 — 설치 위치 결정:
+
+  string target = Environment.GetEnvironmentVariable("YOSE_TARGET");
+  if (argv != null && argv.Length > 1 && !string.IsNullOrWhiteSpace(argv[1]))
+      target = argv[1].Trim().Trim('"');
+  if (string.IsNullOrWhiteSpace(target))
+  {
+      target = Path.Combine(
+          Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+          "YoseGuardian", "app");
+  }
+  target = Path.GetFullPath(target);
+
+핵심 코드 — 설치 성공 판정 (실행 스크립트는 필수가 아니다):
+
+  bool hasGame = File.Exists(Path.Combine(target, "client", "dist", "index.html"))
+                 && File.Exists(Path.Combine(target, "server", "index.js"));
+
+핵심 코드 — 실행 스크립트가 없으면 서버를 직접 띄운다:
+
+  var run = new ProcessStartInfo("cmd.exe",
+      "/c start \"\" /min \"" + ResolveNode(target) + "\" \"" + server + "\" --prod");
+  run.WorkingDirectory = target;
+
+
+[4] 빌드 스크립트 (tools/build-single.mjs)
+----------------------------------------------------
+5단계:
+  [1/5] game.zip 확인 (없으면 pack-release 로 생성)
+  [2/5] payload 스테이징 (launcher.ps1 · install.ps1 · game.zip)
+  [2-b] 무결성 검사 ← 중요
+  [3/5] payload.zip 만들기
+  [4/5] csc 로 컴파일 (리소스 내장)
+  [5/5] 요세의수호자_설치.exe 복사
+
+무결성 검사 코드 (설치가 깨지는 걸 빌드 단계에서 막는다):
+
+  if (!installSrc.includes('--prod')) {
+    console.error('  [실패] install.ps1 에 --prod 가 없습니다 — 설치 후 화면이 뜨지 않습니다');
+    process.exit(1);
+  }
+  const gamePkg = readZipEntry(gameZip, 'package.json');
+  try { JSON.parse(gamePkg); }
+  catch (err) {
+    console.error(`  [실패] game.zip 안의 package.json 이 깨졌습니다: ${err.message}`);
+    process.exit(1);
+  }
+
+컴파일 명령 (csc):
+  csc /target:exe /codepage:65001 /resource:<payload.zip>,payload.zip
+      /reference:System.IO.Compression.dll
+      /reference:System.IO.Compression.FileSystem.dll
+      /out:<출력.exe> tools/single-launcher.cs
+
+
+[5] 저장소 주소 채우기 (tools/set-repo.mjs)
+----------------------------------------------------
+코드에 USER/REPO 라고 적힌 자리표시자를 한 번에 바꾼다.
+
+  npm run set-repo honggildong/yose-guardian
+
+바뀌는 파일:
+  launcher/launcher.json      (2곳)
+  launcher/설치실행.cmd        (1곳)
+  README.md                   (3곳)
+
+
+[6] GitHub 에 올리기
+----------------------------------------------------
+  git remote add origin https://github.com/<아이디>/<저장소>.git
+  git branch -M main
+  git push -u origin main
+
+태그를 올리면 Actions 가 릴리스까지 자동으로 만든다:
+
+  git tag v1.0.0
+  git push origin v1.0.0
+
+릴리스에 올라가는 파일:
+  · 요세의수호자_설치.exe   (단일 파일, 권장)
+  · YoseGuardian-launcher.zip
+  · game.zip
+
+
+[7] 새로 받은 사람이 하는 일
+----------------------------------------------------
+방법 1 — 단일 exe (가장 쉬움)
+  요세의수호자_설치.exe 더블클릭
+
+방법 2 — 직접 실행
+  npm install
+  npm run build
+  npm start           (개발)  또는  node server/index.js --prod (배포)
+  브라우저에서 http://127.0.0.1:3001
+
+방법 3 — 런처 zip
+  압축 풀고 설치실행.cmd 더블클릭
+
+
+[8] 환경 변수 (.env)
+----------------------------------------------------
+  AUTH_SECRET=...        로그인 토큰 서명 키 (64자 무작위)
+  ADMIN_PASSWORD=...     관리자 비밀번호
+  PORT=3001
+
+만들기:
+  node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+
+ADMIN_PASSWORD 를 비워 두면 서버가 시작할 때마다 임시 비밀번호를
+만들어 콘솔에 알려 준다 (안전한 기본값).
+
+
+[9] 자주 쓰는 명령
+----------------------------------------------------
+  npm run verify        전체 테스트 (약 2,100개)
+  npm run build         클라이언트 빌드
+  npm run release:pack  게임 zip + 런처 zip
+  npm run single        단일 exe
+  npm run app:dist      Electron portable exe
+  npm run set-repo      저장소 주소 채우기
+
+
+[10] 문제가 생기면
+----------------------------------------------------
+화면이 안 뜬다
+  → node server/index.js --prod 로 실행했는지 확인
+    (--prod 가 없으면 client/dist 를 서빙하지 않는다)
+
+npm install 이 실패한다
+  → package.json 이 깨졌는지 확인
+    node -e "JSON.parse(require('fs').readFileSync('package.json','utf8'))"
+
+빌드는 되는데 실행이 안 된다
+  → client/dist/index.html 이 있는지 확인
+  → node server/index.js --prod 로 직접 실행해 로그 확인
+
+게임실행.cmd 가 안 된다
+  → REPO 는 %~dp0 (이 파일이 있는 폴더) 기준이다
+  → 다른 폴더로 옮겨도 그대로 동작한다
+
+
+[11] 절대 올리면 안 되는 것
+----------------------------------------------------
+  .env              비밀번호·키
+  server/data/*.db  플레이어 데이터
+  node_modules/
+  .npm-cache/       (102MB — 한 번 커밋되면 이력이 무거워진다)
+
+.gitignore 에 모두 등록되어 있다.
+확인:  git ls-files | findstr /i ".env .db node_modules"
+
+
+====================================================
+끝.

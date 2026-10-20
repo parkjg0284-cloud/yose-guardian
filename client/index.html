@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="color-scheme" content="dark" />
+    <meta name="theme-color" content="#080b14" />
+    <meta
+      name="description"
+      content="요새의 수호자 — FPS와 타워 디펜스가 결합된 3D 판타지 요새 방어 게임"
+    />
+    <title>요새의 수호자</title>
+    <link rel="stylesheet" href="./src/ui/styles.css" />
+    <link rel="stylesheet" href="./src/ui/ui-polish.css" />
+  </head>
+  <body>
+    <!-- 게임 셸: 모든 UI 레이어는 이 안에서 절대 좌표로 겹친다. -->
+    <div id="app" class="app">
+      <!-- 3D 렌더 타깃 (main.js가 WebGLRenderer에 연결) -->
+      <canvas id="game-canvas" class="game-canvas"></canvas>
+
+      <!-- 크로스헤어: HUD가 상태 클래스만 토글한다 -->
+      <div id="crosshair" class="crosshair" aria-hidden="true">
+        <span class="crosshair-dot"></span>
+        <span class="crosshair-line crosshair-line-up"></span>
+        <span class="crosshair-line crosshair-line-down"></span>
+        <span class="crosshair-line crosshair-line-left"></span>
+        <span class="crosshair-line crosshair-line-right"></span>
+        <span class="crosshair-ring"></span>
+        <span class="crosshair-hit" data-hit-marker></span>
+      </div>
+
+      <!-- 미니맵 (Minimap이 2D 컨텍스트로 그린다) -->
+      <canvas
+        id="minimap-canvas"
+        class="minimap-canvas"
+        width="220"
+        height="220"
+        aria-label="미니맵"
+      ></canvas>
+
+      <!-- 프레임 그래프 (FPSMonitor가 2D 컨텍스트로 그린다) -->
+      <canvas
+        id="fps-canvas"
+        class="fps-canvas"
+        width="170"
+        height="52"
+        aria-label="프레임 그래프"
+      ></canvas>
+
+      <!-- HUD가 채운다 (HUD) -->
+      <div id="hud-root" class="hud-root"></div>
+      <!-- PanelManager가 채운다 (건설/업적/인벤토리/가챠/설정...) -->
+      <div id="panel-root" class="panel-root"></div>
+      <!-- MainMenu가 채운다 -->
+      <div id="menu-root" class="menu-root"></div>
+      <!-- 알림 토스트 (HUD.notify) -->
+      <div id="toast-root" class="toast-root" aria-live="polite" aria-atomic="false"></div>
+      <!-- 가챠 컷씬 오버레이 -->
+      <div id="cutscene-root" class="cutscene-root" aria-hidden="true"></div>
+
+      <!-- 로딩 화면: main.js가 숨긴다 (class="hidden" 또는 style.display) -->
+      <div id="loading" class="loading" role="status" aria-live="polite">
+        <div class="loading-inner">
+          <p class="loading-kicker">FORTRESS GUARDIAN</p>
+          <h1 class="loading-title">요새의 수호자</h1>
+          <p class="loading-sub">세계를 불러오는 중…</p>
+          <div class="loading-bar"><i class="loading-bar-fill"></i></div>
+          <p class="loading-note">잠시만 기다려 주세요.</p>
+        </div>
+      </div>
+
+      <noscript>
+        <div class="noscript">이 게임을 즐기려면 브라우저에서 자바스크립트를 켜 주세요.</div>
+      </noscript>
+    </div>
+
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

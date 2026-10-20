@@ -1,0 +1,168 @@
+// ──────────────────────────────────────────────── 가죽 장비 6종 (가죽 아이템)
+// 몬스터에게서 얻은 가죽으로 만드는 방어구. 슬롯은 머리·몸통·발·등 4곳이며 같은 슬롯은 하나만 착용한다.
+// 보너스는 **비율(퍼센트)** 로만 준다 — 저장에 섞이지 않아 불러오기 후에도 정확히 다시 계산된다.
+export const GEAR_SLOTS = [
+  { id: 'head', name: '머리', glyph: '🪖' },
+  { id: 'body', name: '몸통', glyph: '🥋' },
+  { id: 'feet', name: '발', glyph: '🥾' },
+  { id: 'back', name: '등', glyph: '🧣' }
+];
+
+export const GEAR_SLOT_BY_ID = Object.fromEntries(GEAR_SLOTS.map((s) => [s.id, s]));
+
+export const GEAR_BONUS_LABELS = {
+  damageTakenPct: '받는 피해',
+  damagePct: '공격력',
+  moveSpeedPct: '이동 속도',
+  manaRegenPct: '마나 회복',
+  staminaRegenPct: '스태미나 회복',
+  flightSpeedPct: '비행 속도',
+  flightCeilingPct: '비행 상한',
+  miningSpeedPct: '채굴 속도'
+};
+
+export const LEATHER_GEAR = [
+  {
+    id: 'leather_cap',
+    name: '가죽 모자',
+    slot: 'head',
+    tier: 1,
+    grade: 'common',
+    glyph: '🪖',
+    color: 0xa9744f,
+    cost: { gold: 4000, leather: { leather: 6 } },
+    bonus: { manaRegenPct: 0.1 },
+    desc: '질긴 가죽을 덧댄 모자. 마나 회복이 10% 빨라집니다.'
+  },
+  {
+    id: 'leather_vest',
+    name: '가죽 조끼',
+    slot: 'body',
+    tier: 1,
+    grade: 'common',
+    glyph: '🥋',
+    color: 0xa9744f,
+    cost: { gold: 7000, leather: { leather: 10 } },
+    bonus: { damageTakenPct: 0.06 },
+    desc: '두 겹으로 겹쳐 꿰맨 조끼. 받는 피해가 6% 줄어듭니다.'
+  },
+  {
+    id: 'thick_boots',
+    name: '두꺼운 가죽 부츠',
+    slot: 'feet',
+    tier: 2,
+    grade: 'uncommon',
+    glyph: '🥾',
+    color: 0x7d5334,
+    cost: { gold: 22000, leather: { thick_leather: 8, leather: 6 } },
+    bonus: { moveSpeedPct: 0.08, staminaRegenPct: 0.15 },
+    desc: '발목을 단단히 감싼 부츠. 이동 속도 +8% · 스태미나 회복 +15%.'
+  },
+  {
+    id: 'scaled_cloak',
+    name: '비늘 가죽 망토',
+    slot: 'back',
+    tier: 3,
+    grade: 'rare',
+    glyph: '🧣',
+    color: 0x4f8f7d,
+    cost: { gold: 80000, leather: { scaled_leather: 10, thick_leather: 8 } },
+    bonus: { manaRegenPct: 0.15, flightSpeedPct: 0.06, flightCeilingPct: 0.1 },
+    desc: '비늘 가죽 망토 — 바람을 타도록 안감을 덧대 비행 속도 +6% · 상한 +10%.'
+  },
+  {
+    id: 'dragon_armor',
+    name: '용 가죽 갑옷',
+    slot: 'body',
+    tier: 4,
+    grade: 'hero',
+    glyph: '🥋',
+    color: 0xd94f2a,
+    cost: { gold: 300000, leather: { dragon_leather: 10, scaled_leather: 12 } },
+    bonus: { damageTakenPct: 0.12, damagePct: 0.08 },
+    desc: '용의 비늘을 그대로 살린 갑옷. 받는 피해 -12% · 공격력 +8%.'
+  },
+  {
+    id: 'relic_mantle',
+    name: '유물 가죽 외투',
+    slot: 'back',
+    tier: 5,
+    grade: 'relic',
+    glyph: '🧣',
+    color: 0xffe9a8,
+    cost: { gold: 1200000, leather: { relic_leather: 6, dragon_leather: 12 } },
+    bonus: {
+      damageTakenPct: 0.1,
+      damagePct: 0.12,
+      moveSpeedPct: 0.1,
+      manaRegenPct: 0.2,
+      flightSpeedPct: 0.15,
+      flightCeilingPct: 0.25
+    },
+    desc: '유물 가죽으로 두른 외투 — 모든 능력이 골고루 오르고 비행 상한이 25% 넓어집니다.'
+  }
+];
+
+export const LEATHER_GEAR_BY_ID = Object.fromEntries(LEATHER_GEAR.map((g) => [g.id, g]));
+
+/** 세트 효과 — 가죽 장비를 많이 입을수록 추가 보너스 */
+export const GEAR_SET_BONUS = [
+  { count: 2, name: '가죽 2세트', bonus: { damageTakenPct: 0.04 }, desc: '받는 피해 4% 추가 감소' },
+  { count: 4, name: '가죽 4세트', bonus: { moveSpeedPct: 0.06, manaRegenPct: 0.1 }, desc: '이동 속도 +6% · 마나 회복 +10%' },
+  {
+    count: 6,
+    name: '가죽 6세트',
+    bonus: { damagePct: 0.1, flightSpeedPct: 0.1, flightCeilingPct: 0.2 },
+    desc: '공격력 +10% · 비행 속도 +10% · 비행 상한 +20%'
+  }
+];
+
+/** 가죽 장비 id → 정의(없으면 null) */
+export function leatherGearById(id) {
+  return LEATHER_GEAR_BY_ID[String(id ?? '')] ?? null;
+}
+
+/** 슬롯 id → 정의(없으면 null) */
+export function gearSlotInfo(id) {
+  return GEAR_SLOT_BY_ID[String(id ?? '')] ?? null;
+}
+
+/** 이 장비가 드는 슬롯의 다른 장비 id(교체용) */
+export function otherGearInSlot(id) {
+  const def = leatherGearById(id);
+  if (!def) return [];
+  return LEATHER_GEAR.filter((g) => g.slot === def.slot && g.id !== def.id).map((g) => g.id);
+}
+
+/** 보너스 문구 — '받는 피해 -6% · 마나 회복 +10%' */
+export function gearBonusText(bonus) {
+  const parts = [];
+  for (const [key, value] of Object.entries(bonus || {})) {
+    const label = GEAR_BONUS_LABELS[key] ?? key;
+    const pct = Math.round((Number(value) || 0) * 100);
+    if (!pct) continue;
+    const sign = key === 'damageTakenPct' ? '-' : '+';
+    parts.push(`${label} ${sign}${Math.abs(pct)}%`);
+  }
+  return parts.join(' · ');
+}
+
+/** 비용 문구 — '4,000 G + 질긴 가죽 6' */
+export function gearCostText(gears, only = null) {
+  const list = Array.isArray(gears) ? gears : [gears].filter(Boolean);
+  const parts = [];
+  for (const g of list) {
+    if (!g) continue;
+    const gold = Math.round(Number(g.cost?.gold) || 0);
+    if (gold > 0) parts.push(`${gold.toLocaleString('en-US')} G`);
+    for (const [id, count] of Object.entries(g.cost?.leather || {})) {
+      const name = LEATHER_BY_ID[id]?.name ?? id;
+      if (!only || only === id) parts.push(`${name} ${count}`);
+    }
+    for (const [id, count] of Object.entries(g.cost?.minerals || {})) {
+      const t = MINERAL_TYPES.find((m) => m.id === id);
+      parts.push(`${t?.name ?? id} ${count}`);
+    }
+  }
+  return parts.join(' + ');
+}
