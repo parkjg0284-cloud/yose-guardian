@@ -357,6 +357,13 @@ export class MainMenu {
         this.emit('multiplayer', { mode: this.state.mode, difficulty: this.state.difficulty });
         this.hide();
         break;
+      case 'menu-server-connect': {
+        // 마인크래프트처럼 주소만 넣고 접속 — 비우면 지금 서버(내 PC)로 돌아온다.
+        const address = String(this._field('menu-server', '')).trim();
+        this._fields['menu-server'] = address;
+        this.emit('server-connect', { address });
+        break;
+      }
       case 'menu-invite-join': {
         const code = normalizeInviteCode(d.code || this._field('menu-invite', ''));
         if (!isValidInviteCode(code)) {
@@ -719,6 +726,29 @@ export class MainMenu {
     multi.dataset.screen = 'multi';   // 멀티플레이 버튼을 눌러야 보인다
     multi.appendChild(h('h2', 'card-title', '초대코드 멀티플레이'));
     multi.appendChild(row('설명', '방을 만들어 코드를 보내거나, 받은 코드를 넣으면 같은 요새에서 함께 싸웁니다.'));
+
+    // ── 서버 주소 (마인크래프트처럼 주소만 넣고 접속) ──
+    //  · 서버만 켜 둔 PC 의 주소(예: 192.168.0.10:3001)를 넣으면 그 서버에 붙는다.
+    //  · 비우고 [접속] 하면 지금 보고 있는 서버(내 PC)로 돌아온다.
+    const srvRow = h('div', 'row stat-row menu-server-row');
+    srvRow.appendChild(h('span', 'row-label', '서버 주소'));
+    const srvInput = h('input', 'input menu-server-input');
+    srvInput.type = 'text';
+    srvInput.placeholder = '예: 192.168.0.10:3001 (비우면 내 PC)';
+    srvInput.autocomplete = 'off';
+    srvInput.spellcheck = false;
+    srvInput.dataset.field = 'menu-server';
+    srvInput.value = this._stored('menu-server', '');
+    srvRow.appendChild(srvInput);
+    const srvBtn = h('button', 'btn primary btn-primary', '접속');
+    srvBtn.type = 'button';
+    srvBtn.dataset.act = 'menu-server-connect';
+    srvRow.appendChild(srvBtn);
+    multi.appendChild(srvRow);
+    const netUrl = safe(() => this.game?.net?.url, '') || '';
+    const netOn = Boolean(safe(() => this.game?.net?.connected, false));
+    multi.appendChild(row('지금 서버', `${netUrl || '—'} ${netOn ? '· 연결됨 ✅' : '· 연결 안 됨'} (같은 와이파이/공인 IP 를 넣으세요)`));
+
     const codeRow = h('div', 'row stat-row');
     codeRow.appendChild(h('span', 'row-label', `초대코드 ${INVITE_CODE_LENGTH}자리`));
     const codeInput = h('input', 'input menu-invite-input');

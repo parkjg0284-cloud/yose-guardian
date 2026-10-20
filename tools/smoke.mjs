@@ -2902,6 +2902,27 @@ section('컨베이어벨트 — 실제 물류 (계약 §4.68)');
   check('입금 경로가 벨트 목록을 캐시한다', turretSrc8.includes('_beltList(system)') && turretSrc8.includes('system._beltCacheSrc === list'));
   check('벨트 용량은 길이/간격으로 정해진다', beltMod.beltCapacity({ type: { beltLength: 3.4 } }) === 5 && beltMod.beltCapacity({ type: { beltLength: 10 } }) === 8);
 }
+// ───────────────────────── H-96 멀티플레이 서버 주소 (마인크래프트 방식)
+section('멀티 서버 주소 — 주소만 넣고 접속');
+{
+  const netMod = await import('../client/src/net.js');
+  const norm = netMod.normalizeServerAddress;
+  check('ip:port 를 그대로 받는다', norm('192.168.0.10:3001') === 'http://192.168.0.10:3001', norm('192.168.0.10:3001'));
+  check('포트를 빼면 3001 을 붙인다', norm('192.168.0.10') === 'http://192.168.0.10:3001', norm('192.168.0.10'));
+  check('localhost 도 받는다', norm('localhost') === 'http://localhost:3001');
+  check('http 주소의 끝 슬래시를 지운다', norm('http://1.2.3.4:8080/') === 'http://1.2.3.4:8080');
+  check('빈 주소는 빈 값(내 PC 로 복귀)', norm('') === '' && norm('   ') === '');
+  check('잘못된 주소는 빈 값', norm('나쁜 주소!!') === '', norm('나쁜 주소!!'));
+  check('Net 이 서버 주소를 바꿀 수 있다', typeof netMod.net.setServer === 'function');
+  check('REST 도 같은 서버로 보낸다(API_BASE)', typeof netMod.setApiBase === 'function' && netMod.getApiBase() === '');
+  const menuSrc = readFileSync(new URL('../client/src/ui/menu.js', import.meta.url), 'utf8');
+  check('멀티 카드에 [서버 주소] 입력칸이 있다', menuSrc.includes("data-field = 'menu-server'") || menuSrc.includes('menu-server-input'));
+  check('멀티 카드에 [접속] 버튼이 있다', menuSrc.includes("'menu-server-connect'"));
+  const mainSrc = readFileSync(new URL('../client/src/main.js', import.meta.url), 'utf8');
+  check('게임이 server-connect 를 처리한다', mainSrc.includes("on('server-connect'") && mainSrc.includes('connectServer('));
+  // 접속하면 로그인/저장/순위표도 그 서버로 가야 한다.
+  check('접속 시 REST 주소도 바뀐다', mainSrc.includes('setApiBase(target === self'));
+}
 console.log(`스모크 테스트 결과: ${pass}개 통과 / ${fail}개 실패 (총 ${pass + fail}개)`);
 if (fail > 0) {
   console.log('\n실패 목록:');

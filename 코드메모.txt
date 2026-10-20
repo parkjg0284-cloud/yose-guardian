@@ -254,4 +254,32 @@ npm install 이 실패한다
             또는 작업 관리자에서 node.exe 종료
 · 확인 : wscript.exe //nologo 게임실행.vbs → 창 없이 서버 200 OK
 
+[15] 멀티플레이 서버 주소 (마인크래프트 방식)
+----------------------------------------------------
+하고 싶었던 것 : 서버만 켜 두면, 다른 PC 에서 주소만 넣고 접속하기.
+
+· 서버 쪽 (이미 되어 있던 것)
+    · HOST 기본값 0.0.0.0  → 같은 공유기의 다른 PC 가 붙을 수 있다
+    · PORT 기본값 3001
+    · .env 의 CLIENT_ORIGIN 이 http://localhost:5173 이면 **다른 PC 가 막힌다**
+      → CLIENT_ORIGIN=* 로 바꿨다(출처를 그대로 되돌려주므로 credentials 도 OK)
+
+· 클라이언트
+    · 메뉴 → 멀티플레이 → [서버 주소] 칸 + [접속]
+        ip / ip:port / http://ip:port 모두 허용, 포트를 빼면 3001
+        비우고 접속하면 내 PC(지금 서버)로 복귀
+    · net.js  normalizeServerAddress()  주소 정리
+    · net.js  setApiBase() / api()      로그인·저장·순위표도 그 서버로
+    · Net.setServer(url)               소켓 대상 교체
+    · main.js connectServer(address)    위 셋을 묶은 처리
+
+· 쓰는 법
+    1) 서버 PC : node server/index.js  (또는 게임 실행)
+    2) 서버 PC 의 IP 확인 : ipconfig → IPv4 (예: 192.168.0.10)
+    3) 다른 PC : 게임 실행 → 멀티플레이 → 서버 주소에 192.168.0.10:3001 → 접속
+    4) 방을 만들거나 초대코드로 참가 (기존 방식 그대로)
+
+· 확인 : 3002 포트에 서버를 띄우고 다른 출처에서
+        REST(health/login) + socket.io + 방 생성까지 전부 성공
+
 끝.

@@ -64,7 +64,7 @@ import { MainMenu } from './ui/menu.js';
 import { Lobby } from './ui/lobby.js';
 import { codeFromUrl } from './utils/invite.js';
 import { playCutscene } from './ui/cutscene.js';
-import { net, auth, cloudSave, leaderboard, statsApi } from './net.js';
+import { net, auth, cloudSave, leaderboard, statsApi, normalizeServerAddress, setApiBase } from './net.js';
 import { BARE_HAND, harvestHint, harvestNode, pickHarvestNode } from './systems/gathering.js';
 import { ADAPTIVE, AdaptiveResolution, formatScale, suggestPreset, stepUpId, MemoryGuard, formatMb } from './ui/adaptive.js';
 import { AdminConsole } from './ui/console.js';
@@ -451,6 +451,8 @@ class Game {
 
     // 메뉴 [불러오기] — 저장한 게임을 이어서 한다(싱글·멀티 공통).
     this.ui.menu.on('load', () => this.load());
+    // 메뉴 [서버 주소] — 다른 PC 에서 켠 서버로 붙는다(마인크래프트 멀티처럼).
+    this.ui.menu.on('server-connect', ({ address } = {}) => this.connectServer(address));
     // 메뉴
     this.ui.menu.on('start', (opts) => this.start(opts));
     // 멀티플레이는 메인 화면의 전용 로비(초대코드)에서 시작한다.
@@ -2857,9 +2859,34 @@ class Game {
     }
   }
 
+  /**
+   * 마인크래프트 멀티처럼 "서버 주소"만 넣고 그 서버에 붙는다.
+   *  · ip / ip:port / http://ip:port 모두 허용 (포트를 빼면 3001)
+   *  · 비우면 지금 서버(내 PC)로 돌아온다
+   *  · 접속하면 로그인·저장·순위표(REST)도 같은 서버로 보낸다
+   */
+  async connectServer(address) {
+    const raw = String(address ?? '').trim();
+    const self = typeof location !== 'undefined' ? location.origin : 'http://localhost:3001';
+    const target = raw ? normalizeServerAddress(raw) : self;
+    if (!target) {
+      this.notify('서버 주소를 확인해 주세요 (예: 192.168.0.10:3001)', 'warn');
+      return false;
+    }
+    this.net.setServer(target);
+    setApiBase(target === self ? '' : target);
+    const nickname = currentNickname() || auth.user?.nickname || auth.user?.username || undefined;
+    const ok = await this.net.connect(nickname);
+    this.notify(
+      ok ? `서버에 연결되었습니다 — ${target}` : `서버에 연결하지 못했습니다 — ${target}`,
+      ok ? 'success' : 'error'
+    );
+    safe(() => this.ui?.menu?.refresh?.());
+    return ok;
+  }
+
   /** 내 세이브 목록(요약, 최신 순) — 설정 화면에서 쓴다(계약 §4.49). */
   listSaves() { return listSaves(); }
-
   /** 내 세이브 삭제. */
   removeSave(id) {
     const ok = removeSave(id);

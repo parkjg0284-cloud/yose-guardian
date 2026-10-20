@@ -4,6 +4,32 @@ import { io } from 'socket.io-client';
 const TOKEN_KEY = 'fortress.token';
 const USER_KEY = 'fortress.user';
 
+// 서버 주소를 game.net 이 바꾸면 REST(로그인·저장·순위표)도 같은 서버로 보낸다.
+let API_BASE = '';
+export function setApiBase(url) {
+  API_BASE = url ? String(url).replace(/\/+$/, '') : '';
+}
+export function getApiBase() {
+  return API_BASE;
+}
+
+/** 마인크래프트처럼 "주소만 넣고 접속" — ip / ip:port / http(s)://ip:port 를 모두 받는다. */
+export function normalizeServerAddress(input, fallbackPort = 3001) {
+  let raw = String(input ?? '').trim();
+  if (!raw) return '';
+  if (!/^https?:\/\//i.test(raw)) raw = `http://${raw}`;
+  let u;
+  try {
+    u = new URL(raw);
+  } catch {
+    return '';
+  }
+  if (!u.hostname) return '';
+  // http 는 게임 서버 기본 포트(3001)를 붙이고, https 는 그대로 둔다(443).
+  if (!u.port && u.protocol === 'http:') u.port = String(fallbackPort);
+  return u.origin;
+}
+
 function store() {
   try {
     return globalThis.localStorage ?? null;
@@ -20,7 +46,8 @@ export async function api(path, { method = 'GET', body, token, timeout = 8000 } 
     if (body !== undefined) headers['Content-Type'] = 'application/json';
     const t = token ?? auth.token;
     if (t) headers.Authorization = `Bearer ${t}`;
-    const res = await fetch(path, {
+    const target = /^https?:\/\//i.test(path) ? path : `${API_BASE}${path}`;
+    const res = await fetch(target, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
@@ -314,6 +341,15 @@ export class Net {
       this.socket = null;
     }
     return this.connected;
+  }
+
+  /** 접속 대상 서버를 바꾼다 — 연결 중이면 끊고 새 주소로 다시 연결한다. */
+  setServer(url) {
+    const next = url || (typeof location !== 'undefined' ? location.origin : 'http://localhost:3001');
+    if (next === this.url && !this.socket) return false;
+    this.disconnect();
+    this.url = next;
+    return true;
   }
 
   disconnect() {

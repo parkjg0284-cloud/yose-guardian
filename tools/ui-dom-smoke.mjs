@@ -1239,6 +1239,26 @@ if (menu) {
     const root = documentStub.getElementById('menu-root');
     return root.querySelectorAll('[data-act="menu-tab"]').some((b) => b.dataset.tab === 'help');
   });
+  // 마인크래프트처럼 "서버 주소"만 넣고 그 서버에 붙는다.
+  attempt('멀티 — 서버 주소 입력칸이 있다', () => {
+    menu.show('main');
+    menu._heroAct('multi');
+    const root = documentStub.getElementById('menu-root');
+    return Boolean(root.querySelector('[data-field="menu-server"]'));
+  });
+  attempt('멀티 — [접속] 이 server-connect 를 보낸다', () => {
+    menu.show('main');
+    menu._heroAct('multi');
+    const root = documentStub.getElementById('menu-root');
+    const input = root.querySelector('[data-field="menu-server"]');
+    if (input) input.value = '192.168.0.10:3001';
+    let sent = null;
+    menu.on('server-connect', (p) => { sent = p; });
+    const btn = root.querySelectorAll('[data-act="menu-server-connect"]')[0];
+    if (!btn) return false;
+    root.dispatch('click', { target: btn, preventDefault() {}, stopPropagation() {} });
+    return sent && sent.address === '192.168.0.10:3001';
+  });
   // 회귀: 메뉴의 설정/협동/로그인은 패널을 "한 번만" 토글해야 한다.
   // (emit + togglePanel 이중 호출 → 열리자마자 닫히고 메뉴까지 숨겨 빈 화면이 되던 버그)
   game.togglePanel = (id) => pm.toggle(id);
