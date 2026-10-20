@@ -1214,11 +1214,18 @@ if (menu) {
   roomListRef.load = realRoomLoad;
   menu.setRooms([], '');
 
-  attempt('help shortcut emits help', () => {
+  // 사용자 요청: 첫 화면 하단의 [로그인][도움말][설정] 버튼을 없앴다(도움말은 위 탭, 설정은 오른쪽 버튼).
+  attempt('하단 [로그인][도움말][설정] 버튼이 없다', () => {
     menu.show('main');
-    const btn = documentStub.getElementById('menu-root').querySelectorAll('[data-act="menu-help"]')[0];
-    documentStub.getElementById('menu-root').dispatch('click', { target: btn, preventDefault() {}, stopPropagation() {} });
-    return seen.some(([e]) => e === 'help');
+    const root = documentStub.getElementById('menu-root');
+    return ['menu-help', 'menu-auth', 'menu-settings'].every(
+      (a) => root.querySelectorAll(`[data-act="${a}"]`).length === 0
+    );
+  });
+  attempt('도움말은 위 탭으로 연다', () => {
+    menu.show('help');
+    const root = documentStub.getElementById('menu-root');
+    return root.querySelectorAll('[data-act="menu-tab"]').some((b) => b.dataset.tab === 'help');
   });
   // 회귀: 메뉴의 설정/협동/로그인은 패널을 "한 번만" 토글해야 한다.
   // (emit + togglePanel 이중 호출 → 열리자마자 닫히고 메뉴까지 숨겨 빈 화면이 되던 버그)
@@ -1226,7 +1233,7 @@ if (menu) {
   menu.on('settings', () => game.togglePanel('settings'));
   menu.on('multiplayer', () => game.togglePanel('multiplayer'));
   menu.on('auth', () => game.togglePanel('auth'));
-  for (const [act, panelId] of [['menu-settings', 'settings'], ['menu-multiplayer', 'multiplayer'], ['menu-auth', 'auth']]) {
+  for (const [act, panelId] of [['menu-multiplayer', 'multiplayer']]) {
     attempt(`${act} 클릭 → #${panelId} 패널이 열린 채로 남는다(중복 토글 없음)`, () => {
       pm.close();
       menu.show('main');

@@ -605,20 +605,9 @@ export class MainMenu {
     acct.dataset.role = 'account';
     acct.textContent = this._accountLabel();
     foot.appendChild(acct);
-    const nav = h('div', 'row menu-actions');
-    const authBtn = h('button', 'btn ghost btn-ghost', '로그인');
-    authBtn.type = 'button';
-    authBtn.dataset.act = 'menu-auth';
-    const helpBtn = h('button', 'btn ghost btn-ghost', '도움말');
-    helpBtn.type = 'button';
-    helpBtn.dataset.act = 'menu-help';
-    const setBtn = h('button', 'btn ghost btn-ghost', '설정');
-    setBtn.type = 'button';
-    setBtn.dataset.act = 'menu-settings';
-    nav.appendChild(authBtn);
-    nav.appendChild(helpBtn);
-    nav.appendChild(setBtn);
-    foot.appendChild(nav);
+    // 하단 [로그인][도움말][설정] 버튼은 제거했다(사용자 요청).
+    //  · 도움말은 위 탭, 설정은 오른쪽 [⚙ 설정] 버튼으로 연다.
+    //  · 계정은 [⚙ 설정] → 내 정보 에서 관리한다.
     shell.appendChild(foot);
 
     menu.appendChild(shell);
@@ -845,9 +834,6 @@ export class MainMenu {
       ['업적', 'menu-achievements'],
       ['전직', 'menu-classes'],
       ['도감', 'menu-codex'],
-      ['설정', 'menu-settings'],
-      ['도움말', 'menu-help'],
-      ['로그인', 'menu-auth'],
       ['🎯 미니게임', 'menu-minigame']
     ];
     for (const [label, act] of shortcuts) {
