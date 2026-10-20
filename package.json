@@ -44,7 +44,8 @@
     "single": "node tools/build-single.mjs",
     "release:all": "npm run release:pack && npm run single && npm run launcher",
     "set-repo": "node tools/set-repo.mjs",
-    "launcher": "node tools/build-launcher.mjs"
+    "launcher": "node tools/build-launcher.mjs",
+    "boot": "node tools/boot-check.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

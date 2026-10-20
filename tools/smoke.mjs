@@ -2942,6 +2942,9 @@ section('메뉴 버튼 → 창 닫고 패널 · 설정에서 로그인/회원가
   check('관리자 콘솔 키가 있다(관리자 전용)', keysSrc.includes("id: 'admin'"));
   check('관리자 키는 관리자에게만 보인다', panelSrc.includes("action.id === 'admin' && !safe(() => auth.isAdmin, false)"));
   check('설정의 관리자 구역은 관리자에게만 보인다', panelSrc.includes("if (safe(() => auth.isAdmin, false)) {") && panelSrc.includes("'admin-console'"));
+  // v1.0.9 회귀: main.js 가 safe() 를 쓰면서 정의하지 않아 부팅이 죽었다.
+  check('main — safe 헬퍼가 정의돼 있다', mainSrc.includes('const safe = (fn'));
+  check('tools — boot-check 가 있다', Boolean(readFileSync(new URL('./boot-check.mjs', import.meta.url), 'utf8').includes('boot-check')));
 }
 console.log(`스모크 테스트 결과: ${pass}개 통과 / ${fail}개 실패 (총 ${pass + fail}개)`);
 if (fail > 0) {

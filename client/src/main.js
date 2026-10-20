@@ -86,6 +86,15 @@ const AUTOSAVE_MS = 60000;
 // holdSpeed: R 을 누르고 있을 때의 연속 회전 속도(rad/s) · netHz: 회전 릴레이 전송 주기(Hz)
 const TURRET_ROTATE = { reach: 9, cone: 1.5, match: 1.6, holdSpeed: 2.1, netHz: 12 };
 
+// 예외를 삼키는 안전 실행 — UI 헬퍼(ui/panels.js)와 같은 의미. main.js 안에서도 쓴다.
+const safe = (fn, fallback = undefined) => {
+  try {
+    return fn();
+  } catch {
+    return fallback;
+  }
+};
+
 const perfNow = () => (typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now());
 const SHADOW_INTERVAL = 0.05;
 
