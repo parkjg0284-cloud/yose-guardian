@@ -2788,7 +2788,7 @@ section('점프 우선 · 키 변경 (계약 §4.56 · §4.55)');
   check('keys — 기본값은 기존 하드코딩과 같다', keyCodes('jump').join(',') === 'Space' && keyCodes('forward').join(',') === 'KeyW,ArrowUp' && keyCodes('sit').join(',') === 'ControlLeft,ControlRight' && keyLabel('KeyP') === 'P');
   check('keys — ESC 는 바꿀 수 없다', setKey('jump', 'Escape', { persist: false }).ok === false && keyCodes('jump').join(',') === 'Space');
   check('keys — 28개 동작이 모두 라벨/그룹을 가진다', KEY_ACTIONS.length === 28 && KEY_ACTIONS.every((a) => a.label && a.group && a.def.length > 0), KEY_ACTIONS.length + '개');
-    check('keys — 시점 전환 동작이 있다', (KEY_ACTIONS.find((a) => a.id === 'camera')?.def ?? []).includes('KeyZ') === true, JSON.stringify((KEY_ACTIONS.find((a) => a.id === 'camera')?.def) ?? []));
+    check('keys — 시점 전환 동작이 있다(H 키)', (KEY_ACTIONS.find((a) => a.id === 'camera')?.def ?? []).includes('KeyH') === true, JSON.stringify((KEY_ACTIONS.find((a) => a.id === 'camera')?.def) ?? []));
   resetAllKeys({ persist: false });
 }
 // ───────────────────────── H-57 조합법 도감(지형별)

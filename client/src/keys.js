@@ -21,7 +21,7 @@ export const KEY_ACTIONS = [
   { id: 'weapons', label: '무기', group: '창', def: ['Tab'] },
   { id: 'classes', label: '직업', group: '창', def: ['KeyK'] },
   { id: 'seeds', label: '씨앗', group: '창', def: ['KeyG'] },
-  { id: 'achievements', label: '업적 (앉기 키와 함께 = 도감)', group: '창', def: ['KeyH'] },
+  { id: 'achievements', label: '업적 (앉기 키와 함께 = 도감)', group: '창', def: ['KeyJ'] },
   { id: 'multiplayer', label: '멀티플레이', group: '창', def: ['KeyT'] },
   { id: 'map', label: '미니맵 켜기/끄기', group: '창', def: ['KeyM'] },
   { id: 'build', label: '건설 모드', group: '창', def: ['KeyB'] },
@@ -31,7 +31,7 @@ export const KEY_ACTIONS = [
   { id: 'interact', label: '상호작용 (수거 · 마법부여)', group: '기타', def: ['KeyE'] },
   { id: 'preset', label: '프리셋 전환', group: '기타', def: ['KeyF'] },
   { id: 'wings', label: '날개 토글', group: '기타', def: ['KeyV'] },
-  { id: 'camera', label: '시점 전환 (1인칭 ↔ 3인칭)', group: '기타', def: ['KeyZ'] },
+  { id: 'camera', label: '시점 전환 (1인칭 ↔ 3인칭) — 설정에서 변경', group: '기타', def: ['KeyH'] },
   { id: 'fullscreen', label: '전체 화면 ↔ 창 모드', group: '기타', def: ['KeyO'] },
   // 관리자 전용 — 관리자 아이디로 로그인했을 때만 열린다(일반 계정은 무시).
   { id: 'admin', label: '관리자 콘솔', group: '기타', def: ['Backquote', 'Slash'] },
@@ -177,17 +177,23 @@ export function setKey(action, code, { persist: save = true } = {}) {
   if (!next) return { ok: false, error: '키를 인식하지 못했습니다' };
   if (next === 'Escape') return { ok: false, error: 'ESC 는 고정 키입니다 — 다른 키를 눌러 주세요' };
   const m = ensure();
+  const swapped = [];
   for (const other of KEY_ACTIONS) {
     if (other.id === action) continue;
-    // 기본값에 함께 들어 있는 별칭(예: ArrowUp)은 중복으로 보지 않는다.
-    if ((m[other.id] || []).includes(next) && !(other.def || []).includes(next)) {
-      return { ok: false, error: other.label + ' 이(가) 이미 ' + keyLabel(next) + ' 을(를) 씁니다' };
-    }
+    const cur = m[other.id] || [];
+    if (!cur.includes(next)) continue;
+    // 두 동작의 기본값에 함께 들어 있는 별칭(예: ArrowUp)은 그대로 둔다.
+    if ((other.def || []).includes(next) && (target.def || []).includes(next)) continue;
+    // 이미 쓰는 키를 고르면 서로 바꾼다 — 상대는 내가 쓰던 키를 받는다.
+    const prev = (m[action] || [])[0] || (target.def || [])[0] || '';
+    const rest = cur.filter((code) => code !== next);
+    m[other.id] = rest.length ? rest : (prev && prev !== next ? [prev] : [...(other.def || [])]);
+    swapped.push(other.label);
   }
   m[action] = [next];
   if (save) persist();
   notify();
-  return { ok: true, keys: [next] };
+  return { ok: true, keys: [next], swapped };
 }
 
 /** 한 동작을 기본값으로 */
@@ -247,7 +253,12 @@ export function validateKeyData() {
   if (setKey('jump', 'Escape', { persist: false }).ok) errors.push('ESC 가 변경됐다');
   if (!setKey('jump', 'KeyJ', { persist: false }).ok) errors.push('키 변경 실패');
   if (primaryKey('jump') !== 'KeyJ') errors.push('변경한 키가 반영되지 않았다');
-  if (setKey('craft', 'KeyJ', { persist: false }).ok) errors.push('중복 키가 허용됐다');
+  // 겹치는 키를 고르면 오류 대신 서로 교환한다 — 두 동작이 같은 키를 쓰면 안 된다.
+  const swapRes = setKey('craft', 'KeyJ', { persist: false });
+  if (!swapRes.ok) errors.push('키 교환 실패');
+  if (primaryKey('craft') !== 'KeyJ') errors.push('교환한 키가 반영되지 않았다');
+  if (primaryKey('jump') === 'KeyJ') errors.push('교환 후에도 점프 키가 겹친다');
+  if ((keyCodes('jump') || []).includes('KeyJ')) errors.push('교환 후 점프 키 목록이 남았다');
   if (!resetKey('jump', { persist: false }).ok || primaryKey('jump') !== 'Space') errors.push('기본값 복원 실패');
   const fake = {
     down: new Set(['KeyJ']),

@@ -285,7 +285,7 @@ console.log('\n== panels.js ==');
 const panelsMod = await import(ui('panels.js'));
 ok('PanelManager exported', typeof panelsMod.PanelManager === 'function');
 ok('PANEL_IDS has 18 ids (enchant · recipes · travel · arcana 추가)', panelsMod.PANEL_IDS.length === 18 && panelsMod.PANEL_IDS.includes('recipes') && panelsMod.PANEL_IDS.includes('travel') && panelsMod.PANEL_IDS.includes('arcana'), panelsMod.PANEL_IDS.join(','));
-ok('KEYBINDS has 24 rows (Ctrl 앉기 · X/R 건물 회전 · V = 요정의 날개)', panelsMod.KEYBINDS.length === 24, panelsMod.KEYBINDS.map((k) => k[0]).join(','));
+ok('KEYBINDS has 26 rows (Ctrl 앉기 · X/R 건물 회전 · V 날개 · H 시점 · O 전체화면)', panelsMod.KEYBINDS.length === 26, panelsMod.KEYBINDS.map((k) => k[0]).join(','));
 ok('KEYBINDS — 앉기(Ctrl) · R 유지 회전 항목 존재', panelsMod.KEYBINDS.some((k) => k[0] === 'Ctrl') && panelsMod.KEYBINDS.some((k) => k[0] === 'R (유지)'));
 const pm = attempt('PanelManager constructs (builds #panel-root)', () => new panelsMod.PanelManager({ game }));
 

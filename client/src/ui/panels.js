@@ -189,7 +189,7 @@ export const KEYBINDS = [
   ['X', '건물 45° 회전 (Shift+X 반대)'],
   ['R (유지)', '조준한 건물 부드럽게 회전'],
   ['E', '부여대 · 🔮 마법부여'],
-  ['H', '업적'],
+  ['J', '업적'],
   ['I', '인벤토리'],
   ['F', '프레임'],
   ['G', '시드 갤러리'],
@@ -200,6 +200,8 @@ export const KEYBINDS = [
   ['M', '미니맵'],
   ['1~9', '포탑 선택'],
   ['V', '요정의 날개'],
+  ['H', '1인칭 ↔ 3인칭'],
+  ['O', '전체 화면 ↔ 창 모드'],
   ['ESC', '닫기'],
   ['Ctrl+H', '요정 도감']
 ];
@@ -802,7 +804,7 @@ export class PanelManager {
       const mode = d.mode === 'third' ? 'third' : 'first';
       this.game?.player?.setCameraMode?.(mode);
       this.game?._syncAvatar?.();
-      this._toast(mode === 'third' ? '3인칭 시점 — 캐릭터가 보입니다 (Z)' : '1인칭 시점 (Z)', 'info');
+      this._toast(mode === 'third' ? '3인칭 시점 — 캐릭터가 보입니다 (H)' : '1인칭 시점 (H)', 'info');
       this._render('settings');
       break;
     }
@@ -3208,7 +3210,7 @@ export class PanelManager {
     camRow.appendChild(thirdBtn);
     body.appendChild(camRow);
     body.appendChild(row('현재 시점', camMode === 'third' ? '3인칭 — 캐릭터 어깨 너머' : '1인칭 — 눈높이'));
-    body.appendChild(row('단축키', 'Z — 1인칭 ↔ 3인칭 (설정에서 키 변경 가능)'));
+    body.appendChild(row('단축키', 'H — 1인칭 ↔ 3인칭 (아래 [단축키] 에서 다른 키로 바꿀 수 있습니다)'));
     body.appendChild(sectionTitle('프레임 프리셋'));
     const cards = grid();
     const activePreset = String(g?.quality ?? g?.preset?.id ?? '');
@@ -4101,7 +4103,7 @@ export class PanelManager {
       }
       const res = boundSetKey(target, e.code);
       current.message = res.ok
-        ? `${BOUND_KEY_ACTION[target]?.label ?? target} → ${boundKeyLabel(e.code)} 로 바꿨습니다`
+        ? `${BOUND_KEY_ACTION[target]?.label ?? target} → ${boundKeyLabel(e.code)} 로 바꿨습니다${res.swapped?.length ? ` (${res.swapped.join(' · ')} 키와 교환)` : ''}`
         : res.error;
       this._render('settings');
     };
