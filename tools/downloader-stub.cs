@@ -23,6 +23,7 @@ internal static class DownloaderStub
         string work = ResolveWorkDir();
         string target = "";
         bool selfTest = false;
+        bool stateCheck = false;
         if (argv != null)
         {
             foreach (string raw in argv)
@@ -30,9 +31,11 @@ internal static class DownloaderStub
                 string a = (raw ?? "").Trim();
                 if (a.Length == 0) continue;
                 if (a.Equals("-SelfTest", StringComparison.OrdinalIgnoreCase)) { selfTest = true; continue; }
+                if (a.Equals("-StateCheck", StringComparison.OrdinalIgnoreCase)) { stateCheck = true; continue; }
                 if (target.Length == 0 && !a.StartsWith("-")) target = a.Trim('"');
             }
         }
+        bool quietMode = selfTest || stateCheck;
         if (target.Length == 0) target = Environment.GetEnvironmentVariable("YOSE_TARGET") ?? "";
         if (target.Length == 0)
             target = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YoseGuardian", "app");
@@ -55,13 +58,13 @@ internal static class DownloaderStub
 
             var psi = new ProcessStartInfo(ResolvePowershell());
             psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File \"" + script + "\" -Path \"" + target + "\""
-                            + (selfTest ? " -SelfTest" : "");
+                            + (selfTest ? " -SelfTest" : stateCheck ? " -StateCheck" : "");
             psi.UseShellExecute = false;
             psi.WorkingDirectory = work;
             psi.CreateNoWindow = true;
 
             // 자체 검사 — 출력을 모아 그대로 보여 주고 종료 코드를 돌려준다
-            if (selfTest)
+            if (quietMode)
             {
                 psi.RedirectStandardOutput = true;
                 psi.RedirectStandardError = true;
@@ -101,7 +104,7 @@ internal static class DownloaderStub
         finally
         {
             // 창 모드는 PowerShell 이 계속 그 폴더의 파일을 쓴다 — 지우지 않는다.
-            if (selfTest)
+            if (quietMode)
             {
                 try { if (Directory.Exists(work)) Directory.Delete(work, true); } catch { }
             }

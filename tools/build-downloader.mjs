@@ -3,7 +3,7 @@
 //
 //   downloader.ps1 + downloader.json + install.ps1 + game.zip 을 exe 안에 품는다.
 //   실행하면 창이 뜨고 [최신 버전 설치] 로 GitHub 릴리스의 game.zip 을 내려받아 설치한다.
-import { existsSync, mkdirSync, rmSync, statSync, copyFileSync, readFileSync } from 'node:fs';
+import { existsSync, mkdirSync, rmSync, statSync, copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { execSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -37,6 +37,19 @@ for (const f of ['downloader.ps1', 'downloader.json']) {
 }
 copyFileSync(join(ROOT, 'launcher', 'install.ps1'), join(BUILD, 'install.ps1'));
 copyFileSync(GAME, join(BUILD, 'game.zip'));
+
+// 내장 판 태그 — 오프라인일 때 [설치]/[업데이트] 판정 기준
+let tagOf = '';
+try {
+  tagOf = execSync('git describe --tags --abbrev=0', { cwd: ROOT, encoding: 'utf8' }).trim();
+} catch { tagOf = ''; }
+{
+  const confPath = join(BUILD, 'downloader.json');
+  const obj = JSON.parse(readFileSync(confPath, 'utf8').replace(/^\uFEFF/, ''));
+  obj.tag = tagOf;
+  writeFileSync(confPath, JSON.stringify(obj, null, 2) + '\n', 'utf8');
+  if (tagOf) log(`  내장 태그: ${tagOf}`);
+}
 log('[2/6] 스테이징 완료 (downloader.ps1 · downloader.json · install.ps1 · game.zip)');
 
 // ── ②-b 무결성 검사
@@ -46,7 +59,7 @@ if (!conf.url || !/^https?:\/\//.test(conf.url)) {
   process.exit(1);
 }
 const ps1 = readFileSync(join(BUILD, 'downloader.ps1'), 'utf8');
-for (const needle of ['최신 버전 설치', 'install.ps1', 'SELFTEST OK']) {
+for (const needle of ['최신 버전 설치', 'install.ps1', 'SELFTEST OK', 'Update-InstallButton']) {
   if (!ps1.includes(needle)) {
     console.error(`  [실패] downloader.ps1 에 '${needle}' 가 없습니다`);
     process.exit(1);
@@ -108,6 +121,32 @@ log(`[4/6] 컴파일 완료 ${kb(statSync(tmpExe).size)}`);
 rmSync(OUT, { force: true });
 copyFileSync(tmpExe, OUT);
 log(`[5/6] ${OUT.split('\\').pop()} ${kb(statSync(OUT).size)}`);
+
+// ── ⑤-b 버튼 상태 검사 (install · update · done)
+{
+  const stateDir = join(BUILD, 'state-probe');
+  rmSync(stateDir, { recursive: true, force: true });
+  mkdirSync(stateDir, { recursive: true });
+  const run = (target) => {
+    const out = execFileSync(OUT, ['-StateCheck', target], { encoding: 'utf8', timeout: 60000, windowsHide: true });
+    const m = out.match(/STATE installed=(\S+) latest=(\S+) button=(\w+)/);
+    return m ? m.slice(1) : ['?', '?', '?'];
+  };
+  const a = run(stateDir);                       // 설치 전 → install
+  mkdirSync(join(stateDir, 'server'), { recursive: true });
+  writeFileSync(join(stateDir, 'server', 'index.js'), '// probe\n', 'utf8');
+  writeFileSync(join(stateDir, '.yose-version'), 'v0.0.1', 'utf8');
+  const b = run(stateDir);                       // 버전 다름 → update
+  writeFileSync(join(stateDir, '.yose-version'), tagOf || '내장 판', 'utf8');
+  const c = run(stateDir);                       // 최신 → done(버튼 숨김)
+  rmSync(stateDir, { recursive: true, force: true });
+  const ok = a[2] === 'install' && b[2] === 'update' && c[2] === 'done';
+  log(`[5/6] 버튼 상태 검사 ${ok ? 'OK' : '실패'} — 설치 전 ${a[2] || '?'} · 새 버전 ${b[2] || '?'} · 최신 ${c[2] || '?'}`);
+  if (!ok) {
+    console.error(`  설치 전=${a.join('|')} · 새 버전=${b.join('|')} · 최신=${c.join('|')}`);
+    process.exitCode = 1;
+  }
+}
 
 // ── ⑥ 자체 검사(창 없이 설치 확인) — YOSE_TARGET 로 임시 폴더에 설치
 const probe = join(ROOT, '.build-downloader-probe');

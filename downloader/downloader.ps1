@@ -2,7 +2,8 @@
   [string]$Url = '',
   [string]$Path = '',
   [switch]$Silent,
-  [switch]$SelfTest
+  [switch]$SelfTest,
+  [switch]$StateCheck
 )
 
 # ── 요세의 수호자 다운로더 ───────────────────────────────────────────────
@@ -21,12 +22,14 @@ $conf = Join-Path $here 'downloader.json'
 $repoApi = 'https://api.github.com/repos/parkjg0284-cloud/yose-guardian/releases/latest'
 $repoZip = 'https://github.com/parkjg0284-cloud/yose-guardian/releases/latest/download/game.zip'
 $app = if ($Path) { [IO.Path]::GetFullPath($Path) } else { Join-Path $env:LOCALAPPDATA 'YoseGuardian\app' }
+$script:bundledTag = ''
 
 if (Test-Path $conf) {
   try {
     $j = Get-Content $conf -Raw -Encoding UTF8 | ConvertFrom-Json
     if ($j.api) { $repoApi = [string]$j.api }
     if ($j.url) { $repoZip = [string]$j.url }
+    if ($j.tag) { $script:bundledTag = [string]$j.tag }
   } catch { }
 }
 
@@ -45,15 +48,48 @@ function Write-Log([string]$line) {
   }
 }
 
-function Get-InstalledVersion {
-  $pkg = Join-Path $app 'package.json'
-  if (Test-Path $pkg) {
+# 설치 폴더에 남기는 버전 표식 — 지우면 '설치 안 됨' 으로 돌아가 [설치] 버튼이 다시 보인다
+$versionFile = Join-Path $app '.yose-version'
+
+function Get-InstalledTag {
+  if (-not (Test-Path (Join-Path $app 'server\index.js'))) { return $null }
+  if (Test-Path $versionFile) {
     try {
-      $j = Get-Content $pkg -Raw -Encoding UTF8 | ConvertFrom-Json
-      if ($j.version) { return [string]$j.version }
+      $raw = (Get-Content $versionFile -Raw -Encoding UTF8).Trim()
+      if ($raw) {
+        if ($raw.StartsWith('{')) {
+          $j = $raw | ConvertFrom-Json
+          if ($j.tag) { return [string]$j.tag }
+        } else { return $raw }
+      }
     } catch { }
   }
-  return '설치 안 됨'
+  return '이전 버전'
+}
+
+function Set-InstalledTag([string]$tag) {
+  if (-not $tag) { $tag = '내장판' }
+  try {
+    New-Item -ItemType Directory -Force -Path $app | Out-Null
+    Set-Content -Path $versionFile -Value $tag -Encoding UTF8
+  } catch { }
+}
+
+function Get-InstalledVersion {
+  $tag = Get-InstalledTag
+  if (-not $tag) { return '설치 안 됨' }
+  return $tag
+}
+
+function Get-BundledTag { if ($script:bundledTag) { return $script:bundledTag } return '내장판' }
+
+# 버튼 상태 — install / update / done
+function Get-InstallState([string]$latestTag) {
+  $inst = Get-InstalledTag
+  if (-not $latestTag) { $latestTag = Get-BundledTag }
+  if (-not $inst) { return [pscustomobject]@{ mode = 'install'; installed = ''; latest = $latestTag } }
+  if ($inst -ne $latestTag) { return [pscustomobject]@{ mode = 'update'; installed = $inst; latest = $latestTag } }
+  return [pscustomobject]@{ mode = 'done'; installed = $inst; latest = $latestTag }
 }
 
 function Get-Latest([switch]$Offline) {
@@ -72,7 +108,7 @@ function Get-Latest([switch]$Offline) {
       }
     } catch { }
   }
-  return [pscustomobject]@{ tag = '내장 판'; url = $repoZip; size = 0L; live = $false }
+  return [pscustomobject]@{ tag = (Get-BundledTag); url = $repoZip; size = 0L; live = $false }
 }
 
 function Save-Download([string]$url, [string]$dest, [long]$size) {
@@ -144,7 +180,8 @@ function Install-Game([switch]$Quiet) {
   $ok = (Test-Path (Join-Path $app 'client\dist\index.html')) -and (Test-Path (Join-Path $app 'server\index.js'))
   Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
   if (-not $ok) { throw '설치가 끝나지 않았습니다 — 설치 폴더를 확인해 주세요' }
-  Write-Log ('· 설치 완료: ' + $app)
+  Set-InstalledTag $latest.tag
+  Write-Log ('· 설치 완료: ' + $app + ' (버전 ' + $latest.tag + ')')
   return $true
 }
 
@@ -160,6 +197,14 @@ function Start-Game {
     return $true
   }
   return $false
+}
+
+# ── 상태 검사: 버튼이 install/update/done 중 무엇인지 출력 ───────────────
+if ($StateCheck) {
+  $latest = Get-Latest -Offline
+  $st = Get-InstallState $latest.tag
+  Write-Host ('STATE installed={0} latest={1} button={2}' -f $(if ($st.installed) { $st.installed } else { '-' }), $st.latest, $st.mode)
+  exit 0
 }
 
 # ── 자동 검증: 창 없이 설치만 ───────────────────────────────────────────
@@ -252,9 +297,36 @@ $script:logBox.ForeColor = [System.Drawing.Color]::FromArgb(44, 48, 56)
 $script:logBox.Font = New-Object System.Drawing.Font('Consolas', 9)
 $form.Controls.Add($script:logBox)
 
+$script:latestTag = ''
+
+# 버튼 표시/문구 — 설치 전 install · 새 버전 update · 최신이면 버튼 삭제(done)
+function Update-InstallButton([string]$latestTag) {
+  if ($latestTag) { $script:latestTag = $latestTag }
+  $st = Get-InstallState $script:latestTag
+  switch ($st.mode) {
+    'install' {
+      $installBtn.Visible = $true
+      $installBtn.Text = '최신 버전 설치'
+      $script:status.Text = '아직 설치되지 않았습니다 — [최신 버전 설치] 를 누르세요'
+    }
+    'update' {
+      $installBtn.Visible = $true
+      $installBtn.Text = ('업데이트 (' + $st.installed + ' → ' + $st.latest + ')')
+      $script:status.Text = ('새 버전이 있습니다 — 지금 ' + $st.installed + ', 최신 ' + $st.latest)
+    }
+    default {
+      $installBtn.Visible = $false
+      $script:status.Text = ('최신 버전입니다 (' + $st.latest + ') — 설치 완료')
+    }
+  }
+  $script:info.Text = '설치 위치: ' + $app + $(if ($st.installed) { '  (설치 ' + $st.installed + ')' } else { '' })
+  return $st
+}
+
 Write-Log ('설치 위치: ' + $app)
 Write-Log ('현재 설치된 버전: ' + (Get-InstalledVersion))
-Write-Log '버튼을 누르면 최신 버전을 확인해 설치합니다.'
+Update-InstallButton (Get-BundledTag) | Out-Null
+Write-Log '최신 버전을 확인하는 중…'
 
 $installBtn.Add_Click({
   if ($script:busy) { return }
@@ -264,8 +336,13 @@ $installBtn.Add_Click({
   try {
     Install-Game
     $script:bar.Value = 100
-    $script:status.Text = '설치 완료 — 게임 실행을 누르세요'
-    $script:info.Text = '설치 위치: ' + $app + '  (버전 ' + (Get-InstalledVersion) + ')'
+    # 최신 태그를 다시 확인해 표식과 버튼을 맞춘다
+    $latest = Get-Latest
+    $st = Update-InstallButton $latest.tag
+    $installBtn.Visible = $false           # 설치가 끝나면 [설치] 버튼은 사라진다
+    $script:status.Text = ('설치 완료 — 최신 버전(' + $st.latest + ') · 게임 실행을 누르세요')
+    $script:info.Text = '설치 위치: ' + $app + '  (설치 ' + $st.latest + ')'
+    Write-Log ('· 설치 완료 — 이제 최신 버전입니다 (버튼 숨김)')
     [System.Windows.Forms.MessageBox]::Show('설치가 끝났습니다. 지금 게임을 시작합니다.', '요세의 수호자 다운로더') | Out-Null
     if (Start-Game) { Write-Log ('· 게임을 시작했습니다') }
   } catch {
@@ -288,5 +365,19 @@ $playBtn.Add_Click({
 }.GetNewClosure())
 
 $closeBtn.Add_Click({ $form.Close() }.GetNewClosure())
+
+$form.Add_Shown({
+  try {
+    $script:status.Text = '최신 버전 확인 중…'
+    [System.Windows.Forms.Application]::DoEvents()
+    $latest = Get-Latest
+    $st = Update-InstallButton $latest.tag
+    if ($latest.live) { Write-Log ('· 최신 버전: ' + $latest.tag + ' (온라인)') }
+    else { Write-Log '· 인터넷이 없어 내장 판 기준으로 확인했습니다' }
+    if ($st.mode -eq 'done') { Write-Log '· 이미 최신 버전입니다 — 설치 버튼을 숨겼습니다' }
+  } catch {
+    Write-Log ('[안내] 최신 버전 확인 실패 — ' + $_.Exception.Message)
+  }
+}.GetNewClosure())
 
 [void]$form.ShowDialog()

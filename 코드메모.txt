@@ -613,4 +613,22 @@ npm install 이 실패한다
     [검증] 주먹 3초 꾹 → 3회 타격 · 1초 안 두 번째 클릭 무시(총 2회) · 콘솔 오류 없음
            활 티어 칩 8개/개수 표시 · smoke 889 · ui-dom 329 · 배치 린트 13/13
 
+  [37] 다운로더 — 설치/업데이트 버튼 자동 전환 (설치 후 숨김)
+
+    [요청] 런처는 그대로, 설치 버튼을 업데이트 때는 [업데이트] 로, 설치가 끝나면 버튼 삭제, 다시 설치하면 다시 보이게
+    [표식] 설치 폴더에 .yose-version 파일(tag)을 남긴다 — install.ps1 뒤 Set-InstalledTag
+           앱 폴더(server\index.js)나 표식이 없으면 '설치 안 됨' 으로 보고 [설치] 버튼을 다시 보여 준다
+    [판정] Get-InstallState → install(설치 전) / update(설치 버전 ≠ 최신) / done(최신)
+           최신 태그: 온라인은 릴리스 API, 오프라인은 downloader.json 의 tag(빌드 시 git describe)
+    [버튼] install → '최신 버전 설치'
+           update  → '업데이트 (v1.2.2 → v1.3.0)'
+           done    → Visible=false (버튼 삭제) · 상태 '최신 버전입니다 (v1.3.0) — 설치 완료'
+           설치가 끝나면 최신 태그를 다시 확인해 즉시 버튼을 숨긴다
+    [검증] 창 UI 자동 검사(UIAutomation) 3가지
+           설치 전 → '최신 버전 설치' / 최신(v1.3.0) 설치됨 → 버튼 없음(설치 폴더 열기·게임 실행만)
+           이전(v1.2.2) 설치됨 → '업데이트 (v1.2.2 → v1.3.0)' · 상태 문구 확인
+           빌드 자체 검사: -StateCheck 로 install/update/done 3종 OK · 자체 검사 OK
+    [빌드] tools/build-downloader.mjs — downloader.json 에 내장 태그 주입 + 버튼 상태 3종 자동 검사
+           tools/downloader-stub.cs — -StateCheck 인자를 PowerShell 로 전달
+
   끝.
