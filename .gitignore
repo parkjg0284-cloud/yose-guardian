@@ -61,3 +61,6 @@ release/
 # 다운로더 앱 — 최신 게임을 내려받아 설치 (약 620KB)
 !/YoseGuardian-Downloader.exe
 yose-work-*/
+.uistate*/
+.stateprobe*/
+.build-downloader*/
