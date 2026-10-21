@@ -2675,7 +2675,7 @@ export class PanelManager {
     // 직업 카드
     body.appendChild(sectionTitle(`직업 ${CLASSES.length - 1}종 — 계열 하나가 직업 하나`));
     body.appendChild(row('규칙', '한 직업으로 전직하면 그 계열 무기만 쓸 수 있고, 다른 계열 무기는 전부 잠깁니다.'));
-    body.appendChild(row('재전직', `웨이브 ${CLASS_RULES.respecWave} 이상 + ${fmt(CLASS_RULES.respecCost)} 골드 — 다른 직업으로 바꾸면 1차로 돌아갑니다`));
+    body.appendChild(row('직업 변경', `${fmt(CLASS_RULES.respecCost)} 골드 — 웨이브 제한 없이 언제든 다른 직업으로 바꿀 수 있습니다 (1차로 돌아감)`));
 
     const list = grid('card-grid class-grid');
     for (const def of CLASSES) {

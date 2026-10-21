@@ -1707,7 +1707,7 @@ if (pm) {
     pm.open('classes');
     const body = documentStub.getElementById('panel-root').querySelector('[data-panel="classes"]');
     const text = body ? body.textContent || '' : '';
-    return text.includes('초심자') && text.includes('잠깁니다') && text.includes('재전직');
+    return text.includes('초심자') && text.includes('잠깁니다') && (text.includes('직업 변경') || text.includes('재전직'));
   });
   attempt('전직 패널 — 직업 카드 6종(계열·패시브·대표 무기)', () => {
     const root = documentStub.getElementById('panel-root');

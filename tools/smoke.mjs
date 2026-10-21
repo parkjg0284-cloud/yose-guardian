@@ -1030,7 +1030,7 @@ section('전직 시스템 (직업 · 단계 · 무기 잠금)');
   check('단계 4개(0~3차) · 등급 상한 상승', CLASS_STAGES.length === 4 && CLASS_STAGES.map((s) => s.maxTier).join(',') === '2,4,6,8');
   check('단계 패시브 배율 상승', CLASS_STAGES.map((s) => s.bonus).join(',') === '1,1,1.5,2');
   check('전직 조건 — 웨이브·비용이 단계마다 오른다', CLASS_RULES.firstWave === 3 && CLASS_RULES.secondWave === 12 && CLASS_RULES.thirdWave === 22 && CLASS_RULES.secondCost > 0 && CLASS_RULES.thirdCost > CLASS_RULES.secondCost);
-  check('재전직 조건이 있다(웨이브+200골드)', CLASS_RULES.respecWave >= 1 && CLASS_RULES.respecCost === 200, `${CLASS_RULES.respecWave}웨이브 · ${CLASS_RULES.respecCost}골드`);
+  check('재전직 — 200 골드(웨이브 제한 없음)', CLASS_RULES.respecCost === 200 && CLASS_RULES.respecWave === 0, `${CLASS_RULES.respecWave}웨이브 · ${CLASS_RULES.respecCost}골드`);
   check('직업마다 대표 무기가 실제로 존재', jobClasses.every((c) => Boolean(WEAPON_BY_ID[c.signature]) && WEAPON_BY_ID[c.signature].family === c.family), jobClasses.map((c) => (WEAPON_BY_ID[c.signature] || {}).name).join(' · '));
   check('계열별 직업 무기 10종 이상', ['staff', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow'].every((f) => weaponsByFamily(f).length >= 10), jobClasses.map((c) => c.name + ':' + weaponsByFamily(c.family).length).join(' '));
 

@@ -2760,7 +2760,7 @@ export const CLASS_RULES = Object.freeze({
   secondCost: 1200,
   thirdWave: 22,
   thirdCost: 3000,
-  respecWave: 3,
+  respecWave: 0,
   respecCost: 200,
   /** 직업과 무관하게 쓸 수 있는 공용 계열 */
   sharedFamilies: ['scissors', 'dream', 'katana'],
