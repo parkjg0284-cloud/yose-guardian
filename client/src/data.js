@@ -2831,7 +2831,7 @@ export const CLASSES = [
   },
   {
     id: 'archer',
-    name: '궁수',
+    name: '아처',
     glyph: '🏹',
     family: 'bow',
     color: 0x7fe6c9,
@@ -2840,6 +2840,31 @@ export const CLASSES = [
     signature: 'bow_forever'
   }
 ];
+
+/** 활 티어 카테고리 — 무기(Tab) 화면에서 활을 티어별로 묶어 본다 */
+export const BOW_TIERS = Object.freeze(
+  Array.from({ length: 7 }, (_, i) => {
+    const tier = i + 1;
+    return Object.freeze({
+      id: 'bow_t' + tier,
+      tier,
+      name: `${tier}티어 활`,
+      icon: '🏹'
+    });
+  })
+);
+
+/** 그 티어의 활만 (아이템이 없으면 빈 배열) */
+export function bowsByTier(tier) {
+  const t = Number(tier) || 0;
+  if (!t) return WEAPONS.filter((w) => w.family === 'bow');
+  return WEAPONS.filter((w) => w.family === 'bow' && Number(w.tier) === t);
+}
+
+/** 활 티어별 개수 요약 */
+export function bowTierCounts() {
+  return BOW_TIERS.map((t) => ({ ...t, count: bowsByTier(t.tier).length }));
+}
 
 /** 계열 → 직업 (초심자 제외) */
 export const CLASS_BY_FAMILY = Object.freeze(

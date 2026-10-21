@@ -38,6 +38,12 @@
 
 게임이 파일 안에 들어 있어 **인터넷 없이도** 설치됩니다.
 
+### 방법 1-A — 다운로더 앱 (새 창에서 한 번에)
+
+1. **[Releases](../../releases/latest)** 에서 **`YoseGuardian-Downloader.exe`** 내려받기 (약 635KB)
+2. **더블클릭** — 창이 뜨면 **[최신 버전 설치]** 한 번
+3. 내려받기 → 설치 → 게임 실행까지 자동 (인터넷이 없으면 내장 판으로 설치)
+
 ### 방법 1-B — 런처 (자동 업데이트)
 
 1. **[Releases](../../releases/latest)** 에서 **`YoseGuardian-Launcher.exe`** 내려받기 (약 624KB)

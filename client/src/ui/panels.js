@@ -26,6 +26,8 @@ import {
   WEAPONS,
   WEAPON_BY_ID,
   WEAPON_FAMILIES,
+  BOW_TIERS,
+  bowsByTier,
   WEAPON_GRADES,
   WEAPON_ULTIMATES,
   ULTIMATE_IMPACTS,
@@ -924,6 +926,12 @@ export class PanelManager {
       case 'mp-chat-send':
         this._mpChat();
         break;
+      case 'weapon-bowtier': {
+        this.state.weapons.bowTier = Number(d.tier) || 0;
+        if (Number(d.tier) > 0) this.state.weapons.family = 'bow';
+        this._render('weapons');
+        break;
+      }
       case 'weapon-filter':
         this.state.weapons.family = d.family || 'all';
         this._render('weapons');
@@ -2102,6 +2110,11 @@ export class PanelManager {
 
   _weaponList() {
     const fam = this.state.weapons.family;
+    const bowTier = Number(this.state.weapons.bowTier) || 0;
+    if (fam === 'bow' && bowTier) {
+      const list = bowsByTier(bowTier);
+      return list.length ? list : weaponsByFamily('bow');
+    }
     if (!fam || fam === 'all') return WEAPONS.slice();
     return weaponsByFamily(fam);
   }
@@ -2927,6 +2940,17 @@ export class PanelManager {
     }
     body.appendChild(this._tabs(items));
     body.appendChild(row('계열별', WEAPON_FAMILIES.map((f) => `${f.icon || ''} ${f.name} ${fmt(weaponsByFamily(f.id).length)}`).join(' · ').trim()));
+
+    // 활은 티어별 카테고리로 한 번 더 나눈다
+    body.appendChild(sectionTitle('활 티어 (카테고리)'));
+    const bowTier = Number(this.state.weapons.bowTier) || 0;
+    const bowItems = [{ label: '🏹 활 전체', act: 'weapon-bowtier', data: { tier: 0 }, active: bowTier === 0 }];
+    for (const t of BOW_TIERS) {
+      const n = bowsByTier(t.tier).length;
+      bowItems.push({ label: `${t.icon} ${t.name} ${fmt(n)}`, act: 'weapon-bowtier', data: { tier: t.tier }, active: bowTier === t.tier });
+    }
+    body.appendChild(this._tabs(bowItems));
+    body.appendChild(row('활 구성', BOW_TIERS.map((t) => `${t.name} ${fmt(bowsByTier(t.tier).length)}종`).join(' · ')));
 
     const equippedNow = this._weaponEquippedId();
     const bare = !equippedNow || equippedNow === FIST_WEAPON_ID;

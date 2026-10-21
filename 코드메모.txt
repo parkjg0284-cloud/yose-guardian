@@ -1,4 +1,4 @@
-요세의 수호자 — 코드 메모
+﻿요세의 수호자 — 코드 메모
 ====================================================
 최종 갱신: 2026-10-20
 용도: 새로 추가된 코드와 사용법을 메모장에서 바로 보기 위한 문서
@@ -584,4 +584,33 @@ npm install 이 실패한다
   [검증] H → 3인칭/1인칭 토글 · J → 업적 · 설정에서 G 로 변경 후 G 로 시점 전환 · 교환 저장 {"camera":["KeyG"],"seeds":["KeyH"]}
          smoke 889 · ui-dom 329 · 부팅 18/18
 
-끝.
+[35] 다운로더 앱 — YoseGuardian-Downloader.exe (새 앱)
+
+    [요청] 다운로드 런처를 새 앱으로 만들어 GitHub 에 추가하고 요세의 수호자 폴더에도 넣기
+    [구성] downloader/downloader.ps1 — WinForms 창(연한 회색) · [최신 버전 설치]/[설치 폴더 열기]/[게임 실행]/[닫기]
+           릴리스 API 로 최신 태그를 확인하고 game.zip 을 청크 단위로 내려받는다(진행바 %)
+           인터넷이 없으면 내장 game.zip 으로 설치(오프라인) · install.ps1 -Silent 로 설치
+           downloader/downloader.json — api/url 주소 · downloader/다운로더 실행.cmd (ASCII 배치)
+    [빌드] tools/downloader-stub.cs (payload.zip 내장) + tools/build-downloader.mjs — npm run downloader
+           [1]game.zip 확인 [2]스테이징(ps1·json·install.ps1·game.zip) [3]payload.zip [4]csc [5]exe [6]자체 검사
+           결과: YoseGuardian-Downloader.exe 634.5KB · 자체 검사 OK
+    [스텁] 자체 검사일 때만 출력을 모아 보여 주고, 창 모드는 GUI 를 띄우고 콘솔은 바로 끝난다
+           (작업 폴더는 LOCALAPPDATA\YoseGuardian\downloader → 임시 → exe 옆 순서)
+    [테마] 바탕 242,243,245(연한 회색) · 제목 32,36,44 · 로그 255,255,255 바탕에 44,48,56 글자
+           화면에 보이는 'GitHub' 문구는 모두 제거 (주소·헤더만 내부적으로 남김)
+    [검증] exe 실행 → '요세의 수호자 다운로더' 창 확인 · 자체 검사 OK · smoke 889 · ui-dom 329
+    [추가] 요세의 수호자 폴더(GitHub 저장소 루트)에 YoseGuardian-Downloader.exe 를 둔다
+
+  [36] 아처 직업 · 활 티어 카테고리 · 꾹 누르면 1초에 1번 공격
+
+    [요청] 직업의 아처 추가 + 활을 티어별로 나누어 카테고리 추가 + 마우스 꾹 누르면 1초에 1번 공격
+    [직업] data.js CLASSES — '궁수' → '아처' (id archer · family bow · passive weaponDamage 1.14 · moveSpeed 1.06)
+    [활] BOW_TIERS (1~7티어) · bowsByTier(tier) · bowTierCounts() — 활 10종 = T1 1 · T2 1 · T3 2 · T4 1 · T5 2 · T6 1 · T7 2
+         무기(Tab) 화면 계열 칩 아래에 '활 티어 (카테고리)' 칩 8개(활 전체 + 1~7티어, 개수 표시)
+         칩을 누르면 활 계열로 바뀌며 그 티어 활만 목록에 남는다 (state.weapons.bowTier)
+    [공격] main.js _attack — 맨손 채집은 즉시, 전투 공격은 1초 간격(_holdAttackNextAt)
+           무거운 무기의 모션이 아직 끝나지 않았으면(progress < 0.9) 그 타격이 나갈 때까지 기다린다
+    [검증] 주먹 3초 꾹 → 3회 타격 · 1초 안 두 번째 클릭 무시(총 2회) · 콘솔 오류 없음
+           활 티어 칩 8개/개수 표시 · smoke 889 · ui-dom 329 · 배치 린트 13/13
+
+  끝.

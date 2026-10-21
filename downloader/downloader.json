@@ -1,0 +1,5 @@
+{
+  "api": "https://api.github.com/repos/parkjg0284-cloud/yose-guardian/releases/latest",
+  "url": "https://github.com/parkjg0284-cloud/yose-guardian/releases/latest/download/game.zip",
+  "note": "다운로더가 확인하는 주소입니다. 저장소를 옮기면 api/url 만 바꾸면 됩니다."
+}

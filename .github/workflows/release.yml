@@ -70,6 +70,12 @@ jobs:
           node tools/build-launcher.mjs
           Write-Host "launcher: $([Math]::Round((Get-Item YoseGuardian-Launcher.exe).Length/1KB,1))KB"
 
+      - name: 다운로더 앱 생성 (최신 게임 내려받기 · 새 앱)
+        shell: pwsh
+        run: |
+          npm run downloader
+          Write-Host "downloader: $([Math]::Round((Get-Item YoseGuardian-Downloader.exe).Length/1KB,1))KB"
+
       - name: 릴리스 생성
         uses: softprops/action-gh-release@v2
         with:
@@ -80,6 +86,7 @@ jobs:
           files: |
             YoseGuardian-Setup.exe
             YoseGuardian-Launcher.exe
+            YoseGuardian-Downloader.exe
             YoseGuardian-launcher.zip
             game.zip
           body: |
@@ -90,6 +97,7 @@ jobs:
             | 파일 | 설명 |
             | --- | --- |
             | **YoseGuardian-Setup.exe** | **권장** — 이 파일 하나로 설치 (게임 내장, 약 1MB) |
+            | **YoseGuardian-Downloader.exe** | **다운로더 앱** — 창에서 [최신 버전 설치] 한 번으로 내려받아 설치·실행 |
             | **YoseGuardian-Launcher.exe** | 런처 — 실행하면 **최신 게임을 자동으로** 내려받아 설치 |
             | YoseGuardian-launcher.zip | 런처 압축본 (게임 내장, 풀어서 사용) |
             | game.zip | 게임 본체 (서버·수동 설치용) |

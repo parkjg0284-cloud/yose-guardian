@@ -2418,6 +2418,13 @@ class Game {
   }
 
   _attack() {
+    // 마우스를 꾹 누르면 모든 무기가 1초에 1번씩 공격한다(v1.3.0).
+    //  · 맨손 채집은 즉시, 전투 공격만 1초 간격으로 묶는다
+    //  · 모션이 아직 끝나지 않았으면(무거운 무기) 그 모션의 타격이 나갈 때까지 기다린다
+    const nowSec = Number(this.clock?.elapsedTime) || 0;
+    if (nowSec < (this._holdAttackNextAt ?? 0)) return true;
+    if (this.staff?.state === 'attacking' && Number(this.staff?.progress) < 0.9) return true;
+    this._holdAttackNextAt = nowSec + 1;
     // 맨손(도구 없이) T1 자원 채집 — 적이 더 가까우면 전투를 우선한다
     if (this._tryBareHarvest()) return true;
     const weapon = this.staff?.weapon ?? null;

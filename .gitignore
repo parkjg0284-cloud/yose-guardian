@@ -57,3 +57,7 @@ release/
 
 # 런처 압축본 (게임 내장) — 바로 받아서 풀 수 있게 포함 (약 616KB)
 !/YoseGuardian-launcher.zip
+
+# 다운로더 앱 — 최신 게임을 내려받아 설치 (약 620KB)
+!/YoseGuardian-Downloader.exe
+yose-work-*/
