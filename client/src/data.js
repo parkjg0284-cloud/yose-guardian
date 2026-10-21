@@ -268,6 +268,100 @@ export function leatherForTier(tier) {
   const t = Math.max(1, Math.min(5, Math.floor(Number(tier) || 1)));
   return LEATHER_TYPES.find((l) => l.tier === t) ?? LEATHER_TYPES[LEATHER_TYPES.length - 1];
 }
+
+// ── 캐릭터 전용 아이템 (v1.2.0) ─────────────────────────────────────────
+//  외형(스킨)마다 하나씩 — **그 캐릭터로 플레이할 때만** 살 수 있고 쓸 수 있다.
+//  보너스는 가죽 장비와 같은 키를 쓴다(같은 경로로 능력치에 적용된다).
+export const CHARACTER_ITEMS = [
+  {
+    id: 'charm_guardian',
+    skin: 'guardian',
+    name: '수호자의 성채 방패',
+    glyph: '🛡️',
+    color: 0x5b8dd6,
+    cost: { gold: 6000 },
+    bonus: { damageTakenPct: 0.08 },
+    desc: '성채의 문장이 새겨진 방패. 수호자만 들 수 있어 받는 피해가 8% 줄어든다.'
+  },
+  {
+    id: 'charm_knight',
+    skin: 'knight',
+    name: '기사의 성검',
+    glyph: '⚔️',
+    color: 0xc9ccd6,
+    cost: { gold: 7000 },
+    bonus: { damagePct: 0.12 },
+    desc: '은빛 판금과 한 쌍인 대검. 기사만 휘둘러 피해가 12% 늘어난다.'
+  },
+  {
+    id: 'charm_mage',
+    skin: 'mage',
+    name: '마법사의 마도서',
+    glyph: '📖',
+    color: 0x9f7bff,
+    cost: { gold: 7000 },
+    bonus: { manaRegenPct: 0.2 },
+    desc: '보랏빛 로브의 주인만 펼칠 수 있는 책. 마나 회복이 20% 빨라진다.'
+  },
+  {
+    id: 'charm_archer',
+    skin: 'archer',
+    name: '궁수의 장궁',
+    glyph: '🏹',
+    color: 0x6fbf73,
+    cost: { gold: 6500 },
+    bonus: { damagePct: 0.09 },
+    desc: '숲의 추적자가 쓰는 장궁. 궁수만 당겨 피해가 9% 늘어난다.'
+  },
+  {
+    id: 'charm_rogue',
+    skin: 'rogue',
+    name: '도적의 그림자 단검',
+    glyph: '🗡️',
+    color: 0x8f9bb3,
+    cost: { gold: 6000 },
+    bonus: { moveSpeedPct: 0.12 },
+    desc: '먹색 두건의 주인만 쥘 수 있는 단검. 이동 속도가 12% 빨라진다.'
+  },
+  {
+    id: 'charm_alchemist',
+    skin: 'alchemist',
+    name: '연금술사의 비약',
+    glyph: '⚗️',
+    color: 0x66d9d0,
+    cost: { gold: 6000 },
+    bonus: { staminaRegenPct: 0.18 },
+    desc: '청록 실험복과 함께 쓰는 비약. 연금술사만 마셔 스태미나 회복이 18% 빨라진다.'
+  },
+  {
+    id: 'charm_bard',
+    skin: 'bard',
+    name: '음유시인의 류트',
+    glyph: '🎻',
+    color: 0xffb066,
+    cost: { gold: 6500 },
+    bonus: { flightSpeedPct: 0.15 },
+    desc: '주황 망토의 노래를 담은 류트. 음유시인만 연주해 비행 속도가 15% 빨라진다.'
+  },
+  {
+    id: 'charm_fairy_friend',
+    skin: 'fairy_friend',
+    name: '요정의 날갯깃',
+    glyph: '🧚',
+    color: 0xff9fd2,
+    cost: { gold: 8000 },
+    bonus: { flightSpeedPct: 0.2, flightCeilingPct: 0.1 },
+    desc: '요정 친구만 받을 수 있는 날갯깃. 비행 속도 20% · 비행 상한 10% 늘어난다.'
+  }
+];
+
+export const CHARACTER_ITEM_BY_ID = Object.fromEntries(CHARACTER_ITEMS.map((it) => [it.id, it]));
+
+/** 스킨 id 로 전용 아이템 찾기 */
+export function characterItemForSkin(skinId) {
+  return CHARACTER_ITEMS.find((it) => it.skin === skinId) ?? null;
+}
+
 export const TURRET_CATEGORIES = {
   attack: { id: 'attack', name: '공격형', icon: '⚔', desc: '적을 직접 공격한다.' },
   heal: { id: 'heal', name: '회복탑', icon: '✚', desc: '주변 구조물·기지·아군을 회복시킨다.' },

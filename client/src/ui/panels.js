@@ -1,6 +1,7 @@
 // 요새의 수호자 — 패널 UI.
 // 계약 §4.13: PanelManager 는 #panel-root 안에 11개 패널을 한 번만 만들고,
 // 이후에는 .open 클래스 토글 + 내용 갱신만 한다. game 컨텍스트는 항상 방어적으로 읽는다.
+import { CHARACTER_SKIN_BY_ID } from '../character.js';
 import {
   TURRETS,
   TURRET_CATEGORIES,
@@ -39,6 +40,8 @@ import {
   weaponLock,
   FAIRY_WINGS,
   FAIRY_WING_BY_ID,
+  CHARACTER_ITEMS,
+  CHARACTER_ITEM_BY_ID,
   LEATHER_TYPES,
   LEATHER_GEAR,
   GEAR_SLOTS,
@@ -929,6 +932,18 @@ export class PanelManager {
       case 'weapon-preview':
         this._previewWeapon(d.id);
         break;
+      case 'charitem-buy':
+        this.emit('charitem:buy', { id: d.id });
+        this._render('inventory');
+        break;
+      case 'charitem-equip':
+        this.emit('charitem:equip', { id: d.id });
+        this._render('inventory');
+        break;
+      case 'charitem-unequip':
+        this.emit('charitem:unequip');
+        this._render('inventory');
+        break;
       case 'wing-equip':
         this.emit('wing:equip', { id: d.id });
         this._render('inventory');
@@ -1447,9 +1462,75 @@ export class PanelManager {
       if (relic) body.appendChild(row('유물', `${relic.name} — ${relic.desc || ''}`));
     }
 
+    body.appendChild(this._characterItemSection());
     body.appendChild(this._leatherSection());
     body.appendChild(this._gearSection());
     body.appendChild(this._wingsSection());
+  }
+
+  // ── 캐릭터 전용 아이템 (v1.2.0) ──────────────────
+  /** 외형마다 하나씩 — 그 캐릭터로 플레이할 때만 사고 쓸 수 있다 */
+  _characterItemSection() {
+    const g = this.game;
+    const sys = g?.charItems ?? null;
+    const character = g?.character ?? null;
+    const skinId = String(character?.skin ?? '');
+    const skinInfo = CHARACTER_SKIN_BY_ID[skinId] ?? null;
+    const skinName = skinInfo ? skinInfo.name : skinId || '-';
+    const wrap = h('div', 'gear-section');
+    wrap.dataset.role = 'character-item-section';
+    wrap.appendChild(sectionTitle('캐릭터 전용 아이템 — 이 캐릭터만 사용'));
+    wrap.appendChild(row('현재 캐릭터', skinName));
+    const equipped = sys?.equippedId ? CHARACTER_ITEM_BY_ID[sys.equippedId] : null;
+    const equippedText = equipped
+      ? equipped.glyph + ' ' + equipped.name + ' — ' + gearBonusText(equipped.bonus)
+      : '없음 (아래에서 구매·착용)';
+    wrap.appendChild(row('착용 중', equippedText));
+    wrap.appendChild(row('규칙', '다른 캐릭터의 전용 아이템은 구매·착용할 수 없습니다 (캐릭터를 바꾸면 자동 해제)'));
+
+    const list = sys?.list?.(character) ?? [];
+    const cards = grid();
+    for (const C of CHARACTER_ITEMS) {
+      const item = list.find((x) => x.id === C.id) ?? null;
+      const usable = item ? item.usable : C.skin === skinId;
+      const owned = Boolean(item?.owned);
+      const isOn = Boolean(item?.equipped);
+      const card = h('div', cardClass(null, { locked: !usable, selected: isOn }));
+      card.style.borderTopColor = cssColor(C.color);
+      card.dataset.role = 'charitem-card';
+      card.dataset.id = C.id;
+      const state = isOn ? '착용 중' : owned ? '보유' : (item?.costText ?? C.cost.gold + ' G');
+      card.appendChild(row(C.glyph + ' ' + C.name, state));
+      card.appendChild(row('전용', C.skin + (usable ? ' ← 지금 캐릭터' : '')));
+      card.appendChild(row('효과', gearBonusText(C.bonus)));
+      card.appendChild(row('설명', C.desc));
+      if (!usable) {
+        card.appendChild(row('상태', C.skin + ' 캐릭터만 사용할 수 있습니다'));
+      } else if (!sys) {
+        card.appendChild(row('상태', '게임을 시작한 뒤에 사용할 수 있습니다'));
+      } else if (isOn) {
+        const off = h('button', 'btn ghost btn-ghost', '해제');
+        off.type = 'button';
+        off.dataset.act = 'charitem-unequip';
+        off.dataset.id = C.id;
+        card.appendChild(off);
+      } else if (owned) {
+        const eq = h('button', 'btn primary btn-primary', '착용');
+        eq.type = 'button';
+        eq.dataset.act = 'charitem-equip';
+        eq.dataset.id = C.id;
+        card.appendChild(eq);
+      } else {
+        const buy = h('button', 'btn primary btn-primary', '구매');
+        buy.type = 'button';
+        buy.dataset.act = 'charitem-buy';
+        buy.dataset.id = C.id;
+        card.appendChild(buy);
+      }
+      cards.appendChild(card);
+    }
+    wrap.appendChild(cards);
+    return wrap;
   }
 
   // ── 가죽 (몬스터 사냥 보상) ──────────────────────

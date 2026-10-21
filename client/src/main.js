@@ -73,6 +73,8 @@ import { openMiniGame, closeMiniGame, isMiniGameOpen } from './ui/minigame.js';
 import { GrantQueue } from './systems/grants.js';
 import { listSaves, pushSave, getSave, removeSave } from './systems/saves.js';
 import { WingSystem } from './systems/wings.js';
+import { CharacterItemSystem } from './systems/character-items.js';
+import { CHARACTER_ITEM_BY_ID } from './data.js';
 import { WingRig } from './player/wings.js';
 import { GearSystem } from './systems/gear.js';
 import { RegionSpawner } from './systems/region-spawns.js';
@@ -330,6 +332,7 @@ class Game {
     this.memory = new MemoryGuard();
     // 캐릭터(이름·외형) — 메뉴에서 만들고, 방 만들기/참가 시 서버로 보낸다(§4.35).
     this.characterStore = createCharacterStore();
+    this._installFullscreenGuard();
     // 디버그·검사용 핸들 (읽기 전용으로만 쓴다)
     globalThis.__yoseGame = this;
     // 직접 만든 닉네임이 있으면 캐릭터 이름 기본값으로도 쓴다(계약 §4.54).
@@ -499,7 +502,17 @@ class Game {
     this.ui.menu.on('character', ({ character } = {}) => {
       this.character = sanitizeCharacter(character, this.character?.name || '');
       this.ui.lobby?.refreshCharacter?.();
+      // 다른 캐릭터로 바뀌면 전용 아이템은 자동 해제된다
+      const dropped = this.charItems?.syncCharacter?.(this.character) ?? null;
+      if (dropped) {
+        this.applyGear?.();
+        this.notify?.(`${dropped} — 캐릭터가 바뀌어 자동으로 해제했습니다`, 'info');
+      }
     });
+    // 캐릭터 전용 아이템(패널) — 구매/착용/해제
+    this.ui.panels.on('charitem:buy', ({ id } = {}) => this.buyCharacterItem(id));
+    this.ui.panels.on('charitem:equip', ({ id } = {}) => this.equipCharacterItem(id));
+    this.ui.panels.on('charitem:unequip', () => this.unequipCharacterItem());
     this.ui.lobby?.on?.('character', () => {
       // 로비에서 [캐릭터 만들기] — 메뉴의 캐릭터 탭으로 보낸다.
       this.ui.lobby?.close?.();
@@ -1032,6 +1045,8 @@ class Game {
       audio: this.audio,
       achievements: this.achievements
     });
+    // 캐릭터 전용 아이템 — 그 캐릭터로 플레이할 때만 사고 쓸 수 있다(v1.2.0)
+    this.charItems = new CharacterItemSystem();
     // 지형 티어별 야생 몬스터(로밍) — 웨이브 정산과 무관하게 지역마다 등장한다
     const roamerRng = rng.fork('roamers');
     this.regionSpawner = new RegionSpawner({ rand: () => roamerRng.next() });
@@ -1070,6 +1085,7 @@ class Game {
     this.ui.panels.close();
     this.state = 'playing';
     this._applyFullscreenPref?.();
+    this._requestFullscreenNow?.();
     this.audio.init();
     this.audio.startBGM('field');
     this.ui.hud.setPhase?.(this.waves.phase, this.waves.wave, this.waves.timeLeft);
@@ -1094,13 +1110,39 @@ class Game {
     }
   }
 
+  /** 전체 화면 요청 — 사용자 제스처 안에서 부른다(브라우저 규칙) */
+  _requestFullscreenNow() {
+    const de = globalThis.document?.documentElement;
+    if (!de?.requestFullscreen) return false;
+    if (globalThis.document?.fullscreenElement) return true;
+    try {
+      Promise.resolve(de.requestFullscreen()).catch(() => {});
+    } catch {
+      return false;
+    }
+    return true;
+  }
+
   /** 게임 시작 시 전체 화면 고정 — 브라우저가 막으면 창 모드로 둔다 */
   _applyFullscreenPref() {
     if (!this._fullscreenPref()) return false;
-    const de = globalThis.document?.documentElement;
-    if (!de?.requestFullscreen || globalThis.document?.fullscreenElement) return false;
-    Promise.resolve(de.requestFullscreen()).catch(() => {});
-    return true;
+    return this._requestFullscreenNow();
+  }
+
+  /** 시작 버튼을 누르는 그 순간 + 게임 중 아무 클릭에서나 전체 화면을 (다시) 요청한다 */
+  _installFullscreenGuard() {
+    const doc = globalThis.document;
+    if (!doc?.addEventListener) return;
+    const tryEnter = () => {
+      if (!this._fullscreenPref()) return;
+      if (doc.fullscreenElement) return;
+      if (this.state !== 'playing' && this.state !== 'paused' && this.state !== 'menu') return;
+      this._requestFullscreenNow();
+    };
+    doc.addEventListener('pointerdown', tryEnter, true);
+    doc.addEventListener('keydown', (e) => {
+      if (e?.code === 'Enter' || e?.code === 'NumpadEnter' || e?.code === 'Space' || e?.code === 'KeyO') tryEnter();
+    }, true);
   }
 
   _teardownRun() {
@@ -1589,7 +1631,7 @@ class Game {
     if (!m) return;
     const bonus = this._fairyModifiers();
     const fx = (v, d = 1) => (Number.isFinite(v) ? Number(v) : d);
-    const gear = this.gear?.bonus?.() ?? null;
+    const gear = this._mergedGearBonus();
     const gx = (v) => 1 + (Number(v) || 0);
     if (this.player) {
       this.player.manaRegenMult = fx(bonus.manaRegen) * fx(m.manaRegen) * gx(gear?.manaRegenPct);
@@ -1605,6 +1647,16 @@ class Game {
     if (this.turrets) {
       this.turrets.miningBonus = fx(bonus.miningSpeed) * fx(m.miningSpeed) * gx(gear?.miningSpeedPct);
     }
+  }
+
+  /** 가죽 장비 + 캐릭터 전용 아이템 보너스를 합친 값 (같은 키를 더한다) */
+  _mergedGearBonus() {
+    const gear = this.gear?.bonus?.() ?? null;
+    const charm = this.charItems?.bonus?.(this.character) ?? null;
+    if (!charm) return gear;
+    const out = { ...(gear || {}) };
+    for (const [k, v] of Object.entries(charm)) out[k] = (Number(out[k]) || 0) + (Number(v) || 0);
+    return out;
   }
 
   /** 가죽 장비 변경 — 보너스 재계산(능력치 + 비행) + UI 갱신 */
@@ -1662,6 +1714,62 @@ class Game {
     this.applyGear();
     this.notify(`가죽 장비 해제 — ${r.gear?.name ?? slotOrId}`, 'info');
     return { ok: true, message: '가죽 장비 해제' };
+  }
+
+  /** 캐릭터 전용 아이템 구매 — 그 캐릭터만 살 수 있다 */
+  buyCharacterItem(id) {
+    const sys = this.charItems;
+    if (!sys) return { ok: false, message: '게임이 시작된 뒤에 구매할 수 있습니다' };
+    const item = CHARACTER_ITEM_BY_ID[id] ?? null;
+    const price = Math.floor(Number(item?.cost?.gold) || 0);
+    const gold = Number(this.economy?.gold) || 0;
+    const r = sys.buy(id, {
+      character: this.character,
+      gold,
+      spend: (cost) => {
+        if ((Number(this.economy?.gold) || 0) < cost) return false;
+        if (typeof this.economy.spendGold === 'function') this.economy.spendGold(cost);
+        else this.economy.gold -= cost;
+        this.track?.('goldSpent', Math.round(cost));
+        return true;
+      }
+    });
+    if (!r.ok) {
+      this.notify(r.message ?? '구매할 수 없습니다', 'warn');
+      this.ui?.panels?.refresh?.();
+      return r;
+    }
+    this.applyGear();
+    this.audio?.play?.('gachaLegend');
+    this.notify(`${r.message} · ${price} G`, 'gacha');
+    return r;
+  }
+
+  /** 캐릭터 전용 아이템 착용 */
+  equipCharacterItem(id) {
+    const sys = this.charItems;
+    if (!sys) return { ok: false, message: '게임이 시작된 뒤에 착용할 수 있습니다' };
+    const r = sys.equip(id, { character: this.character });
+    if (!r.ok) {
+      this.notify(r.message ?? '착용할 수 없습니다', 'warn');
+      return r;
+    }
+    this.applyGear();
+    this.audio?.play?.('swap');
+    this.notify(r.message, 'success');
+    return r;
+  }
+
+  /** 캐릭터 전용 아이템 해제 */
+  unequipCharacterItem() {
+    const r = this.charItems?.unequip?.() ?? { ok: false, message: '없음' };
+    if (!r.ok) {
+      this.notify('착용한 전용 아이템이 없습니다', 'info');
+      return r;
+    }
+    this.applyGear();
+    this.notify(r.message, 'info');
+    return r;
   }
 
   /** 가죽 장비 전부 해제 */
@@ -2371,7 +2479,7 @@ class Game {
       if (weapon.nonLethal) {
         if (this._saveEnemy(enemy, weapon)) saved += 1;
       } else {
-        const gearDamage = 1 + (Number(this.gear?.bonus?.().damagePct) || 0);
+        const gearDamage = 1 + (Number(this._mergedGearBonus()?.damagePct) || 0);
         // 마법부여 — 무기에 새긴 속성의 피해 배율과 상태이상을 함께 적용한다.
         const ench = this.enchant?.bonusFor?.(weapon.id) ?? null;
         const enchantMult = Number(ench?.damageMult) || 1;
@@ -2716,6 +2824,18 @@ class Game {
     if (actionPressed('multiplayer')) this.togglePanel('multiplayer');
     if (actionPressed('preset')) this._cyclePreset();
     if (actionPressed('wings')) this.toggleWings();
+    if (actionPressed('fullscreen')) {
+      const isFull = Boolean(globalThis.document?.fullscreenElement);
+      if (isFull) {
+        globalThis.document?.exitFullscreen?.();
+        this._setFullscreenPref?.(false);
+        this.notify('창 모드로 바꿨습니다 — 다음에도 창 모드', 'info');
+      } else {
+        this._setFullscreenPref?.(true);
+        this._requestFullscreenNow?.();
+        this.notify('전체 화면', 'info');
+      }
+    }
     if (actionPressed('camera')) {
       const mode = this.player?.toggleCameraMode?.();
       this._syncAvatar();

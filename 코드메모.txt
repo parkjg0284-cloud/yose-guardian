@@ -538,4 +538,29 @@ npm install 이 실패한다
          panels.js — 설정 > 시점: 1인칭 / 3인칭 버튼 + 현재 시점 + 단축키 안내
   [검증] Z → third · 아바타 표시 · 카메라 4.80m 뒤 · 높이 2.90m · 설정 버튼 2개 · 콘솔 오류 0
 
+[31] 캐릭터 전용 아이템 8종 (그 캐릭터만 사용)
+
+  [요청] 각 캐릭터마다 쓸 수 있는 아이템을 만들어 주고 그 캐릭터만 쓸 수 있게
+  [데이터] data.js — CHARACTER_ITEMS 8종 (스킨 1:1 · 가격 6,000~8,000 G · 가죽 장비와 같은 비율 보너스 키)
+      수호자 성채 방패(받는 피해 -8%) · 기사 성검(피해 +12%) · 마법사 마도서(마나 회복 +20%)
+      궁수 장궁(피해 +9%) · 도적 그림자 단검(이동 +12%) · 연금술사 비약(스태미나 회복 +18%)
+      음유시인 류트(비행 속도 +15%) · 요정 날갯깃(비행 속도 +20% · 상한 +10%)
+  [시스템] systems/character-items.js (순수 로직)
+      canUse/buy/equip/unequip/bonus/syncCharacter · localStorage 'fortress.charItems.v1'
+      다른 캐릭터 전용은 구매·착용 거부, 캐릭터를 바꾸면 자동 해제
+  [연결] main.js — _mergedGearBonus() 로 가죽 장비 + 전용 아이템 보너스를 합쳐 스탯/피해 배율에 적용
+         buyCharacterItem/equipCharacterItem/unequipCharacterItem · 패널 이벤트 charitem:buy/equip/unequip
+  [UI] panels.js — 인벤토리(I) '캐릭터 전용 아이템 — 이 캐릭터만 사용' 섹션 8장
+        지금 캐릭터 것만 [구매]/[착용]/[해제], 나머지는 잠금 + '○○ 캐릭터만 사용할 수 있습니다'
+       menu.js — 캐릭터 화면에 전용 아이템 안내 한 줄
+  [검증] smoke 889(전용 11검사) · 브라우저 9/10(잔여 1건은 검사 스크립트 산술 오류) · 잠금 7종 · 보너스 1.000→0.920
+
+[32] 전체 화면 고정 보강 (시작 즉시 · 설정에서 창 모드)
+
+  [요청] 시작하면 전체화면 고정, 설정에서 창모드로 (재요청 → 확실하게 보강)
+  [수정] main.js — _requestFullscreenNow() · 시작 버튼 pointerdown/keydown 캡처에서 즉시 요청
+         게임 중 아무 클릭에서나 (전체화면이 아니면) 다시 요청 — ESC 로 나가도 다음 클릭에 복귀
+         O 키(전체 화면 ↔ 창 모드) 추가 · 설정에서 끄면 다음에도 창 모드(localStorage)
+  [검증] 시작 시 fullscreenElement=true · 설정 저장 '0' · 다시 켜기 · 콘솔 오류 0 · 부팅 18/18
+
 끝.

@@ -2621,6 +2621,27 @@ section('캐릭터 — 멀티플레이 생성·전송·표시');
   mem.setItem(character.CHARACTER_STORAGE_KEY, '{ 깨진 JSON');
   check('손상 세이브 내성(예외 없이 기본값)', store.load('대체이름').name === '대체이름');
   store.clear();
+  // ── 캐릭터 전용 아이템 (v1.2.0) ────────────────────────────────
+  {
+    const { CHARACTER_ITEMS } = await import('../client/src/data.js');
+    const { CharacterItemSystem, validateCharacterItemData } = await import('../client/src/systems/character-items.js');
+    const errors = validateCharacterItemData();
+    check('전용 아이템 무결성(8종·스킨 1:1·가격·보너스)', errors.length === 0, errors.join(' · '));
+    check('전용 아이템 8종', CHARACTER_ITEMS.length === 8, `${CHARACTER_ITEMS.length}종`);
+    const sys = new CharacterItemSystem({ persist: false });
+    const guardian = { skin: 'guardian' };
+    const knight = { skin: 'knight' };
+    check('다른 캐릭터 전용은 구매 불가', sys.buy('charm_knight', { character: guardian, gold: 99999 }).ok === false);
+    check('같은 캐릭터 전용은 구매 가능', sys.buy('charm_guardian', { character: guardian, gold: 99999 }).ok === true);
+    check('구매 시 즉시 착용', sys.isEquipped('charm_guardian') === true);
+    check('착용 보너스가 현재 캐릭터에 적용', Number(sys.bonus(guardian)?.damageTakenPct) > 0);
+    check('다른 캐릭터에게는 보너스 없음', sys.bonus(knight) === null);
+    check('다른 캐릭터로 바꾸면 자동 해제', sys.syncCharacter(knight) !== null && sys.isEquipped('charm_guardian') === false);
+    check('보유하지 않은 아이템은 착용 불가', sys.equip('charm_mage', { character: { skin: 'mage' } }).ok === false);
+    check('골드 부족 시 구매 실패', new CharacterItemSystem({ persist: false }).buy('charm_guardian', { character: guardian, gold: 0 }).ok === false);
+    check('모르는 아이템은 거부', sys.buy('없는아이템', { character: guardian, gold: 99999 }).ok === false);
+  }
+
   check('캐릭터 삭제', store.load().name === '');
 
   // ── 메뉴 · 로비 · 서버 배선
@@ -2766,7 +2787,7 @@ section('점프 우선 · 키 변경 (계약 §4.56 · §4.55)');
   check('keys — 무결성 검사(변경·중복 거부·ESC 고정·복원)', validateKeyData().length === 0, validateKeyData().join(' · ') || '전부 통과');
   check('keys — 기본값은 기존 하드코딩과 같다', keyCodes('jump').join(',') === 'Space' && keyCodes('forward').join(',') === 'KeyW,ArrowUp' && keyCodes('sit').join(',') === 'ControlLeft,ControlRight' && keyLabel('KeyP') === 'P');
   check('keys — ESC 는 바꿀 수 없다', setKey('jump', 'Escape', { persist: false }).ok === false && keyCodes('jump').join(',') === 'Space');
-  check('keys — 27개 동작이 모두 라벨/그룹을 가진다', KEY_ACTIONS.length === 27 && KEY_ACTIONS.every((a) => a.label && a.group && a.def.length > 0), KEY_ACTIONS.length + '개');
+  check('keys — 28개 동작이 모두 라벨/그룹을 가진다', KEY_ACTIONS.length === 28 && KEY_ACTIONS.every((a) => a.label && a.group && a.def.length > 0), KEY_ACTIONS.length + '개');
     check('keys — 시점 전환 동작이 있다', (KEY_ACTIONS.find((a) => a.id === 'camera')?.def ?? []).includes('KeyZ') === true, JSON.stringify((KEY_ACTIONS.find((a) => a.id === 'camera')?.def) ?? []));
   resetAllKeys({ persist: false });
 }

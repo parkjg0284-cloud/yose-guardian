@@ -1222,6 +1222,7 @@ export class MainMenu {
 
     if (this._characterSavedNote) card.appendChild(h('div', 'menu-note tab-note tab-note-ok', this._characterSavedNote));
     card.appendChild(h('span', 'tab-note', '멀티플레이에서는 이 이름·외형이 그대로 보입니다 · 브라우저에 저장됩니다'));
+    card.appendChild(h('span', 'tab-note', '캐릭터마다 전용 아이템이 하나씩 있습니다 — 그 캐릭터로만 구매·사용 (인벤토리 I)'));
 
     body.appendChild(card);
     return card;
