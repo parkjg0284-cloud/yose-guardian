@@ -242,7 +242,9 @@ function section(title) {
 // ─────────────────────────────────────── 1. 데이터 무결성
 section('데이터 무결성');
 check('VERSION 존재', typeof VERSION === 'string' && VERSION.length > 0, VERSION);
-check('포탑 101종 (공격47·지원21·시설33)', TURRETS.length === 101, `${TURRETS.length}종`);
+check('포탑 109종 (공격47·지원21·시설33·포탈8)', TURRETS.length === 109, `${TURRETS.length}종`);
+check('포탈 8종 (기지 + T1~T7)', turretsByCategory('portal').length === 8, `${turretsByCategory('portal').length}종`);
+check('포탈마다 목적지가 있다', turretsByCategory('portal').every((t) => typeof t.portalDest === 'string' && t.portalDest.length > 0), turretsByCategory('portal').map((t) => t.portalDest).join(','));
 check('공격형 47종', turretsByCategory('attack').length === 47, `${turretsByCategory('attack').length}종`);
 check('회복탑 7종', turretsByCategory('heal').length === 7);
 check('채굴탑 7종', turretsByCategory('mining').length === 7);
@@ -336,7 +338,7 @@ check('요정 조건 타입 정의', FAIRIES.every((f) => f.condition && typeof 
 
 const tierCounts = {};
 for (const t of TURRETS) tierCounts[t.tier] = (tierCounts[t.tier] || 0) + 1;
-check('포탑 티어 1~7만 사용', Object.keys(tierCounts).every((t) => Number(t) >= 1 && Number(t) <= 7), JSON.stringify(tierCounts));
+check('포탑 티어 1~7만 사용 (포탈은 예외 — 지형 등급 없음)', TURRETS.filter((t) => t.category !== 'portal').every((t) => Number(t.tier) >= 1 && Number(t.tier) <= 7), JSON.stringify(tierCounts));
 
 const badCost = TURRETS.filter((t) => !t.cost || typeof t.cost.gold !== 'number' || t.cost.gold <= 0);
 check('모든 포탑에 유효한 건설 비용', badCost.length === 0, badCost.map((t) => t.id).join(','));
@@ -1028,7 +1030,7 @@ section('전직 시스템 (직업 · 단계 · 무기 잠금)');
   check('단계 4개(0~3차) · 등급 상한 상승', CLASS_STAGES.length === 4 && CLASS_STAGES.map((s) => s.maxTier).join(',') === '2,4,6,8');
   check('단계 패시브 배율 상승', CLASS_STAGES.map((s) => s.bonus).join(',') === '1,1,1.5,2');
   check('전직 조건 — 웨이브·비용이 단계마다 오른다', CLASS_RULES.firstWave === 3 && CLASS_RULES.secondWave === 12 && CLASS_RULES.thirdWave === 22 && CLASS_RULES.secondCost > 0 && CLASS_RULES.thirdCost > CLASS_RULES.secondCost);
-  check('재전직 조건이 있다(웨이브+골드)', CLASS_RULES.respecWave >= CLASS_RULES.secondWave && CLASS_RULES.respecCost > 0);
+  check('재전직 조건이 있다(웨이브+200골드)', CLASS_RULES.respecWave >= 1 && CLASS_RULES.respecCost === 200, `${CLASS_RULES.respecWave}웨이브 · ${CLASS_RULES.respecCost}골드`);
   check('직업마다 대표 무기가 실제로 존재', jobClasses.every((c) => Boolean(WEAPON_BY_ID[c.signature]) && WEAPON_BY_ID[c.signature].family === c.family), jobClasses.map((c) => (WEAPON_BY_ID[c.signature] || {}).name).join(' · '));
   check('계열별 직업 무기 10종 이상', ['staff', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow'].every((f) => weaponsByFamily(f).length >= 10), jobClasses.map((c) => c.name + ':' + weaponsByFamily(c.family).length).join(' '));
 
@@ -2764,7 +2766,8 @@ section('점프 우선 · 키 변경 (계약 §4.56 · §4.55)');
   check('keys — 무결성 검사(변경·중복 거부·ESC 고정·복원)', validateKeyData().length === 0, validateKeyData().join(' · ') || '전부 통과');
   check('keys — 기본값은 기존 하드코딩과 같다', keyCodes('jump').join(',') === 'Space' && keyCodes('forward').join(',') === 'KeyW,ArrowUp' && keyCodes('sit').join(',') === 'ControlLeft,ControlRight' && keyLabel('KeyP') === 'P');
   check('keys — ESC 는 바꿀 수 없다', setKey('jump', 'Escape', { persist: false }).ok === false && keyCodes('jump').join(',') === 'Space');
-  check('keys — 26개 동작이 모두 라벨/그룹을 가진다', KEY_ACTIONS.length === 26 && KEY_ACTIONS.every((a) => a.label && a.group && a.def.length > 0), KEY_ACTIONS.length + '개');
+  check('keys — 27개 동작이 모두 라벨/그룹을 가진다', KEY_ACTIONS.length === 27 && KEY_ACTIONS.every((a) => a.label && a.group && a.def.length > 0), KEY_ACTIONS.length + '개');
+    check('keys — 시점 전환 동작이 있다', (KEY_ACTIONS.find((a) => a.id === 'camera')?.def ?? []).includes('KeyZ') === true, JSON.stringify((KEY_ACTIONS.find((a) => a.id === 'camera')?.def) ?? []));
   resetAllKeys({ persist: false });
 }
 // ───────────────────────── H-57 조합법 도감(지형별)

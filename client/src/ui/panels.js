@@ -784,12 +784,23 @@ export class PanelManager {
       const isFull = Boolean(globalThis.document?.fullscreenElement);
       if (isFull) {
         globalThis.document?.exitFullscreen?.();
-        this._toast('전체 화면을 나왔습니다', 'info');
+        this.game?._setFullscreenPref?.(false);
+        this._toast('창 모드로 바꿨습니다 (다음에도 창 모드)', 'info');
       } else if (de?.requestFullscreen) {
+        this.game?._setFullscreenPref?.(true);
         Promise.resolve(de.requestFullscreen()).catch(() => this._toast('전체 화면을 켤 수 없습니다', 'warn'));
       } else {
         this._toast('이 브라우저는 전체 화면을 지원하지 않습니다', 'warn');
       }
+      this._render('settings');
+      break;
+    }
+    case 'settings-camera': {
+      const mode = d.mode === 'third' ? 'third' : 'first';
+      this.game?.player?.setCameraMode?.(mode);
+      this.game?._syncAvatar?.();
+      this._toast(mode === 'third' ? '3인칭 시점 — 캐릭터가 보입니다 (Z)' : '1인칭 시점 (Z)', 'info');
+      this._render('settings');
       break;
     }
     case 'admin-console':
@@ -1226,7 +1237,12 @@ export class PanelManager {
       card.appendChild(row('회복', `${num(t.healPerSec)}/s`));
       card.appendChild(row('사거리', num(t.range)));
       card.appendChild(row('체력', fmt(t.hp)));
-    } else if (t.category === 'facility') {
+    } else if (t.category === 'portal') {
+    card.appendChild(row('포탈', `🌀 ${t.portalName ?? '-'} — 세운 뒤 가까이에서 N`));
+    card.appendChild(row('반경', `${num(t.range)} m`));
+    card.appendChild(row('체력', fmt(t.hp)));
+    card.appendChild(row('기능', '지형 이동 — 한 번 지으면 계속 쓴다 (재료만 소비)'));
+  } else if (t.category === 'facility') {
       if (t.kind === 'workbench') card.appendChild(row('기능', '모든 무기 제작 (수동 — 전기 불필요)'));
       else if (t.kind === 'enchanter') card.appendChild(row('기능', '무기에 속성 부여 (수동 — 전기 불필요)'));
       else if (t.kind === 'storage') {
@@ -3087,12 +3103,31 @@ export class PanelManager {
     const viewH = Math.round(globalThis.innerHeight || 0);
     body.appendChild(row('해상도', `${viewW} x ${viewH} — 창 크기에 맞춰 함께 바뀝니다`));
     const screenRow = h('div', 'row');
-    const fsBtn = h('button', 'btn ghost btn-ghost', '⛶ 전체 화면');
+    const isFullNow = Boolean(globalThis.document?.fullscreenElement);
+    const fsBtn = h('button', 'btn ghost btn-ghost', isFullNow ? '🪟 창 모드로 바꾸기' : '⛶ 전체 화면으로 바꾸기');
     fsBtn.type = 'button';
     fsBtn.dataset.act = 'settings-fullscreen';
     screenRow.appendChild(fsBtn);
     body.appendChild(screenRow);
-    body.appendChild(row('안내', '전체 화면은 ESC 로 나옵니다. 게임 창은 1920x1080 으로 열립니다.'));
+    body.appendChild(row('화면 모드', isFullNow ? '전체 화면' : '창 모드'));
+    body.appendChild(row('안내', '게임을 시작하면 전체 화면으로 열립니다. 여기서 창 모드로 바꾸면 다음에도 창 모드입니다.'));
+
+    body.appendChild(sectionTitle('시점'));
+    const camMode = String(this.game?.player?.cameraMode ?? 'first');
+    const camRow = h('div', 'row');
+    const firstBtn = h('button', 'btn ' + (camMode === 'first' ? 'primary btn-primary' : 'ghost btn-ghost'), '1인칭');
+    firstBtn.type = 'button';
+    firstBtn.dataset.act = 'settings-camera';
+    firstBtn.dataset.mode = 'first';
+    const thirdBtn = h('button', 'btn ' + (camMode === 'third' ? 'primary btn-primary' : 'ghost btn-ghost'), '3인칭 (캐릭터 보임)');
+    thirdBtn.type = 'button';
+    thirdBtn.dataset.act = 'settings-camera';
+    thirdBtn.dataset.mode = 'third';
+    camRow.appendChild(firstBtn);
+    camRow.appendChild(thirdBtn);
+    body.appendChild(camRow);
+    body.appendChild(row('현재 시점', camMode === 'third' ? '3인칭 — 캐릭터 어깨 너머' : '1인칭 — 눈높이'));
+    body.appendChild(row('단축키', 'Z — 1인칭 ↔ 3인칭 (설정에서 키 변경 가능)'));
     body.appendChild(sectionTitle('프레임 프리셋'));
     const cards = grid();
     const activePreset = String(g?.quality ?? g?.preset?.id ?? '');

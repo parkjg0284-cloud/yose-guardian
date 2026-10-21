@@ -247,6 +247,10 @@ export class Player {
 
     this.radius = 0.5;
     this.eyeHeight = 1.7;
+    /** 시점 — 'first' 1인칭 · 'third' 3인칭(어깨 너머). 설정에서 바꾼다 */
+    this.cameraMode = 'first';
+    this.thirdDistance = 4.8;
+    this.thirdLift = 1.2;
     this.height = 1.8;
     this.walkSpeed = 6.4;
     this.sprintSpeed = 10.2;
@@ -572,11 +576,22 @@ export class Player {
 
     const cos = Math.cos(this.yaw);
     const sin = Math.sin(this.yaw);
-    cam.position.set(
-      this.position.x + cos * bobSide + shakeX,
-      this.position.y + eye + shakeY,
-      this.position.z - sin * bobSide
-    );
+    if (this.cameraMode === 'third') {
+      // 3인칭 — 캐릭터 뒤쪽(시선 반대)으로 물러나고 그대로 바라본다(조준 방향 유지)
+      const dist = this._thirdDist();
+      const lift = this._thirdLift();
+      cam.position.set(
+        this.position.x + sin * dist + cos * bobSide + shakeX,
+        this.position.y + eye + lift + shakeY,
+        this.position.z + cos * dist - sin * bobSide
+      );
+    } else {
+      cam.position.set(
+        this.position.x + cos * bobSide + shakeX,
+        this.position.y + eye + shakeY,
+        this.position.z - sin * bobSide
+      );
+    }
     _euler.set(
       this.pitch + this.shake * this.rng.range(-0.03, 0.03),
       this.yaw,
@@ -586,9 +601,41 @@ export class Player {
     cam.quaternion.setFromEuler(_euler);
   }
 
+  _thirdDist() {
+    const n = Number(this.thirdDistance);
+    return Number.isFinite(n) && n > 0 ? n : 4.8;
+  }
+
+  _thirdLift() {
+    const n = Number(this.thirdLift);
+    return Number.isFinite(n) ? n : 1.2;
+  }
+
+  /** 시점 바꾸기 — 'first' | 'third' */
+  setCameraMode(mode) {
+    const want = mode === 'third' ? 'third' : 'first';
+    if (this.cameraMode === want) return this.cameraMode;
+    this.cameraMode = want;
+    this._snapCamera();
+    return this.cameraMode;
+  }
+
+  toggleCameraMode() {
+    return this.setCameraMode(this.cameraMode === 'third' ? 'first' : 'third');
+  }
+
   _snapCamera() {
     if (!this.camera) return;
-    this.camera.position.set(this.position.x, this.position.y + this.eyeHeight, this.position.z);
+    if (this.cameraMode === 'third') {
+      const dist = this._thirdDist();
+      this.camera.position.set(
+        this.position.x + Math.sin(this.yaw) * dist,
+        this.position.y + this.eyeHeight + this._thirdLift(),
+        this.position.z + Math.cos(this.yaw) * dist
+      );
+    } else {
+      this.camera.position.set(this.position.x, this.position.y + this.eyeHeight, this.position.z);
+    }
     _euler.set(this.pitch, this.yaw, 0, 'YXZ');
     this.camera.quaternion.setFromEuler(_euler);
   }

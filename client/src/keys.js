@@ -31,6 +31,7 @@ export const KEY_ACTIONS = [
   { id: 'interact', label: '상호작용 (수거 · 마법부여)', group: '기타', def: ['KeyE'] },
   { id: 'preset', label: '프리셋 전환', group: '기타', def: ['KeyF'] },
   { id: 'wings', label: '날개 토글', group: '기타', def: ['KeyV'] },
+  { id: 'camera', label: '시점 전환 (1인칭 ↔ 3인칭)', group: '기타', def: ['KeyZ'] },
   // 관리자 전용 — 관리자 아이디로 로그인했을 때만 열린다(일반 계정은 무시).
   { id: 'admin', label: '관리자 콘솔', group: '기타', def: ['Backquote', 'Slash'] },
 ];

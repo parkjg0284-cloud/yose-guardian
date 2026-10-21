@@ -273,7 +273,8 @@ export const TURRET_CATEGORIES = {
   heal: { id: 'heal', name: '회복탑', icon: '✚', desc: '주변 구조물·기지·아군을 회복시킨다.' },
   mining: { id: 'mining', name: '채굴탑', icon: '⛏', desc: '반경 내 광물을 자동으로 채굴한다.' },
   lumber: { id: 'lumber', name: '벌목탑', icon: '🪓', desc: '반경 내 나무를 자동으로 벌목한다.' },
-  facility: { id: 'facility', name: '시설', icon: '🏗', desc: '작업대·저장고·채굴기·컨베이어벨트·몬스터 소환문을 세운다.' }
+  facility: { id: 'facility', name: '시설', icon: '🏗', desc: '작업대·저장고·채굴기·컨베이어벨트·몬스터 소환문을 세운다.' },
+  portal: { id: 'portal', name: '포탈', icon: '🌀', desc: '지형 이동 포탈 — 세워 두면 가까이에서 N 키로 그 지형으로 이동한다.' }
 };
 
 // 공격 계열 7종 — 계열별 이펙트/속성/색
@@ -662,7 +663,47 @@ const facilityTurrets = [
   }))
 ];
 
-export const TURRETS = [...attackTurrets, ...supportTurrets, ...facilityTurrets];
+
+// ── 포탈 건물 (계약 §4.59 확장) ──────────────────────────────────────────
+//  지형 이동을 '아이템'처럼 짓는 건물로 만든다 — 세워 둔 포탈로 언제든 그 지형에 간다.
+const PORTAL_DESTS = [
+  { id: 'base', name: '기지 광장', color: 0xe8d9a8, gold: 600 },
+  { id: 'tier1', name: 'T1 초원', color: 0x7ee081, gold: 1200 },
+  { id: 'tier2', name: 'T2 숲', color: 0x3fbf7f, gold: 2400 },
+  { id: 'tier3', name: 'T3 호수', color: 0x59d6ff, gold: 4200 },
+  { id: 'tier4', name: 'T4 설원', color: 0xb18cff, gold: 6800 },
+  { id: 'tier5', name: 'T5 사막', color: 0xcfefff, gold: 10000 },
+  { id: 'tier6', name: 'T6 화산', color: 0xff7a45, gold: 15000 },
+  { id: 'tier7', name: 'T7 신전', color: 0xffe08a, gold: 22000 }
+];
+
+const portalTurrets = PORTAL_DESTS.map((d) => ({
+  id: `portal_${d.id}`,
+  name: `${d.name} 포탈`,
+  category: 'portal',
+  tier: 0,
+  kind: 'portal',
+  portalDest: d.id,
+  portalName: d.name,
+  icon: '🌀',
+  effect: 'portal',
+  element: 'arcane',
+  color: d.color,
+  damage: 0,
+  range: 8,
+  fireRate: 0,
+  hp: 900,
+  rate: 0,
+  storeRate: null,
+  capacity: 0,
+  draw: 0,
+  drillPool: null,
+  drillRegion: false,
+  cost: { gold: d.gold, wood: Math.round(d.gold / 20), minerals: {} },
+  desc: `${d.name}(으)로 통하는 포탈을 세운다. 다 세운 뒤 가까이에서 N 키를 누르면 이동한다. (반경 8m)`
+}));
+
+export const TURRETS = [...attackTurrets, ...supportTurrets, ...facilityTurrets, ...portalTurrets];
 export const TURRET_BY_ID = Object.fromEntries(TURRETS.map((t) => [t.id, t]));
 export function turretsByCategory(category) {
   return TURRETS.filter((t) => t.category === category);
@@ -2625,8 +2666,8 @@ export const CLASS_RULES = Object.freeze({
   secondCost: 1200,
   thirdWave: 22,
   thirdCost: 3000,
-  respecWave: 12,
-  respecCost: 2000,
+  respecWave: 3,
+  respecCost: 200,
   /** 직업과 무관하게 쓸 수 있는 공용 계열 */
   sharedFamilies: ['scissors', 'dream', 'katana'],
   maxStage: 3

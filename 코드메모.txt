@@ -501,4 +501,41 @@ npm install 이 실패한다
 
   [검증] 창 크기 3종 검사 14/14 · verify 875/329/80/61 · boot 18/18 · 잘림 7/7 · 탭 9/9 · 코어 9/9
 
+[27] 지형 이동을 포탈 건물로 (아이템화) + 건설 '포탈' 필터
+
+  [요청] 각 지형으로 텔레포트하는걸 아이템화해서 포탈 느낌으로, 건설에 따로 필터로
+  [구현]
+    · data.js — TURRET_CATEGORIES 에 'portal'(🌀) 추가
+    · 포탈 8종: portal_base(기지 광장) · portal_tier1~tier7 (지형 색 · 비용 600~22000 골드)
+      각 건물은 portalDest 로 목적지를 가진다(짓는 순간 목적지 고정)
+    · systems/turrets.js — 포탈 3D(기둥 2 + 고리 2 + 회전하는 보석), 갱신은 회전 연출만
+    · main.js — _nearbyPortal(9m) · N 키 → 지은 포탈이 가까우면 그 지형으로, 없으면 세계 포탈 목록
+      프롬프트: 🌀 <이름> — N 으로 이동 (코어 전직 안내보다 우선)
+    · panels.js — 건설 카드에 포탈 정보(목적지·반경·체력·계속 사용)
+  [검증] 포탈 8종 · 목적지 매핑(base→tier7) · 지은 포탈 감지 + 이동(743m) 확인
+
+[28] 재전직 200 골드
+
+  [요청] 전직한 직업을 바꾸려면 200 골드로
+  [수정] CLASS_RULES.respecCost 2000 → 200 · respecWave 12 → 3
+  [검증] canAdvanceTo('mage') → cost 200 · advance 시 200 차감 후 1차로 · 패널 문구 '재전직 웨이브 3 이상 + 200 골드'
+
+[29] 시작하면 전체 화면 고정 · 설정에서 창 모드
+
+  [요청] 게임 시작하면 전체화면 고정, 설정에서 창모드로 바꿀 수 있게
+  [구현] main.js — _fullscreenPref/_setFullscreenPref(localStorage 'fortress.fullscreen', 기본 켜짐)
+         게임 시작(start)에서 _applyFullscreenPref() 로 requestFullscreen (실패하면 창 모드 유지)
+         panels.js — 설정 > 화면: '전체 화면/창 모드로 바꾸기' 버튼 + 현재 모드 표시, 선택이 다음 실행에도 유지
+  [검증] 설정에 '화면 모드' 항목 · 토글 시 설정 저장 · 부팅 검사 18/18
+
+[30] 3인칭 시점 (캐릭터 보임)
+
+  [요청] 캐릭터 3인칭으로 볼 수 있게
+  [구현] player.js — cameraMode('first'|'third') · setCameraMode/toggleCameraMode
+         _updateCamera: 3인칭이면 시선 반대(뒤)로 4.8m · 높이 +1.2m, 조준 방향은 그대로
+         main.js — 로컬 아바타(캡슐 몸 + 머리, 내 스킨 색) · 3인칭일 때만 표시 · Z 키 토글
+         keys.js — camera 동작(KeyZ) 추가 (설정에서 키 변경 가능)
+         panels.js — 설정 > 시점: 1인칭 / 3인칭 버튼 + 현재 시점 + 단축키 안내
+  [검증] Z → third · 아바타 표시 · 카메라 4.80m 뒤 · 높이 2.90m · 설정 버튼 2개 · 콘솔 오류 0
+
 끝.

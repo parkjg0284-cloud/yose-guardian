@@ -330,6 +330,8 @@ class Game {
     this.memory = new MemoryGuard();
     // 캐릭터(이름·외형) — 메뉴에서 만들고, 방 만들기/참가 시 서버로 보낸다(§4.35).
     this.characterStore = createCharacterStore();
+    // 디버그·검사용 핸들 (읽기 전용으로만 쓴다)
+    globalThis.__yoseGame = this;
     // 직접 만든 닉네임이 있으면 캐릭터 이름 기본값으로도 쓴다(계약 §4.54).
     this.character = this.characterStore.load(currentNickname() || auth.user?.nickname || auth.user?.username || '');
     this.lastSnapshot = null;
@@ -1043,6 +1045,7 @@ class Game {
       this.ui.minimap = null;
     }
     this.remote = new RemotePlayers(this.scene);
+    this.avatar = this._buildAvatar();
     this.ui.fps.setInfo?.({ enemies: 0, turrets: 0 });
 
     // 플레이어를 기지 근처에 배치
@@ -1066,11 +1069,38 @@ class Game {
     this.ui.menu.hide();
     this.ui.panels.close();
     this.state = 'playing';
+    this._applyFullscreenPref?.();
     this.audio.init();
     this.audio.startBGM('field');
     this.ui.hud.setPhase?.(this.waves.phase, this.waves.wave, this.waves.timeLeft);
     this.notify(`시드 [${this.seed}] · ${diff.name} · ${MODES.find((m) => m.id === this.mode)?.name ?? this.mode}`, 'info');
     if (prev === 'menu') this.dom.canvas?.focus?.();
+  }
+
+  /** 전체 화면 설정 (기본 켜짐 — 설정에서 창 모드로 바꾼다) */
+  _fullscreenPref() {
+    try {
+      return globalThis.localStorage?.getItem?.('fortress.fullscreen') !== '0';
+    } catch {
+      return true;
+    }
+  }
+
+  _setFullscreenPref(on) {
+    try {
+      globalThis.localStorage?.setItem?.('fortress.fullscreen', on ? '1' : '0');
+    } catch {
+      /* 저장 실패는 무시 */
+    }
+  }
+
+  /** 게임 시작 시 전체 화면 고정 — 브라우저가 막으면 창 모드로 둔다 */
+  _applyFullscreenPref() {
+    if (!this._fullscreenPref()) return false;
+    const de = globalThis.document?.documentElement;
+    if (!de?.requestFullscreen || globalThis.document?.fullscreenElement) return false;
+    Promise.resolve(de.requestFullscreen()).catch(() => {});
+    return true;
   }
 
   _teardownRun() {
@@ -2556,6 +2586,54 @@ class Game {
     return opened;
   }
 
+  /** 3인칭 아바타 — 내 캐릭터 스킨 색 그대로 (1인칭에서는 숨김) */
+  _buildAvatar() {
+    const look = sanitizeRemoteCharacter(this.character ?? null);
+    const group = new THREE.Group();
+    group.name = 'localAvatar';
+    group.visible = false;
+    const bodyMat = new THREE.MeshStandardMaterial({ color: look.color, emissive: new THREE.Color(look.color).multiplyScalar(0.18), roughness: 0.65 });
+    const headMat = new THREE.MeshStandardMaterial({ color: look.accent, emissive: new THREE.Color(look.accent).multiplyScalar(0.15), roughness: 0.5 });
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 1.0, 6, 12), bodyMat);
+    body.position.y = 0.95;
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), headMat);
+    head.position.y = 1.85;
+    group.add(body, head);
+    this.scene.add(group);
+    return group;
+  }
+
+  /** 아바타 위치·방향·표시 — 3인칭일 때만 보인다 */
+  _syncAvatar() {
+    const avatar = this.avatar;
+    const player = this.player;
+    if (!avatar || !player?.position) return;
+    avatar.visible = player.cameraMode === 'third';
+    if (!avatar.visible) return;
+    avatar.position.set(player.position.x, player.position.y, player.position.z);
+    avatar.rotation.y = player.yaw;
+  }
+
+  /** 가까이 지은 포탈 건물 — N 키로 그 지형으로 이동한다 */
+  _nearbyPortal(radius = 9) {
+    const list = this.turrets?.turrets;
+    const p = this.player?.position;
+    if (!Array.isArray(list) || !p) return null;
+    let best = null;
+    let bestD = radius;
+    for (const t of list) {
+      if (!t || t.destroyed) continue;
+      const type = t.type;
+      if (type?.kind !== 'portal' || !type.portalDest) continue;
+      const d = Math.hypot(t.position.x - p.x, t.position.z - p.z);
+      if (d <= bestD) {
+        bestD = d;
+        best = { turret: t, dest: type.portalDest, name: type.portalName ?? type.name ?? '포탈', distance: d };
+      }
+    }
+    return best;
+  }
+
   /** 메인코어 반경 안인가 — 전직을 '코어에서' 하게 하는 조건 */
   _nearCore(range = 16) {
     const core = this.world?.base?.position ?? this.core?.position ?? this.world?.core?.position ?? this.world?.basePos ?? this.basePos ?? null;
@@ -2571,7 +2649,12 @@ class Game {
     const actionPressed = (action) => keyConsume(input, action);
     // 관리자 콘솔 — 관리자 계정으로 로그인했을 때만 열린다(콘솔 내부에서 한 번 더 검사).
     if (actionPressed('admin')) this.ui.admin?.toggle?.();
-    if (actionPressed('travel')) this.teleports?.openTravel?.(this);
+    if (actionPressed('travel')) {
+      // 지어 둔 포탈이 가까이 있으면 바로 그 지형으로 — 없으면 세계 포탈 목록
+      const built = this._nearbyPortal(9);
+      if (built) this.teleports?.travelTo?.(built.dest, this);
+      else this.teleports?.openTravel?.(this);
+    }
     if (actionPressed('arcana')) this.openArcana();
 
     // 메인코어 상호작용(H-90) — 코어 앞에서 전직. E / interact.
@@ -2633,6 +2716,11 @@ class Game {
     if (actionPressed('multiplayer')) this.togglePanel('multiplayer');
     if (actionPressed('preset')) this._cyclePreset();
     if (actionPressed('wings')) this.toggleWings();
+    if (actionPressed('camera')) {
+      const mode = this.player?.toggleCameraMode?.();
+      this._syncAvatar();
+      if (mode) this.notify(mode === 'third' ? '3인칭 시점 — 캐릭터가 보입니다' : '1인칭 시점', 'info');
+    }
     if (actionPressed('map')) this.ui.minimap?.toggle?.();
     if (actionPressed('swapWeapon')) this.swapWeapon(1);
     if (actionPressed('weapons')) this.togglePanel('weapons');
@@ -3167,6 +3255,13 @@ class Game {
     const origin = this.player?.eyePosition;
     const dir = this.player?.aimDirection;
     if (!origin || !dir || this.state !== 'playing') return;
+    // 지어 둔 포탈 앞 — N 으로 이동
+    const builtPortal = this._nearbyPortal(9);
+    if (builtPortal) {
+      hud.setPrompt?.('N', `🌀 ${builtPortal.name} — N 으로 이동`);
+      this._handPrompt = true;
+      return;
+    }
     // 중앙코어 앞 — E 로 전직/승급 (사용자 요청: 전직은 코어에서만)
     if (this._nearCore(16) && !this.ui?.panels?.hasOpen?.()) {
       hud.setPrompt?.('E', '🔮 중앙코어 — 전직/승급');
@@ -3545,6 +3640,7 @@ class Game {
         this.waves?.update?.(dt, { player: this.player, turrets: this.towers, ui: this.ui });
         const modalOpen = Boolean(this.ui.panels.isOpen?.() && !this.build.active);
         if (!modalOpen) this.player?.update?.(dt);
+        this._syncAvatar();
         this.turrets?.update?.(dt, {
           enemies: this.enemies,
           player: this.player,

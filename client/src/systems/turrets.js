@@ -405,6 +405,30 @@ function buildTurretObject(type, ghost = false) {
       tip.scale.setScalar(0.4);
       head.add(tip);
     }
+  } else if (type.category === 'portal') {
+    // 포탈 — 기둥 2개 + 떠 있는 고리 + 안쪽 빛판 (지형 색)
+    for (const side of [-1, 1]) {
+      const pillar = new THREE.Mesh(GEO.tower(), stone);
+      pillar.scale.set(0.62, 2.6, 0.62);
+      pillar.position.set(side * 1.15, 1.3, 0);
+      group.add(pillar);
+      const cap = new THREE.Mesh(GEO.gem(), accent);
+      cap.scale.setScalar(0.42);
+      cap.position.set(side * 1.15, 2.75, 0);
+      group.add(cap);
+    }
+    head.position.y = 1.7;
+    const ringA = new THREE.Mesh(GEO.ring(), accent);
+    ringA.scale.setScalar(1.7);
+    ringA.position.y = 0.35;
+    head.add(ringA);
+    const ringB = new THREE.Mesh(GEO.ring(), accent);
+    ringB.scale.setScalar(1.25);
+    ringB.position.y = 0.35;
+    head.add(ringB);
+    const core = new THREE.Mesh(GEO.gem(), accent);
+    core.scale.setScalar(1.05);
+    head.add(core);
   } else {
     // lumber
     const frame = new THREE.Mesh(GEO.tower(), metal);
@@ -804,6 +828,10 @@ export class Turret {
         break;
       case 'facility':
         this._updateFacility(step, ctx);
+        break;
+      case 'portal':
+        // 포탈은 상호작용(N)으로 이동한다 — 스스로 할 일은 회전 연출뿐
+        if (this.head) this.head.rotation.y += step * 0.4;
         break;
       default:
         break;
