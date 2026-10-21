@@ -3316,3 +3316,192 @@ body {
   border: 0;
   background: #222;
 }
+/* ── 친구창 (v1.4.0) ─────────────────────────────────────── */
+.friends-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(4, 8, 16, 0.62);
+  backdrop-filter: blur(3px);
+}
+
+.friends-overlay.hidden {
+  display: none;
+}
+
+.friends-shell {
+  width: min(760px, 96vw);
+  max-height: 86vh;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 18px 20px 20px;
+  border-radius: 18px;
+  border: 1px solid rgba(150, 190, 255, 0.3);
+  background: linear-gradient(180deg, rgba(24, 34, 58, 0.97), rgba(12, 18, 32, 0.97));
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+}
+
+.friends-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.friends-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.friends-code {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  padding: 6px 12px;
+  border-radius: 12px;
+  background: rgba(120, 200, 255, 0.12);
+  border: 1px solid rgba(120, 200, 255, 0.3);
+}
+
+.friends-code-label {
+  font-size: 12px;
+  opacity: 0.75;
+}
+
+.friends-code-value {
+  font-family: Consolas, monospace;
+  font-size: 18px;
+  letter-spacing: 0.08em;
+  color: #b9e6ff;
+}
+
+.friends-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.friends-room {
+  font-size: 12px;
+  opacity: 0.8;
+}
+
+.friends-notice {
+  font-size: 13px;
+  color: #9fe7bf;
+}
+
+.friends-error {
+  font-size: 13px;
+  color: #ff9f9f;
+}
+
+.friends-add {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px dashed rgba(150, 190, 255, 0.4);
+  background: rgba(10, 16, 28, 0.6);
+}
+
+.friends-add-title {
+  font-weight: 700;
+}
+
+.friends-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+.friends-input {
+  padding: 9px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(150, 190, 255, 0.35);
+  background: rgba(8, 12, 22, 0.85);
+  color: inherit;
+  font-size: 14px;
+}
+
+.friends-input:focus {
+  outline: 2px solid rgba(120, 200, 255, 0.55);
+}
+
+.friends-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.friends-empty {
+  padding: 18px;
+  text-align: center;
+  opacity: 0.75;
+  border-radius: 12px;
+  border: 1px dashed rgba(150, 190, 255, 0.28);
+}
+
+.friends-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(150, 190, 255, 0.22);
+  background: rgba(14, 22, 38, 0.75);
+}
+
+.friends-card[data-online='1'] {
+  border-color: rgba(120, 235, 170, 0.45);
+}
+
+.friends-card-info {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.friends-card-name {
+  font-weight: 700;
+}
+
+.friends-card-code {
+  font-family: Consolas, monospace;
+  font-size: 13px;
+  opacity: 0.8;
+}
+
+.friends-state.online {
+  color: #7de7a8;
+  font-size: 12px;
+}
+
+.friends-state.offline {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.friends-card-room {
+  font-size: 12px;
+  color: #b9e6ff;
+}
+
+.friends-card-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.friends-hint {
+  font-size: 12px;
+  opacity: 0.7;
+}

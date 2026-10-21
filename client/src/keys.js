@@ -23,6 +23,7 @@ export const KEY_ACTIONS = [
   { id: 'seeds', label: '씨앗', group: '창', def: ['KeyG'] },
   { id: 'achievements', label: '업적 (앉기 키와 함께 = 도감)', group: '창', def: ['KeyJ'] },
   { id: 'multiplayer', label: '멀티플레이', group: '창', def: ['KeyT'] },
+  { id: 'friends', label: '친구', group: '창', def: ['KeyU'] },
   { id: 'map', label: '미니맵 켜기/끄기', group: '창', def: ['KeyM'] },
   { id: 'build', label: '건설 모드', group: '창', def: ['KeyB'] },
   { id: 'recipes', label: '조합법(레시피) 목록', group: '창', def: ['KeyP'] },

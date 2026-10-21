@@ -24,6 +24,7 @@ const { default: saveRouter } = await import('./api/save.js');
 const { default: leaderboardRouter } = await import('./api/leaderboard.js');
 const { default: statsRouter } = await import('./api/stats.js');
 const { default: adminRouter } = await import('./api/admin.js');
+const { createFriendRegistry, registerFriendRoutes } = await import('./api/friends.js');
 // 다른 사람이 접속할 수 있는 주소(초대 링크가 localhost 로 굳지 않게) — server/net-info.js
 const { localShareUrls } = await import('./net-info.js');
 const { RoomManager } = await import('./game/RoomManager.js');
@@ -102,6 +103,10 @@ app.use('/api/save', saveRouter);
 app.use('/api/leaderboard', leaderboardRouter);
 app.use('/api/stats', statsRouter);
 app.use('/api/admin', adminRouter);
+
+// 친구 — 친구 코드 등록·조회. 같은 서버(같은 PC·LAN)에 있으면 코드만으로 방을 찾는다.
+const friendRegistry = createFriendRegistry({ port: PORT });
+registerFriendRoutes(app, friendRegistry);
 
 app.use('/api', (req, res) => {
   res.status(404).json({ error: '존재하지 않는 API 경로입니다' });

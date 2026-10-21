@@ -631,4 +631,26 @@ npm install 이 실패한다
     [빌드] tools/build-downloader.mjs — downloader.json 에 내장 태그 주입 + 버튼 상태 3종 자동 검사
            tools/downloader-stub.cs — -StateCheck 인자를 PowerShell 로 전달
 
+  [38] 친구 — 친구 코드 · 친구창(U) · 친구 추가 · 친구 서버 들어가기 (v1.4.0)
+
+    [요청] 친구창을 만들고, 친구 추가는 친구 코드를 치는 창을 따로 만들고, 친구 서버에 들어가게
+    [코드] client/src/friends.js — 친구 코드 8자리(ABCD-EFGH) · 헷갈리는 글자 제외 · localStorage 저장
+           내 코드는 PC 마다 고정, randomFriendCode 로 새로 만들기 가능
+    [창]   client/src/ui/friends.js — U 키 오버레이(친구창)
+             내 친구 코드 + [코드 복사]
+             [＋ 친구 추가] → 별도 입력창(친구 코드 · 이름 · 주소) [추가]/[취소]
+             친구 카드 — 이름 / 코드 / 접속 중 · 오프라인 / 방 코드 / [들어가기] [주소] [삭제]
+    [서버] server/api/friends.js — 메모리 레지스트리
+             POST /api/friends/register {code,name,room} · POST /api/friends/leave
+             GET  /api/friends/lookup?code= · GET /api/friends/online
+             접속 주소는 요청 Origin(또는 host) · 30분 갱신 없으면 오프라인
+    [이동] 친구 [들어가기] → http://친구주소/?room=방코드 (초대 링크와 같은 규칙 · 새 탭)
+           주소를 모르면 prompt 로 IP:포트 한 번 입력 → 저장
+           방을 만들거나 들어가면 lobby 의 created/joined → friends.rememberRoom(code) → 자동 등록
+    [검증] tools/friends-check.mjs — 실제 Chrome(headless·CDP) 21개 통과
+             U 키로 열림 · 내 코드 4-4 · 친구 추가 입력창 · 추가/저장/잘못된 코드 오류
+             주소+방 코드 → ?room= 링크 · 접속 중 표시/방 코드 · 서버 동기화(코드만으로 방 찾기)
+             방을 만들면 내 방이 등록됨 · 닫기 · 콘솔 error 0
+           smoke 912 통과(친구 20여 개 추가) · ui-dom 330 · verify 전체 통과
+
   끝.

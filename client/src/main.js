@@ -68,12 +68,14 @@ import { net, auth, cloudSave, leaderboard, statsApi, netInfo, normalizeServerAd
 import { BARE_HAND, harvestHint, harvestNode, pickHarvestNode } from './systems/gathering.js';
 import { ADAPTIVE, AdaptiveResolution, formatScale, suggestPreset, stepUpId, MemoryGuard, formatMb } from './ui/adaptive.js';
 import { AdminConsole } from './ui/console.js';
+import { FriendsOverlay } from './ui/friends.js';
 import { syncPointerLock } from './ui/pointer-lock.js';
 import { openMiniGame, closeMiniGame, isMiniGameOpen } from './ui/minigame.js';
 import { GrantQueue } from './systems/grants.js';
 import { listSaves, pushSave, getSave, removeSave } from './systems/saves.js';
 import { WingSystem } from './systems/wings.js';
 import { CharacterItemSystem } from './systems/character-items.js';
+import { FriendSystem } from './friends.js';
 import { CHARACTER_ITEM_BY_ID } from './data.js';
 import { WingRig } from './player/wings.js';
 import { GearSystem } from './systems/gear.js';
@@ -395,6 +397,8 @@ class Game {
   }
 
   _initUI() {
+    // 친구 — 친구 코드·친구 목록은 UI 보다 먼저 있어야 한다(v1.4.0)
+    if (!this.friends) this.friends = new FriendSystem();
     this.ui = {
       hud: new HUD(this),
       minimap: null,
@@ -402,7 +406,8 @@ class Game {
       fps: new FPSMonitor({ canvas: this.dom.fps }),
       menu: new MainMenu({ game: this }),
       lobby: new Lobby({ game: this }),
-      admin: new AdminConsole({ game: this })
+      admin: new AdminConsole({ game: this }),
+      friends: new FriendsOverlay({ game: this, friends: this.friends })
     };
     // 몬스터/보스 월드 체력바(InstancedMesh 2장)
     this.healthBars = new EnemyHealthBars({
@@ -484,6 +489,13 @@ class Game {
     });
     this.ui.lobby?.on?.('close', () => {
       if (this.state === 'menu') this.ui.menu?.show?.('main');
+    });
+    // 방을 만들거나 들어가면 친구 코드에 내 방을 알린다 — 친구가 [들어가기] 로 바로 온다
+    this.ui.lobby?.on?.('created', ({ code } = {}) => {
+      this.ui.friends?.rememberRoom?.(code);
+    });
+    this.ui.lobby?.on?.('joined', ({ code } = {}) => {
+      this.ui.friends?.rememberRoom?.(code);
     });
     // 메뉴 버튼 → 창을 먼저 닫고, 그 다음 패널이 뜬다(사용자 요청).
     //  패널을 닫으면(state === 'menu') 다시 메뉴가 나온다.
@@ -2829,6 +2841,7 @@ class Game {
     if (actionPressed('classes')) this.togglePanel('classes');
     if (actionPressed('seeds')) this.togglePanel('seeds');
     if (actionPressed('multiplayer')) this.togglePanel('multiplayer');
+    if (actionPressed('friends')) this.ui.friends?.toggle();
     if (actionPressed('preset')) this._cyclePreset();
     if (actionPressed('wings')) this.toggleWings();
     if (actionPressed('fullscreen')) {

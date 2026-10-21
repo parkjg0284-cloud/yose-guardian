@@ -46,7 +46,8 @@
     "set-repo": "node tools/set-repo.mjs",
     "launcher": "node tools/build-launcher.mjs",
     "downloader": "node tools/build-downloader.mjs",
-    "boot": "node tools/boot-check.mjs"
+    "boot": "node tools/boot-check.mjs",
+    "friends": "node tools/friends-check.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

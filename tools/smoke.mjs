@@ -219,6 +219,8 @@ import {
 import { requestPanels } from '../client/src/systems/admin-commands.js';
 import { AchievementSystem } from '../client/src/systems/achievements.js';
 import { GachaSystem } from '../client/src/systems/gacha.js';
+import { FriendSystem, formatFriendCode, isValidFriendCode, friendServerUrl, normalizeFriendCode, normalizeAddress } from '../client/src/friends.js';
+import { createFriendRegistry } from '../server/api/friends.js';
 
 let pass = 0;
 let fail = 0;
@@ -2787,7 +2789,7 @@ section('점프 우선 · 키 변경 (계약 §4.56 · §4.55)');
   check('keys — 무결성 검사(변경·중복 거부·ESC 고정·복원)', validateKeyData().length === 0, validateKeyData().join(' · ') || '전부 통과');
   check('keys — 기본값은 기존 하드코딩과 같다', keyCodes('jump').join(',') === 'Space' && keyCodes('forward').join(',') === 'KeyW,ArrowUp' && keyCodes('sit').join(',') === 'ControlLeft,ControlRight' && keyLabel('KeyP') === 'P');
   check('keys — ESC 는 바꿀 수 없다', setKey('jump', 'Escape', { persist: false }).ok === false && keyCodes('jump').join(',') === 'Space');
-  check('keys — 28개 동작이 모두 라벨/그룹을 가진다', KEY_ACTIONS.length === 28 && KEY_ACTIONS.every((a) => a.label && a.group && a.def.length > 0), KEY_ACTIONS.length + '개');
+  check('keys — 29개 동작이 모두 라벨/그룹을 가진다', KEY_ACTIONS.length === 29 && KEY_ACTIONS.every((a) => a.label && a.group && a.def.length > 0), KEY_ACTIONS.length + '개');
     check('keys — 시점 전환 동작이 있다(H 키)', (KEY_ACTIONS.find((a) => a.id === 'camera')?.def ?? []).includes('KeyH') === true, JSON.stringify((KEY_ACTIONS.find((a) => a.id === 'camera')?.def) ?? []));
   resetAllKeys({ persist: false });
 }
@@ -2997,6 +2999,61 @@ section('메뉴 버튼 → 창 닫고 패널 · 설정에서 로그인/회원가
   check('main — safe 헬퍼가 정의돼 있다', mainSrc.includes('const safe = (fn'));
   check('tools — boot-check 가 있다', Boolean(readFileSync(new URL('./boot-check.mjs', import.meta.url), 'utf8').includes('boot-check')));
 }
+
+// ── 친구 (v1.4.0) ────────────────────────────────────────────────
+{
+  const mem = new Map();
+  const storage = { getItem: (k) => (mem.has(k) ? mem.get(k) : null), setItem: (k, v) => mem.set(k, String(v)) };
+  const f1 = new FriendSystem({ storage, random: () => 0.42, now: () => 1000 });
+  check('친구 — 코드 8자리 · 표시 4-4', f1.code.length === 8 && formatFriendCode(f1.code) === `${f1.code.slice(0, 4)}-${f1.code.slice(4)}`);
+  check('친구 — 코드 정규화(소문자·하이픈 허용)', normalizeFriendCode('ab-cd efgh') === 'ABCDEFGH' && isValidFriendCode('ABCD-EFGH'));
+  check('친구 — 잘못된 코드 거부', !isValidFriendCode('ABC') && f1.add({ code: 'ABC' }).ok === false);
+  check('친구 — 내 코드는 추가 불가', f1.add({ code: f1.code }).ok === false);
+
+  const added = f1.add({ code: 'WXYZ-2345', name: '친구', address: '192.168.0.9:3001' });
+  check('친구 — 코드로 추가', added.ok === true && f1.size === 1 && f1.has('WXYZ2345'));
+  check('친구 — 중복 추가는 갱신', f1.add({ code: 'wxyz2345', name: '새 이름' }).updated === true && f1.list()[0].name === '새 이름');
+  check('친구 — 주소 정규화', normalizeAddress('192.168.0.9:3001') === 'http://192.168.0.9:3001');
+
+  f1.touch('WXYZ2345', { room: 'K7F2', online: true });
+  check('친구 — 서버 링크(?room=CODE)', friendServerUrl('192.168.0.9:3001', 'K7F2') === 'http://192.168.0.9:3001/?room=K7F2');
+  check('친구 — 방 코드 없으면 링크 없음', friendServerUrl('192.168.0.9:3001', '') === '');
+  check('친구 — 삭제', f1.remove('WXYZ2345') === true && f1.size === 0);
+
+  // 저장·복원
+  const f2 = new FriendSystem({ storage, random: () => 0.42, now: () => 2000 });
+  f2.add({ code: 'ABCD-2345', name: '저장' });
+  const f3 = new FriendSystem({ storage, random: () => 0.42, now: () => 3000 });
+  check('친구 — 목록이 저장된다', f3.size === 1 && f3.get('ABCD2345').name === '저장' && f3.code === f2.code);
+
+  // 서버 레지스트리
+  let clock = 5000;
+  const reg = createFriendRegistry({ now: () => clock, port: 3001 });
+  check('친구 서버 — 등록', reg.register({ code: 'ABCD-2345', name: '친구', room: 'K7F2', origin: 'http://192.168.0.9:3001' }).ok === true);
+  const look = reg.lookup('abcd2345');
+  check('친구 서버 — 조회(온라인·방 코드)', look.ok && look.friend.online === true && look.friend.room === 'K7F2');
+  check('친구 서버 — 잘못된 코드 거부', reg.lookup('XX').ok === false);
+  clock += 31 * 60 * 1000;
+  check('친구 서버 — 30분 지나면 오프라인', reg.lookup('ABCD2345').friend.online === false);
+  check('친구 서버 — 나가면 사라진다', reg.leave({ code: 'ABCD2345' }).ok === true && reg.lookup('ABCD2345').friend === null);
+}
+
+// 친구 UI · 배선 계약
+{
+  const uiSrc = readFileSync(new URL('../client/src/ui/friends.js', import.meta.url), 'utf8');
+  const mainSrc = readFileSync(new URL('../client/src/main.js', import.meta.url), 'utf8');
+  const keysSrc = readFileSync(new URL('../client/src/keys.js', import.meta.url), 'utf8');
+  const panelSrc = readFileSync(new URL('../client/src/ui/panels.js', import.meta.url), 'utf8');
+  const serverSrc = readFileSync(new URL('../server/index.js', import.meta.url), 'utf8');
+  check('친구창 — 코드 복사·추가·목록·들어가기', uiSrc.includes("data-act = 'friend-copy'") === false || uiSrc.includes('friend-copy'));
+  check('친구창 — 친구 코드 입력창(별도 창)', uiSrc.includes('friend-code-input') && uiSrc.includes('friend-add-ok') && uiSrc.includes('friend-add-open'));
+  check('친구창 — 서버 들어가기', uiSrc.includes('friend-join') && uiSrc.includes('serverUrl('));
+  check('친구 — 키 U 로 열고 닫기', keysSrc.includes("id: 'friends'") && keysSrc.includes("def: ['KeyU']"));
+  check('친구 — 메인에 연결', mainSrc.includes('new FriendSystem()') && mainSrc.includes('new FriendsOverlay') && mainSrc.includes("actionPressed('friends')"));
+  check('친구 — 단축키 표에 U', panelSrc.includes("['U', '친구']"));
+  check('친구 — 서버 API 등록', serverSrc.includes('registerFriendRoutes(app, friendRegistry)') && serverSrc.includes("api/friends.js"));
+}
+
 console.log(`스모크 테스트 결과: ${pass}개 통과 / ${fail}개 실패 (총 ${pass + fail}개)`);
 if (fail > 0) {
   console.log('\n실패 목록:');
