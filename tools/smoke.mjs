@@ -221,6 +221,7 @@ import { AchievementSystem } from '../client/src/systems/achievements.js';
 import { GachaSystem } from '../client/src/systems/gacha.js';
 import { FriendSystem, formatFriendCode, isValidFriendCode, friendServerUrl, normalizeFriendCode, normalizeAddress } from '../client/src/friends.js';
 import { createFriendRegistry } from '../server/api/friends.js';
+import { MONSTER_LOOKS, monsterLook, buildMonsterModel, disposeMonsterAssets } from '../client/src/systems/monster-looks.js';
 
 let pass = 0;
 let fail = 0;
@@ -3052,6 +3053,27 @@ section('메뉴 버튼 → 창 닫고 패널 · 설정에서 로그인/회원가
   check('친구 — 메인에 연결', mainSrc.includes('new FriendSystem()') && mainSrc.includes('new FriendsOverlay') && mainSrc.includes("actionPressed('friends')"));
   check('친구 — 단축키 표에 U', panelSrc.includes("['U', '친구']"));
   check('친구 — 서버 API 등록', serverSrc.includes('registerFriendRoutes(app, friendRegistry)') && serverSrc.includes("api/friends.js"));
+}
+
+
+// ── 몬스터 외형 (v1.5.0) ─────────────────────────────────────────
+{
+  const types = Object.keys(MONSTER_LOOKS);
+  check('몬스터 외형 — 11종 실루엣 정의', types.length === 11, types.join(','));
+  check('몬스터 외형 — 모든 종류에 자세·눈', types.every((t) => Boolean(monsterLook(t).stance) && monsterLook(t).eyes >= 2));
+  check('몬스터 외형 — 기본값 병합', monsterLook('__none__').stance === 'biped' && monsterLook('spider').stance === 'spider');
+  check('몬스터 외형 — 망토는 망령/그림자만', Boolean(monsterLook('wraith').cloak) && Boolean(monsterLook('shade').cloak) && !monsterLook('orc').cloak);
+  check('몬스터 외형 — 날개는 박쥐/드레이크', Boolean(monsterLook('bat').wings) && Boolean(monsterLook('drake').wings) && !monsterLook('golem').wings);
+
+  const wolf = buildMonsterModel('wolf', { color: 0x8899aa });
+  const golem = buildMonsterModel('golem', { color: 0x8899aa });
+  const v = (g) => g?.attributes?.position?.count ?? 0;
+  check('몬스터 모델 — 몸통·팔·눈 지오메트리', v(wolf.body) > 1200 && v(wolf.arms) > 500 && v(wolf.eyes) > 60, `${v(wolf.body)}/${v(wolf.arms)}/${v(wolf.eyes)}`);
+  check('몬스터 모델 — 정점 색(부위별 색)', Boolean(wolf.body.attributes.color && wolf.body.attributes.normal && wolf.eyes.attributes.color));
+  check('몬스터 모델 — 종류마다 다른 실루엣', v(wolf.body) !== v(golem.body), `${v(wolf.body)} vs ${v(golem.body)}`);
+  check('몬스터 모델 — 보스는 뿔이 더 많다', v(buildMonsterModel('imp', { boss: true }).body) > v(buildMonsterModel('imp').body));
+  check('몬스터 모델 — 캐시 공유', buildMonsterModel('wolf') === buildMonsterModel('wolf'));
+  check('몬스터 모델 — 처치 시 해제 후 재생성', (disposeMonsterAssets(), v(buildMonsterModel('imp').body) > 0));
 }
 
 console.log(`스모크 테스트 결과: ${pass}개 통과 / ${fail}개 실패 (총 ${pass + fail}개)`);

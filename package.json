@@ -47,7 +47,8 @@
     "launcher": "node tools/build-launcher.mjs",
     "downloader": "node tools/build-downloader.mjs",
     "boot": "node tools/boot-check.mjs",
-    "friends": "node tools/friends-check.mjs"
+    "friends": "node tools/friends-check.mjs",
+    "monsters": "node tools/monster-check.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.2",

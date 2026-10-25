@@ -653,4 +653,20 @@ npm install 이 실패한다
              방을 만들면 내 방이 등록됨 · 닫기 · 콘솔 error 0
            smoke 912 통과(친구 20여 개 추가) · ui-dom 330 · verify 전체 통과
 
+  [39] 몬스터 외형 — 더 괴물스럽게 (v1.5.0)
+
+    [요청] 몬스터를 좀 더 몬스터스럽게
+    [모듈] client/src/systems/monster-looks.js (신규)
+           MONSTER_LOOKS 11종 — 자세(biped/quad/spider/float) · 뿔 · 뿔개수 · 꼬리 · 날개 · 망토 · 판금 · 갈비뼈 · 엄니 · 큰주먹 · 눈 개수
+           부위를 하나의 지오메트리로 합친다(정점 색) — 드로우콜 유지, 팔/눈/망토만 따로
+           몸통(울퉁불퉁) · 머리 · 턱+이빨 · 뿔(마디) · 등가시 · 꼬리(3마디) · 다리/발톱 · 거미 다리 8 · 날개 · 망토 · 눈
+           캐시: 종류|보스|색 — disposeMonsterAssets() 로 해제
+    [적용] enemies.js — _buildMonster() 로 교체
+           _applyMeshScale: 몸통·팔·눈·망토를 같은 원점에서 (가로, 세로, 가로) 스케일
+           애니메이션: 몸통 숨쉬기/예고 숙임, 팔 휘두르기, 눈 발광 펄스(상태이상 색), 망토 흔들림
+           보스는 왕관(crest) · 어깨 가시(spikeL/R) 유지
+    [검사] tools/monster-check.mjs (신규) — 실제 Chrome 14개 통과
+             11종+보스 소환 · 몸통/팔/눈 · 정점 색 · 눈 발광 · 개체당 메시 ≤ 12 · 망토/보스 왕관 · 팔 흔들림 · 콘솔 error 0
+           smoke 923(몬스터 외형 11개 추가) · headless 7개 추가 · ui-dom 330 · verify 전체 통과
+
   끝.

@@ -14,6 +14,12 @@ import {
   SPAWN_FX
 } from '../data.js';
 import { createRNG } from '../utils/rng.js';
+import {
+  buildMonsterModel,
+  disposeMonsterAssets,
+  monsterEyeMaterial,
+  monsterBodyMaterial
+} from './monster-looks.js';
 
 const DEVOUR_INTERVAL = 0.6;   // 계약 §4.9: 적이 광물/나무를 부수는 주기
 const TELEGRAPH_TIME = 1.1;
@@ -63,6 +69,13 @@ const GEO = {
   aura: () => sharedGeometry('enemy:aura', () => new THREE.TorusGeometry(1.05, 0.055, 4, 18))
 };
 
+// 몬스터 몸통 — 정점 색(부위별 색)을 쓰는 공유 재질 (개체별 클론 없음)
+let MONSTER_BODY_MATERIAL = null;
+function monsterBody() {
+  if (!MONSTER_BODY_MATERIAL) MONSTER_BODY_MATERIAL = monsterBodyMaterial();
+  return MONSTER_BODY_MATERIAL;
+}
+
 const MATERIAL_CACHE = new Map();
 function sharedMaterial(color, role = 'body') {
   const key = `${color}|${role}`;
@@ -94,6 +107,8 @@ function sharedBasicMaterial(color, opacity = 0.55) {
 
 /** 모듈 전역 공유 지오메트리/머티리얼을 해제한다(게임 종료 시). */
 export function disposeEnemyAssets() {
+  disposeMonsterAssets();
+  MONSTER_BODY_MATERIAL = null;
   for (const geo of GEOMETRY_CACHE.values()) geo.dispose?.();
   GEOMETRY_CACHE.clear();
   for (const mat of MATERIAL_CACHE.values()) mat.dispose?.();
@@ -425,60 +440,102 @@ export class Enemy {
       return;
     }
     if (this.mesh && this._meshKey === key) {
-      // 풀에서 재사용: 스케일/색만 갱신한다.
+      // 풀에서 재사용: 스케일만 갱신한다(같은 종류는 같은 모델).
       this._applyMeshScale(r * wMul, r * hMul);
       return;
     }
-    if (!this.mesh) {
+    if (this.mesh) this.mesh.clear?.();
+    else {
       this.mesh = new THREE.Group();
       this.mesh.userData.enemy = this;
-      const body = new THREE.Mesh(GEO.body(), sharedMaterial(color, 'body'));
-      body.name = 'body';
-      this.mesh.add(body);
-      const core = new THREE.Mesh(GEO.core(), sharedMaterial(color, 'core').clone());
-      core.name = 'core';
-      this._coreMaterial = core.material;
-      this._core = core;
-      this.mesh.add(core);
-      const crest = new THREE.Mesh(GEO.crest(), sharedMaterial(color, 'crest'));
-      crest.name = 'crest';
-      crest.visible = false;
-      this.mesh.add(crest);
-      const spikeL = new THREE.Mesh(GEO.spike(), sharedMaterial(color, 'spike'));
-      spikeL.name = 'spikeL';
-      spikeL.visible = false;
-      this.mesh.add(spikeL);
-      const spikeR = spikeL.clone();
-      spikeR.name = 'spikeR';
-      this.mesh.add(spikeR);
-      const ring = new THREE.Mesh(GEO.shield(), sharedBasicMaterial(0x8fd6ff, 0.55));
-      ring.name = 'shieldRing';
-      ring.visible = false;
-      this._shieldRing = ring;
-      this.mesh.add(ring);
-      const aura = new THREE.Mesh(GEO.aura(), sharedBasicMaterial(ELITE.color, 0.72));
-      aura.name = 'eliteAura';
-      aura.visible = false;
-      aura.rotation.x = -Math.PI / 2; // 발밑에 눕는 고리
-      this._eliteRing = aura;
-      this.mesh.add(aura);
-      this._light = new THREE.PointLight(color, 0, 18);
-      this.mesh.add(this._light);
-    } else {
-      const bodyMat = sharedMaterial(color, 'body');
-      const coreMat = sharedMaterial(color, 'core');
-      this.mesh.getObjectByName('body').material = bodyMat;
-      this._coreMaterial = coreMat.clone();
-      this._core.material = this._coreMaterial;
-      this.mesh.getObjectByName('crest').material = sharedMaterial(color, 'crest');
-      this.mesh.getObjectByName('spikeL').material = sharedMaterial(color, 'spike');
-      this.mesh.getObjectByName('spikeR').material = sharedMaterial(color, 'spike');
-      this._light.color.setHex(color);
-      const auraMesh = this.mesh.getObjectByName?.('eliteAura');
-      if (auraMesh?.material) auraMesh.material.color?.setHex?.(ELITE.color);
     }
+    this._buildMonster(color);
     this._meshKey = key;
     this._applyMeshScale(r * wMul, r * hMul);
+  }
+
+  /**
+   * 몬스터 모델 — 괴물 실루엣(울퉁불퉁한 몸통 · 턱과 이빨 · 뿔 · 등가시 · 꼬리 · 발톱).
+   *  드로우콜을 늘리지 않도록 부위를 한 지오메트리로 합치고(정점 색), 팔·눈·망토만 따로 둔다.
+   */
+  _buildMonster(color) {
+    // 셀레스티얼에서 넘어온 경우 전용 파츠 참조를 지운다
+    this._celestialParts = null;
+    this._celestialSkin = null;
+    const model = buildMonsterModel(this.typeId, { boss: this.isBoss, color });
+    this._monsterModel = model;
+
+    const body = new THREE.Mesh(model.body, monsterBody());
+    body.name = 'body';
+    this.mesh.add(body);
+    this._body = body;
+
+    const arms = new THREE.Mesh(model.arms, monsterBody());
+    arms.name = 'arms';
+    this.mesh.add(arms);
+    this._arms = arms;
+
+    const eyes = new THREE.Mesh(model.eyes, monsterEyeMaterial(model.eyeColor));
+    eyes.name = 'eyes';
+    eyes.renderOrder = 2;
+    this.mesh.add(eyes);
+    this._eyes = eyes;
+    this._eyeMaterial = eyes.material;
+    this._eyeColor = model.eyeColor;
+
+    if (model.cloak) {
+      const cloak = new THREE.Mesh(
+        model.cloak,
+        new THREE.MeshStandardMaterial({
+          color: 0x141a26,
+          transparent: true,
+          opacity: 0.72,
+          roughness: 0.95,
+          metalness: 0,
+          flatShading: true,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        })
+      );
+      cloak.name = 'cloak';
+      cloak.renderOrder = 1;
+      this.mesh.add(cloak);
+      this._cloak = cloak;
+    }
+
+    // 가슴 코어(발광) — 상태이상 색으로 물든다
+    const core = new THREE.Mesh(GEO.core(), sharedMaterial(color, 'core').clone());
+    core.name = 'core';
+    this._coreMaterial = core.material;
+    this._core = core;
+    this.mesh.add(core);
+
+    // 보스 장식
+    const crest = new THREE.Mesh(GEO.crest(), sharedMaterial(color, 'crest'));
+    crest.name = 'crest';
+    crest.visible = false;
+    this.mesh.add(crest);
+    const spikeL = new THREE.Mesh(GEO.spike(), sharedMaterial(color, 'spike'));
+    spikeL.name = 'spikeL';
+    spikeL.visible = false;
+    this.mesh.add(spikeL);
+    const spikeR = spikeL.clone();
+    spikeR.name = 'spikeR';
+    this.mesh.add(spikeR);
+    const ring = new THREE.Mesh(GEO.shield(), sharedBasicMaterial(0x8fd6ff, 0.55));
+    ring.name = 'shieldRing';
+    ring.visible = false;
+    this._shieldRing = ring;
+    this.mesh.add(ring);
+    const aura = new THREE.Mesh(GEO.aura(), sharedBasicMaterial(ELITE.color, 0.72));
+    aura.name = 'eliteAura';
+    aura.visible = false;
+    aura.rotation.x = -Math.PI / 2;
+    this._eliteRing = aura;
+    this.mesh.add(aura);
+
+    this._light = new THREE.PointLight(color, 0, 18);
+    this.mesh.add(this._light);
   }
 
   /**
@@ -589,20 +646,28 @@ export class Enemy {
   _applyMeshScale(width, height) {
     const mul = num(this.scaleMul, 1);
     if (mul !== 1) { width *= mul; height *= mul; }
-    const body = this.mesh.getObjectByName('body');
-    if (body) {
-      body.scale.set(width, height * 1.05, width);
-      body.position.y = height * 1.5;
+    // 몸통·팔·눈은 같은 단위 모델을 함께 스케일한다(발 y=0 · 머리끝 y≈2.45).
+    for (const name of ['body', 'arms', 'eyes']) {
+      const part = this.mesh.getObjectByName(name);
+      if (part) {
+        part.scale.set(width, height, width);
+        part.position.set(0, 0, 0);
+      }
+    }
+    const cloak = this.mesh.getObjectByName('cloak');
+    if (cloak) {
+      cloak.scale.set(width, height, width);
+      cloak.position.y = 0;
     }
     if (this._core) {
-      this._core.scale.setScalar(0.55 + height * 0.7);
-      this._core.position.y = height * 2.05;
+      this._core.scale.setScalar(0.3 + height * 0.26);
+      this._core.position.set(0, height * 1.32, width * 0.52);
     }
     const crest = this.mesh.getObjectByName('crest');
     if (crest) {
       crest.visible = this.isBoss;
-      crest.scale.setScalar(this.isBoss ? height * 0.9 : 0.01);
-      crest.position.y = height * 3.1;
+      crest.scale.setScalar(this.isBoss ? height * 0.8 : 0.01);
+      crest.position.set(0, height * 2.45, -0.05);
       crest.rotation.z = Math.PI;
     }
     const spikeL = this.mesh.getObjectByName('spikeL');
@@ -612,14 +677,14 @@ export class Enemy {
         s.visible = this.isBoss;
         s.scale.setScalar(this.isBoss ? height : 0.01);
       }
-      spikeL.position.set(width * 1.0, height * 2.4, 0);
-      spikeL.rotation.z = -0.6;
-      spikeR.position.set(-width * 1.0, height * 2.4, 0);
-      spikeR.rotation.z = 0.6;
+      spikeL.position.set(width * 0.92, height * 1.95, -0.08);
+      spikeL.rotation.z = -0.75;
+      spikeR.position.set(-width * 0.92, height * 1.95, -0.08);
+      spikeR.rotation.z = 0.75;
     }
     if (this._shieldRing) {
       this._shieldRing.scale.setScalar(Math.max(1, this.radius * 1.4));
-      this._shieldRing.position.y = height * 1.6;
+      this._shieldRing.position.y = height * 1.35;
     }
     if (this._light) {
       // 성능: 세기 0 인 광원도 three 는 셰이더에 포함시킨다(적 140마리 = 점광원 140개).
@@ -917,10 +982,35 @@ export class Enemy {
       this.mesh.scale.multiplyScalar(from + (1 - from) * g);
       this.mesh.position.y += num(SPAWN_FX.riseHeight, 1.15) * (this.isBoss ? 2 : 1) * (g - 1);
     }
+    // 몬스터 — 숨쉬는 몸통 · 앞으로 숙이는 예고 · 팔 휘두르기 · 망토 흔들림
+    if (this._body) {
+      const t = this._animT;
+      this._body.position.y = Math.abs(Math.sin(t * 6.5 + this.id)) * 0.03;
+      this._body.rotation.x = Math.sin(t * 2.2 + this.id) * 0.03 + (this.telegraph ? -0.14 : 0);
+      this._body.rotation.z = Math.sin(t * 1.7 + this.id) * 0.02;
+    }
+    if (this._arms) {
+      const swing = Math.sin(this._animT * 3.4 + this.id * 0.7) * 0.13;
+      const thrash = this.telegraph ? Math.sin(this._animT * 14) * 0.4 : 0;
+      this._arms.rotation.x = swing + thrash;
+      this._arms.rotation.z = Math.cos(this._animT * 2.8 + this.id) * 0.05;
+    }
+    if (this._cloak) {
+      this._cloak.rotation.y = Math.sin(this._animT * 1.4 + this.id) * 0.12;
+      this._cloak.rotation.x = Math.sin(this._animT * 1.1 + this.id) * 0.05;
+    }
     if (this._core) {
       this._core.rotation.y += dt * 1.6;
       const pulse = 1 + Math.sin(this._animT * 4 + this.id) * 0.06;
       this._core.scale.setScalar((0.55 + this.radius * 0.7) * pulse);
+    }
+    if (this._eyeMaterial) {
+      const st = this.statuses;
+      const glow = 1.55 + Math.sin(this._animT * 5 + this.id) * 0.2 + (this.telegraph ? 1.8 : 0);
+      this._eyeMaterial.emissiveIntensity = glow;
+      const eyeTint = st.burn > 0 ? 0xff7a3a : st.poison > 0 ? 0x8fe05a : st.stun > 0 ? 0xffe15c : this._eyeColor ?? 0xffffff;
+      this._eyeMaterial.emissive?.setHex?.(eyeTint);
+      this._eyeMaterial.color?.setHex?.(eyeTint);
     }
     if (this._coreMaterial) {
       const st = this.statuses;

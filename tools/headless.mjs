@@ -1181,6 +1181,19 @@ try {
   check('보스는 정예가 되지 않는다', eliteBoss.elite === false && eliteBoss.name === '리치', eliteBoss.name);
   check('enemyInfo 에 체력바·정예 정보 포함', (() => { const i = enemyInfo(eliteOrc); return i.elite === true && i.ratio === 1 && i.barY > 0 && i.barWidth > 0; })(), JSON.stringify(enemyInfo(eliteOrc).barY));
 
+  // (2-1) 몬스터 외형 — 괴물 파츠(몸통 · 팔 · 눈) · 종류별 실루엣 · 망토 · 발광
+  const lookImp = spawnEnemy({ ...spawnOpts, typeId: 'imp' });
+  const lookWolf = spawnEnemy({ ...spawnOpts, typeId: 'wolf' });
+  const lookShade = spawnEnemy({ ...spawnOpts, typeId: 'shade' });
+  const partsOf = (e) => (e.mesh?.children ?? []).map((c) => c.name);
+  check('몬스터 외형 — 몸통·팔·눈 파츠', ['body', 'arms', 'eyes'].every((n) => partsOf(lookImp).includes(n)), partsOf(lookImp).join(','));
+  check('몬스터 외형 — 정점 색 지오메트리', Boolean(lookImp.mesh.getObjectByName('body')?.geometry?.attributes?.color));
+  check('몬스터 외형 — 종류마다 다른 모델', lookImp.mesh.getObjectByName('body').geometry !== lookWolf.mesh.getObjectByName('body').geometry);
+  check('몬스터 외형 — 늑대는 낮은 자세(체력바도 낮다)', lookWolf.barY < lookImp.barY, `${lookWolf.barY.toFixed(2)} < ${lookImp.barY.toFixed(2)}`);
+  check('몬스터 외형 — 망토는 그림자만', Boolean(lookShade.mesh.getObjectByName('cloak')) && !lookImp.mesh.getObjectByName('cloak'));
+  check('몬스터 외형 — 눈 재질 발광', (lookImp.mesh.getObjectByName('eyes')?.material?.emissiveIntensity ?? 0) > 1);
+  check('몬스터 외형 — 팔·눈이 몸통과 같은 원점', lookImp.mesh.getObjectByName('arms').position.y === 0 && lookImp.mesh.getObjectByName('eyes').position.y === 0);
+
   // (3) 신규 몬스터 3종 + 해골(언데드) 신성 추가 피해
   const newKinds = ['bat', 'spider', 'skeleton'].map((typeId) => spawnEnemy({ ...spawnOpts, typeId }));
   check('신규 몬스터 3종 스폰', newKinds.every((e) => e && e.alive && e.hp > 0), newKinds.map((e) => e.typeId).join(','));
