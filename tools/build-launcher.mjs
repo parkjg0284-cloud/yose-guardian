@@ -183,21 +183,24 @@ try {
   // 선택한 설치 파일(game.zip)로도 설치되는지 — YOSE_ZIP 으로 전달
   const picked = join(BUILD, 'picked-game.zip');
   writeFileSync(picked, readFileSync(GAME));
+  const logPath = join(BUILD, 'picked-install.log');
   const out2 = execFileSync(OUT, ['-SelfTest', probe2], {
-    encoding: 'utf8',
+    encoding: `utf8`,
     timeout: 240000,
     windowsHide: true,
-    env: { ...process.env, YOSE_ZIP: picked }
+    env: { ...process.env, YOSE_ZIP: picked, YOSE_LOG: logPath }
   });
+  const logs = existsSync(logPath) ? readFileSync(logPath, 'utf8') : '';
   const tag2 = existsSync(join(probe2, '.yose-version')) ? readFileSync(join(probe2, '.yose-version'), 'utf8').trim() : '';
   const ok2 =
     /SELFTEST OK/.test(out2) &&
     existsSync(join(probe2, 'client', 'dist', 'index.html')) &&
     existsSync(join(probe2, 'server', 'index.js')) &&
+    /선택한 파일 사용/.test(logs) &&
     tag2 === (tagOf || '내장판');
   log(`[8/8] 선택 파일 설치 ${ok2 ? 'OK' : '실패'} — 버전 ${tag2 || '?'} · ${probe2}`);
   if (!ok2) {
-    console.error(out2.split('\n').slice(-12).join('\n'));
+    console.error((logs || out2).split('\n').slice(-16).join('\n'));
     process.exitCode = 1;
   }
 } finally {

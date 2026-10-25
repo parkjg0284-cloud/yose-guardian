@@ -58,6 +58,7 @@ function Write-Log([string]$line) {
   } else {
     Write-Host $line
   }
+  if ($env:YOSE_LOG) { try { [IO.File]::AppendAllText($env:YOSE_LOG, [string]$line + [Environment]::NewLine, (New-Object Text.UTF8Encoding($false))) } catch { } }
 }
 
 # 설치 폴더에 남기는 버전 표식 — 지우면 '설치 안 됨' 으로 돌아가 [설치] 버튼이 다시 보인다
@@ -111,10 +112,15 @@ function Test-GameZip([string]$path) {
 function Get-SelectedTag([string]$path) {
   $bundled = Join-Path $here 'game.zip'
   try {
-    if ((Test-Path $bundled) -and ((Get-FileHash $path -Algorithm SHA256).Hash -eq (Get-FileHash $bundled -Algorithm SHA256).Hash)) {
-      return (Get-BundledTag)
+    if (Test-Path $bundled) {
+      $h1 = (Get-FileHash $path -Algorithm SHA256).Hash
+      $h2 = (Get-FileHash $bundled -Algorithm SHA256).Hash
+      Write-Log ('  선택 파일 해시 ' + $(if ($h1 -eq $h2) { '같음' } else { '다름' }) + ' (' + $h1.Substring(0, 8) + ' / ' + $h2.Substring(0, 8) + ')')
+      if ($h1 -eq $h2) { return (Get-BundledTag) }
+    } else {
+      Write-Log '  내장 game.zip 이 없어 비교하지 못했습니다'
     }
-  } catch { }
+  } catch { Write-Log ('  해시 비교 실패: ' + $_.Exception.Message) }
   try {
     $z = [IO.Compression.ZipFile]::OpenRead($path)
     try {
