@@ -96,6 +96,14 @@ function Get-InstalledVersion {
 
 function Get-BundledTag { if ($script:bundledTag) { return $script:bundledTag } return '내장판' }
 
+# 파일 SHA256 — Get-FileHash 가 없는 환경(CI Windows PowerShell)에서도 동작
+function Get-Sha256([string]$path) {
+  $sha = [System.Security.Cryptography.SHA256]::Create()
+  try {
+    $fs = [IO.File]::OpenRead($path)
+    try { return ([BitConverter]::ToString($sha.ComputeHash($fs)) -replace '-', '') } finally { $fs.Dispose() }
+  } finally { $sha.Dispose() }
+}
 # 선택한 파일이 게임 패키지인지 확인 — server/index.js · client/dist/index.html 이 있어야 한다
 function Test-GameZip([string]$path) {
   if (-not $path -or -not (Test-Path $path)) { return $false }
@@ -113,8 +121,8 @@ function Get-SelectedTag([string]$path) {
   $bundled = Join-Path $here 'game.zip'
   try {
     if (Test-Path $bundled) {
-      $h1 = (Get-FileHash $path -Algorithm SHA256).Hash
-      $h2 = (Get-FileHash $bundled -Algorithm SHA256).Hash
+      $h1 = Get-Sha256 $path
+      $h2 = Get-Sha256 $bundled
       Write-Log ('  선택 파일 해시 ' + $(if ($h1 -eq $h2) { '같음' } else { '다름' }) + ' (' + $h1.Substring(0, 8) + ' / ' + $h2.Substring(0, 8) + ')')
       if ($h1 -eq $h2) { return (Get-BundledTag) }
     } else {
