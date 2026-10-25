@@ -64,7 +64,7 @@ if (!conf.url || !/^https?:\/\//.test(conf.url)) {
   process.exit(1);
 }
 const ps1 = readFileSync(join(BUILD, 'downloader.ps1'), 'utf8');
-for (const needle of ['게임 다운로드 & 설치', '게임 시작', 'install.ps1', 'SELFTEST OK', 'Update-InstallButton']) {
+for (const needle of ['게임 다운로드 & 설치', '게임 시작', 'install.ps1', 'SELFTEST OK', 'Update-InstallButton', '설치 파일 선택', '선택한 파일 설치', 'Test-GameZip']) {
   if (!ps1.includes(needle)) {
     console.error(`  [실패] downloader.ps1 에 '${needle}' 가 없습니다`);
     process.exit(1);
@@ -165,19 +165,43 @@ log(`[5/7] ${OUT.split('\\').pop()} ${kb(statSync(OUT).size)}`);
 
 // ── ⑦ 자체 검사 (창 없이 설치) — 임시 폴더에 설치되는지
 const probe = join(ROOT, '.build-launcher-probe');
+const probe2 = join(ROOT, '.build-launcher-probe-zip');
 rmSync(probe, { recursive: true, force: true });
+rmSync(probe2, { recursive: true, force: true });
 try {
   const out = execFileSync(OUT, ['-SelfTest', probe], { encoding: 'utf8', timeout: 240000, windowsHide: true });
   const ok =
     /SELFTEST OK/.test(out) &&
     existsSync(join(probe, 'client', 'dist', 'index.html')) &&
     existsSync(join(probe, 'server', 'index.js'));
-  log(`[7/7] 자체 검사 ${ok ? 'OK' : '실패'} — ${probe}`);
+  log(`[7/8] 자체 검사 ${ok ? 'OK' : '실패'} — ${probe}`);
   if (!ok) {
     console.error(out.split('\n').slice(-12).join('\n'));
     process.exitCode = 1;
   }
+
+  // 선택한 설치 파일(game.zip)로도 설치되는지 — YOSE_ZIP 으로 전달
+  const picked = join(BUILD, 'picked-game.zip');
+  writeFileSync(picked, readFileSync(GAME));
+  const out2 = execFileSync(OUT, ['-SelfTest', probe2], {
+    encoding: 'utf8',
+    timeout: 240000,
+    windowsHide: true,
+    env: { ...process.env, YOSE_ZIP: picked }
+  });
+  const tag2 = existsSync(join(probe2, '.yose-version')) ? readFileSync(join(probe2, '.yose-version'), 'utf8').trim() : '';
+  const ok2 =
+    /SELFTEST OK/.test(out2) &&
+    existsSync(join(probe2, 'client', 'dist', 'index.html')) &&
+    existsSync(join(probe2, 'server', 'index.js')) &&
+    tag2 === (tagOf || '내장판');
+  log(`[8/8] 선택 파일 설치 ${ok2 ? 'OK' : '실패'} — 버전 ${tag2 || '?'} · ${probe2}`);
+  if (!ok2) {
+    console.error(out2.split('\n').slice(-12).join('\n'));
+    process.exitCode = 1;
+  }
 } finally {
+  rmSync(probe2, { recursive: true, force: true });
   rmSync(probe, { recursive: true, force: true });
   rmSync(BUILD, { recursive: true, force: true });
 }

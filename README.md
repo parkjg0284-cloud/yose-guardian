@@ -6,6 +6,8 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org)
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
+> 🌐 **웹사이트:** https://parkjg0284-cloud.github.io/yose-guardian/ — 다운로드 · 스크린샷 · 조작을 한눈에
+
 ---
 
 ## 🎮 게임 소개
@@ -47,6 +49,7 @@
 
 - 인터넷이 없으면 파일 안에 든 게임으로 설치됩니다.
 - 설치 폴더를 지우면 **[게임 다운로드 & 설치]** 버튼이 다시 나타납니다.
+- **[설치 파일 선택]** 으로 내려받아 둔 `game.zip` 을 직접 골라 설치할 수도 있습니다 (이전 판·오프라인 설치).
 - 설치가 끝나면 바탕화면의 **요세의 수호자** 바로가기로 언제든 시작할 수 있습니다.
 
 ### 다른 방법

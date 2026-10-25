@@ -45,6 +45,7 @@
     "release:all": "npm run release:pack && npm run single && npm run launcher",
     "set-repo": "node tools/set-repo.mjs",
     "launcher": "node tools/build-launcher.mjs",
+    "pages": "node tools/pages-check.mjs",
     "downloader": "node tools/build-downloader.mjs",
     "boot": "node tools/boot-check.mjs",
     "friends": "node tools/friends-check.mjs",

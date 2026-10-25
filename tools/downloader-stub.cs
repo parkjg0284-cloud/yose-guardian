@@ -32,6 +32,7 @@ internal static class DownloaderStub
 
         string work = ResolveWorkDir();
         string target = "";
+        string zipPath = Environment.GetEnvironmentVariable("YOSE_ZIP") ?? "";
         bool selfTest = false;
         bool stateCheck = false;
         if (argv != null)
@@ -68,6 +69,7 @@ internal static class DownloaderStub
 
             var psi = new ProcessStartInfo(ResolvePowershell());
             psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File \"" + script + "\" -Path \"" + target + "\""
+                              + (zipPath.Length > 0 ? " -Zip \"" + zipPath + "\"" : "")
                             + (selfTest ? " -SelfTest" : stateCheck ? " -StateCheck" : ScriptMode);
             psi.UseShellExecute = false;
             psi.WorkingDirectory = work;

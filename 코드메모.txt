@@ -682,4 +682,21 @@ npm install 이 실패한다
           검사: 버튼 상태(install/update/done) · SelfTest 설치 · 창 제목 확인
     [문서] README 다운로드 절 — 런처 exe를 첫 번째(권장)로, Setup/Downloader/zip은 다른 방법
 
+  [41] GitHub Pages — 게임 소개·다운로드 사이트
+
+    [주소] https://parkjg0284-cloud.github.io/yose-guardian/
+    [구성] docs/index.html — 히어로 · 설치 3단계 · 파일 표 · 특징 6 · 스크린샷 · 조작 표
+           docs/img/menu.jpg · game.jpg = 실제 화면 캡처 (tools/pages-shot.mjs)
+           docs/.nojekyll — Jekyll 없이 그대로 게시
+    [검사] tools/pages-check.mjs (= npm run pages) — 제목·카드·링크·이미지·가로 넘침·모바일
+    [설정] GitHub Pages main /docs (legacy) · 저장소 홈페이지 = Pages 주소
+[42] 런처 — 설치 파일 직접 선택
+
+    [기능] 창의 [설치 파일 선택] → game.zip 고르기 → [선택한 파일 설치]
+           · 최신 릴리스 자동 다운로드가 기본, 선택하면 그 파일로 설치 (오프라인·이전 판)
+           · [선택 초기화] 로 자동 다운로드 복귀 · 선택 파일이 게임 패키지인지 검사(Test-GameZip)
+           · 버전 표식: 내장 판과 같은 파일이면 최신 태그, 다르면 직접 설치
+    [검증] -Zip 매개변수 + YOSE_ZIP 환경 변수로 무인 설치 검사 (build-launcher [8/8])
+    [주의] downloader.ps1 편집 후 UTF-8 BOM 유지 — 없으면 PowerShell 5.1 이 한글을 못 읽는다
+
   끝.

@@ -4,7 +4,9 @@
   [switch]$Silent,
   [switch]$SelfTest,
   [switch]$StateCheck,
-  [switch]$Launcher
+  [switch]$Launcher,
+  [string]$Zip = '',
+  [string]$DumpControls = ''
 )
 
 # ── 요세의 수호자 다운로더 ───────────────────────────────────────────────
@@ -41,6 +43,10 @@ $script:isLauncher = [bool]$Launcher
 $appName = if ($script:isLauncher) { '요세의 수호자 런처' } else { '요세의 수호자 다운로더' }
 $installLabel = if ($script:isLauncher) { '게임 다운로드 & 설치' } else { '최신 버전 설치' }
 $playLabel = if ($script:isLauncher) { '게임 시작' } else { '게임 실행' }
+
+# 설치 파일 직접 선택 — 비어 있으면 최신 릴리스(game.zip)를 자동으로 내려받는다
+$script:selectedZip = ''
+if ($Zip) { try { $script:selectedZip = [IO.Path]::GetFullPath($Zip) } catch { } }
 
 function Write-Log([string]$line) {
   $script:logText += ($line + "`r`n")
@@ -88,6 +94,42 @@ function Get-InstalledVersion {
 }
 
 function Get-BundledTag { if ($script:bundledTag) { return $script:bundledTag } return '내장판' }
+
+# 선택한 파일이 게임 패키지인지 확인 — server/index.js · client/dist/index.html 이 있어야 한다
+function Test-GameZip([string]$path) {
+  if (-not $path -or -not (Test-Path $path)) { return $false }
+  try {
+    $z = [IO.Compression.ZipFile]::OpenRead($path)
+    try {
+      $names = @($z.Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
+      return (($names -contains 'server/index.js') -and ($names -contains 'client/dist/index.html'))
+    } finally { $z.Dispose() }
+  } catch { return $false }
+}
+
+# 선택한 파일의 버전 표식 — 내장 판과 같은 파일이면 최신 태그, 아니면 .yose-version, 아니면 '직접 설치'
+function Get-SelectedTag([string]$path) {
+  $bundled = Join-Path $here 'game.zip'
+  try {
+    if ((Test-Path $bundled) -and ((Get-FileHash $path -Algorithm SHA256).Hash -eq (Get-FileHash $bundled -Algorithm SHA256).Hash)) {
+      return (Get-BundledTag)
+    }
+  } catch { }
+  try {
+    $z = [IO.Compression.ZipFile]::OpenRead($path)
+    try {
+      $e = $z.Entries | Where-Object { $_.FullName.Replace('\', '/') -eq '.yose-version' } | Select-Object -First 1
+      if ($e) {
+        $sr = New-Object IO.StreamReader($e.Open())
+        try {
+          $v = $sr.ReadToEnd().Trim()
+          if ($v) { return $v }
+        } finally { $sr.Dispose() }
+      }
+    } finally { $z.Dispose() }
+  } catch { }
+  return '직접 설치'
+}
 
 # 버튼 상태 — install / update / done
 function Get-InstallState([string]$latestTag) {
@@ -145,14 +187,22 @@ function Save-Download([string]$url, [string]$dest, [long]$size) {
   return $got
 }
 
-function Install-Game([switch]$Quiet) {
+function Install-Game([switch]$Quiet, [string]$FromFile = '') {
   $latest = Get-Latest -Offline:$Quiet
-  Write-Log ('· 최신 버전: ' + $latest.tag + $(if ($latest.live) { ' (온라인)' } else { ' (내장)' }))
+  if ($FromFile) { Write-Log ('· 설치 파일: ' + (Split-Path $FromFile -Leaf)) }
+  else { Write-Log ('· 최신 버전: ' + $latest.tag + $(if ($latest.live) { ' (온라인)' } else { ' (내장)' })) }
   $work = Join-Path ([IO.Path]::GetTempPath()) ('yose-dl-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
   New-Item -ItemType Directory -Path $work -Force | Out-Null
   $zip = Join-Path $work 'game.zip'
   $got = 0
-  if ($latest.live -and -not $Quiet) {
+  $fromSelected = $false
+  if ($FromFile) {
+    if (-not (Test-GameZip $FromFile)) { throw ('게임 설치 파일이 아닙니다 — game.zip 을 선택해 주세요: ' + $FromFile) }
+    Copy-Item $FromFile $zip -Force
+    $fromSelected = $true
+    Write-Log ('  선택한 파일 사용 — {0:N1} MB' -f ((Get-Item $zip).Length / 1MB))
+  }
+  if ($latest.live -and -not $Quiet -and -not $fromSelected) {
     try {
       Write-Log '· 내려받는 중…'
       $got = Save-Download $latest.url $zip $latest.size
@@ -186,8 +236,13 @@ function Install-Game([switch]$Quiet) {
   $ok = (Test-Path (Join-Path $app 'client\dist\index.html')) -and (Test-Path (Join-Path $app 'server\index.js'))
   Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
   if (-not $ok) { throw '설치가 끝나지 않았습니다 — 설치 폴더를 확인해 주세요' }
-  Set-InstalledTag $latest.tag
-  Write-Log ('· 설치 완료: ' + $app + ' (버전 ' + $latest.tag + ')')
+  $tag = $latest.tag
+  if ($fromSelected) {
+    $tag = Get-SelectedTag $FromFile
+    if (-not $tag) { $tag = '직접 설치' }
+  }
+  Set-InstalledTag $tag
+  Write-Log ('· 설치 완료: ' + $app + ' (버전 ' + $tag + ')')
   return $true
 }
 
@@ -216,7 +271,7 @@ if ($StateCheck) {
 # ── 자동 검증: 창 없이 설치만 ───────────────────────────────────────────
 if ($SelfTest -or $Silent) {
   try {
-    $ok = Install-Game -Quiet:$Silent
+    $ok = Install-Game -Quiet:$Silent -FromFile $script:selectedZip
     if ($SelfTest) { Write-Host ('SELFTEST OK — ' + $app) }
     exit 0
   } catch {
@@ -228,7 +283,7 @@ if ($SelfTest -or $Silent) {
 # ── 창(GUI) ─────────────────────────────────────────────────────────────
 $form = New-Object System.Windows.Forms.Form
 $form.Text = $appName
-$form.Size = New-Object System.Drawing.Size(620, 520)
+$form.Size = New-Object System.Drawing.Size(620, 580)
 $form.StartPosition = 'CenterScreen'
 $form.FormBorderStyle = 'FixedSingle'
 $form.MaximizeBox = $false
@@ -256,48 +311,68 @@ $info.Size = New-Object System.Drawing.Size(560, 20)
 $info.Text = '설치 위치: ' + $app
 $form.Controls.Add($info)
 
+$script:fileLine = New-Object System.Windows.Forms.Label
+$script:fileLine.ForeColor = [System.Drawing.Color]::FromArgb(92, 99, 110)
+$script:fileLine.Location = New-Object System.Drawing.Point(24, 100)
+$script:fileLine.Size = New-Object System.Drawing.Size(560, 20)
+$script:fileLine.Text = '설치 파일: 최신 릴리스 (자동 다운로드)'
+$form.Controls.Add($script:fileLine)
+
 $script:status = New-Object System.Windows.Forms.Label
 $script:status.ForeColor = [System.Drawing.Color]::FromArgb(70, 76, 86)
-$script:status.Location = New-Object System.Drawing.Point(24, 102)
+$script:status.Location = New-Object System.Drawing.Point(24, 124)
 $script:status.Size = New-Object System.Drawing.Size(560, 20)
 $script:status.Text = '준비됨'
 $form.Controls.Add($script:status)
 
 $script:bar = New-Object System.Windows.Forms.ProgressBar
-$script:bar.Location = New-Object System.Drawing.Point(24, 124)
+$script:bar.Location = New-Object System.Drawing.Point(24, 146)
 $script:bar.Size = New-Object System.Drawing.Size(560, 16)
 $form.Controls.Add($script:bar)
 
 $installBtn = New-Object System.Windows.Forms.Button
 $installBtn.Text = $installLabel
-$installBtn.Location = New-Object System.Drawing.Point(24, 150)
+$installBtn.Location = New-Object System.Drawing.Point(24, 172)
 $installBtn.Size = New-Object System.Drawing.Size(176, 34)
 $form.Controls.Add($installBtn)
 
-$openBtn = New-Object System.Windows.Forms.Button
-$openBtn.Text = '설치 폴더 열기'
-$openBtn.Location = New-Object System.Drawing.Point(208, 150)
-$openBtn.Size = New-Object System.Drawing.Size(140, 34)
-$form.Controls.Add($openBtn)
+$selectBtn = New-Object System.Windows.Forms.Button
+$selectBtn.Text = '설치 파일 선택'
+$selectBtn.Location = New-Object System.Drawing.Point(208, 172)
+$selectBtn.Size = New-Object System.Drawing.Size(150, 34)
+$form.Controls.Add($selectBtn)
 
 $playBtn = New-Object System.Windows.Forms.Button
 $playBtn.Text = $playLabel
-$playBtn.Location = New-Object System.Drawing.Point(356, 150)
-$playBtn.Size = New-Object System.Drawing.Size(120, 34)
+$playBtn.Location = New-Object System.Drawing.Point(366, 172)
+$playBtn.Size = New-Object System.Drawing.Size(110, 34)
 $form.Controls.Add($playBtn)
+
+$openBtn = New-Object System.Windows.Forms.Button
+$openBtn.Text = '설치 폴더 열기'
+$openBtn.Location = New-Object System.Drawing.Point(24, 212)
+$openBtn.Size = New-Object System.Drawing.Size(150, 30)
+$form.Controls.Add($openBtn)
+
+$resetBtn = New-Object System.Windows.Forms.Button
+$resetBtn.Text = '선택 초기화'
+$resetBtn.Location = New-Object System.Drawing.Point(182, 212)
+$resetBtn.Size = New-Object System.Drawing.Size(110, 30)
+$resetBtn.Enabled = $false
+$form.Controls.Add($resetBtn)
 
 $closeBtn = New-Object System.Windows.Forms.Button
 $closeBtn.Text = '닫기'
-$closeBtn.Location = New-Object System.Drawing.Point(480, 150)
-$closeBtn.Size = New-Object System.Drawing.Size(116, 34)
+$closeBtn.Location = New-Object System.Drawing.Point(480, 212)
+$closeBtn.Size = New-Object System.Drawing.Size(116, 30)
 $form.Controls.Add($closeBtn)
 
 $script:logBox = New-Object System.Windows.Forms.TextBox
 $script:logBox.Multiline = $true
 $script:logBox.ReadOnly = $true
 $script:logBox.ScrollBars = 'Vertical'
-$script:logBox.Location = New-Object System.Drawing.Point(24, 196)
-$script:logBox.Size = New-Object System.Drawing.Size(560, 260)
+$script:logBox.Location = New-Object System.Drawing.Point(24, 250)
+$script:logBox.Size = New-Object System.Drawing.Size(560, 246)
 $script:logBox.BackColor = [System.Drawing.Color]::FromArgb(255, 255, 255)
 $script:logBox.ForeColor = [System.Drawing.Color]::FromArgb(44, 48, 56)
 $script:logBox.Font = New-Object System.Drawing.Font('Consolas', 9)
@@ -325,13 +400,34 @@ function Update-InstallButton([string]$latestTag) {
       $script:status.Text = ('최신 버전입니다 (' + $st.latest + ') — 설치 완료')
     }
   }
+  if ($script:selectedZip) {
+    $installBtn.Visible = $true
+    $installBtn.Text = '선택한 파일 설치'
+    $script:status.Text = ('선택한 파일로 설치합니다 — ' + (Split-Path $script:selectedZip -Leaf))
+  }
   $script:info.Text = '설치 위치: ' + $app + $(if ($st.installed) { '  (설치 ' + $st.installed + ')' } else { '' })
   return $st
+}
+
+# '설치 파일' 줄 — 자동 다운로드 / 직접 선택 상태
+function Update-FileLabel {
+  if ($script:selectedZip) {
+    $name = Split-Path $script:selectedZip -Leaf
+    $mb = if (Test-Path $script:selectedZip) { [Math]::Round((Get-Item $script:selectedZip).Length / 1MB, 1) } else { 0 }
+    $script:fileLine.Text = ('설치 파일: ' + $name + ' (' + $mb + ' MB) — [선택한 파일 설치]')
+    $script:fileLine.ForeColor = [System.Drawing.Color]::FromArgb(150, 92, 24)
+    if ($resetBtn) { $resetBtn.Enabled = $true }
+  } else {
+    $script:fileLine.Text = '설치 파일: 최신 릴리스 (자동 다운로드)'
+    $script:fileLine.ForeColor = [System.Drawing.Color]::FromArgb(92, 99, 110)
+    if ($resetBtn) { $resetBtn.Enabled = $false }
+  }
 }
 
 Write-Log ('설치 위치: ' + $app)
 Write-Log ('현재 설치된 버전: ' + (Get-InstalledVersion))
 Update-InstallButton (Get-BundledTag) | Out-Null
+Update-FileLabel
 Write-Log '최신 버전을 확인하는 중…'
 
 $installBtn.Add_Click({
@@ -340,15 +436,21 @@ $installBtn.Add_Click({
   $script:bar.Value = 0
   $script:status.Text = '확인 중…'
   try {
-    Install-Game
+    Install-Game -FromFile $script:selectedZip
     $script:bar.Value = 100
+    if ($script:selectedZip) { $script:selectedZip = ''; Update-FileLabel }
     # 최신 태그를 다시 확인해 표식과 버튼을 맞춘다
     $latest = Get-Latest
     $st = Update-InstallButton $latest.tag
-    $installBtn.Visible = $false           # 설치가 끝나면 [설치] 버튼은 사라진다
-    $script:status.Text = ('설치 완료 — 최신 버전(' + $st.latest + ') · [' + $playLabel + '] 를 누르세요')
-    $script:info.Text = '설치 위치: ' + $app + '  (설치 ' + $st.latest + ')'
-    Write-Log ('· 설치 완료 — 이제 최신 버전입니다 (버튼 숨김)')
+    if ($st.mode -eq 'done') {
+      $installBtn.Visible = $false         # 최신 판이면 [설치] 버튼은 사라진다
+      $script:status.Text = ('설치 완료 — 최신 버전(' + $st.latest + ') · [' + $playLabel + '] 를 누르세요')
+    } else {
+      $installBtn.Visible = $true
+      $script:status.Text = ('설치 완료 — 지금 ' + (Get-InstalledVersion) + ', 최신 ' + $st.latest)
+    }
+    $script:info.Text = '설치 위치: ' + $app + '  (설치 ' + (Get-InstalledVersion) + ')'
+    Write-Log ('· 설치 완료 — 버전 ' + (Get-InstalledVersion))
     [System.Windows.Forms.MessageBox]::Show('설치가 끝났습니다. 지금 게임을 시작합니다.', $appName) | Out-Null
     if (Start-Game) { Write-Log ('· 게임을 시작했습니다') }
   } catch {
@@ -365,6 +467,35 @@ $openBtn.Add_Click({
   Start-Process explorer.exe ($app)
 }.GetNewClosure())
 
+$selectBtn.Add_Click({
+  if ($script:busy) { return }
+  $dlg = New-Object System.Windows.Forms.OpenFileDialog
+  $dlg.Title = '설치할 게임 파일 선택'
+  $dlg.Filter = '게임 패키지 (game.zip)|*.zip|모든 파일 (*.*)|*.*'
+  $dlg.CheckFileExists = $true
+  if ($dlg.ShowDialog() -ne [System.Windows.Forms.DialogResult]::OK) { return }
+  $path = $dlg.FileName
+  if (-not (Test-GameZip $path)) {
+    [System.Windows.Forms.MessageBox]::Show(('게임 설치 파일이 아닙니다.' + [Environment]::NewLine + [Environment]::NewLine + 'server/index.js 와 client/dist/index.html 이 들어 있는 game.zip 을 선택해 주세요.'), $appName) | Out-Null
+    Write-Log ('[안내] 게임 패키지가 아닙니다: ' + $path)
+    return
+  }
+  $script:selectedZip = $path
+  Update-FileLabel
+  $installBtn.Visible = $true
+  $installBtn.Text = '선택한 파일 설치'
+  $script:status.Text = ('선택한 파일로 설치합니다 — ' + (Split-Path $path -Leaf))
+  Write-Log ('· 설치 파일 선택: ' + $path)
+}.GetNewClosure())
+
+$resetBtn.Add_Click({
+  if ($script:busy) { return }
+  $script:selectedZip = ''
+  Update-FileLabel
+  Update-InstallButton $script:latestTag | Out-Null
+  Write-Log '· 설치 파일을 최신 릴리스(자동)로 되돌렸습니다'
+}.GetNewClosure())
+
 $playBtn.Add_Click({
   if (Start-Game) { Write-Log ('· 게임을 시작했습니다') }
   else { [System.Windows.Forms.MessageBox]::Show(('아직 설치되지 않았습니다. [' + $installLabel + '] 를 먼저 눌러 주세요.'), $appName) | Out-Null }
@@ -378,6 +509,7 @@ $form.Add_Shown({
     [System.Windows.Forms.Application]::DoEvents()
     $latest = Get-Latest
     $st = Update-InstallButton $latest.tag
+    Update-FileLabel
     if ($latest.live) { Write-Log ('· 최신 버전: ' + $latest.tag + ' (온라인)') }
     else { Write-Log '· 인터넷이 없어 내장 판 기준으로 확인했습니다' }
     if ($st.mode -eq 'done') { Write-Log '· 이미 최신 버전입니다 — 설치 버튼을 숨겼습니다' }
@@ -385,5 +517,18 @@ $form.Add_Shown({
     Write-Log ('[안내] 최신 버전 확인 실패 — ' + $_.Exception.Message)
   }
 }.GetNewClosure())
+
+# 자동 검사용 — 창을 띄우지 않고 컨트롤 목록만 파일로 남긴다
+if ($DumpControls) {
+  $lines = New-Object System.Collections.Generic.List[string]
+  $lines.Add('FORM|' + $form.Text)
+  foreach ($c in $form.Controls) {
+    $kind = $c.GetType().Name
+    $text = if ($null -ne $c.Text) { $c.Text } else { '' }
+    $lines.Add($kind + '|' + $text + '|' + $c.Location.X + ',' + $c.Location.Y)
+  }
+  [IO.File]::WriteAllLines($DumpControls, $lines)
+  exit 0
+}
 
 [void]$form.ShowDialog()
