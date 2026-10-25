@@ -669,4 +669,17 @@ npm install 이 실패한다
              11종+보스 소환 · 몸통/팔/눈 · 정점 색 · 눈 발광 · 개체당 메시 ≤ 12 · 망토/보스 왕관 · 팔 흔들림 · 콘솔 error 0
            smoke 923(몬스터 외형 11개 추가) · headless 7개 추가 · ui-dom 330 · verify 전체 통과
 
+  [40] 게임 다운로드 런처 exe (v1.6.0)
+
+    [요청] 게임 다운로드를 런처 exe로 해서 GitHub에 추가
+    [런처] downloader/downloader.ps1 — -Launcher 스위치 (같은 GUI 엔진)
+           창: 요세의 수호자 — 게임 다운로드 & 시작 · [게임 다운로드 & 설치] · [게임 시작]
+           상태 버튼: 설치 전 download · 새 버전 update(vA → vB) · 최신이면 버튼 숨김
+           설치 → %LOCALAPPDATA%\YoseGuardian\app · 바로 시작 · 인터넷 없으면 내장 판
+    [exe] tools/downloader-stub.cs — LAUNCHER_MODE 정의(제목·작업폴더·-Launcher 전달)
+          이전 실행 찌꺼기 때문에 압축 풀기가 실패하면 임시 폴더로 재시도(ExtractPayload ref work)
+          tools/build-launcher.mjs — 다운로더 페이로드 + LAUNCHER_MODE 컴파일
+          검사: 버튼 상태(install/update/done) · SelfTest 설치 · 창 제목 확인
+    [문서] README 다운로드 절 — 런처 exe를 첫 번째(권장)로, Setup/Downloader/zip은 다른 방법
+
   끝.

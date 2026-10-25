@@ -1,6 +1,8 @@
-// 요세의 수호자 — 다운로더 앱 스텁 (v1.3.0)
+// 요세의 수호자 — 다운로더/런처 앱 스텁 (v1.6.0)
 //  payload.zip(downloader.ps1 · downloader.json · install.ps1 · game.zip)을 풀어
 //  downloader.ps1 을 실행한다(창이 뜨는 GUI 앱).
+//  LAUNCHER_MODE 로 컴파일하면 downloader.ps1 -Launcher 로 실행해
+//  [게임 다운로드 & 설치] → [게임 시작] 런처 창이 뜬다.
 //  인자:  <설치폴더>      — 설치 위치를 직접 지정
 //         -SelfTest       — 창 없이 설치만 확인(자동 검증)
 using System;
@@ -13,7 +15,15 @@ using System.Text;
 internal static class DownloaderStub
 {
     private const string ResourceName = "payload.zip";
+#if LAUNCHER_MODE
+    private const string AppTitle = "요세의 수호자 런처";
+    private const string ScriptMode = " -Launcher";
+    private const string WorkFolder = "launcher";
+#else
     private const string AppTitle = "요세의 수호자 다운로더";
+    private const string ScriptMode = "";
+    private const string WorkFolder = "downloader";
+#endif
 
     private static int Main(string[] argv)
     {
@@ -44,7 +54,7 @@ internal static class DownloaderStub
         try
         {
             Directory.CreateDirectory(work);
-            if (!ExtractPayload(work))
+            if (!ExtractPayload(ref work))
             {
                 Console.WriteLine("  [실패] 내장 파일을 풀지 못했습니다.");
                 return 1;
@@ -58,7 +68,7 @@ internal static class DownloaderStub
 
             var psi = new ProcessStartInfo(ResolvePowershell());
             psi.Arguments = "-NoProfile -ExecutionPolicy Bypass -File \"" + script + "\" -Path \"" + target + "\""
-                            + (selfTest ? " -SelfTest" : stateCheck ? " -StateCheck" : "");
+                            + (selfTest ? " -SelfTest" : stateCheck ? " -StateCheck" : ScriptMode);
             psi.UseShellExecute = false;
             psi.WorkingDirectory = work;
             psi.CreateNoWindow = true;
@@ -117,7 +127,7 @@ internal static class DownloaderStub
         string id = Guid.NewGuid().ToString("N").Substring(0, 8);
         string[] candidates =
         {
-            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YoseGuardian", "downloader"),
+            Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "YoseGuardian", WorkFolder),
             Path.Combine(Path.GetTempPath(), "yose-dl-" + id),
             Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "yose-work-" + id)
         };
@@ -128,10 +138,38 @@ internal static class DownloaderStub
         return Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "yose-work-" + id);
     }
 
-    private static bool ExtractPayload(string work)
+    /// <summary>
+    /// payload 를 작업 폴더에 푼다. 이전 실행이 남긴 파일(잠금 포함) 때문에 실패하면
+    /// 임시 폴더로 한 번 더 시도한다 — 그래도 안 되면 false.
+    /// </summary>
+    private static bool ExtractPayload(ref string work)
+    {
+        if (TryExtract(work)) return true;
+        string alt = Path.Combine(Path.GetTempPath(), "yose-" + WorkFolder + "-" + Guid.NewGuid().ToString("N").Substring(0, 8));
+        try { Directory.CreateDirectory(alt); } catch { return false; }
+        if (TryExtract(alt)) { work = alt; return true; }
+        return false;
+    }
+
+    private static bool TryExtract(string work)
     {
         try
         {
+            // 이전 실행의 찌꺼기(launcher.ps1 등)가 남아 있으면 덮어쓰기가 막힐 수 있다 — 먼저 비운다
+            try
+            {
+                foreach (string entry in Directory.GetFileSystemEntries(work))
+                {
+                    try
+                    {
+                        if (Directory.Exists(entry)) Directory.Delete(entry, true);
+                        else { File.SetAttributes(entry, FileAttributes.Normal); File.Delete(entry); }
+                    }
+                    catch { }
+                }
+            }
+            catch { }
+
             Assembly self = Assembly.GetExecutingAssembly();
             using (Stream raw = self.GetManifestResourceStream(ResourceName))
             {

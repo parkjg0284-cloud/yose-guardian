@@ -3,7 +3,8 @@
   [string]$Path = '',
   [switch]$Silent,
   [switch]$SelfTest,
-  [switch]$StateCheck
+  [switch]$StateCheck,
+  [switch]$Launcher
 )
 
 # ── 요세의 수호자 다운로더 ───────────────────────────────────────────────
@@ -35,6 +36,11 @@ if (Test-Path $conf) {
 
 $script:logText = ''
 $script:busy = $false
+# 런처 모드 — 같은 엔진으로 '게임 다운로드 & 시작' 창을 띄운다(YoseGuardian-Launcher.exe)
+$script:isLauncher = [bool]$Launcher
+$appName = if ($script:isLauncher) { '요세의 수호자 런처' } else { '요세의 수호자 다운로더' }
+$installLabel = if ($script:isLauncher) { '게임 다운로드 & 설치' } else { '최신 버전 설치' }
+$playLabel = if ($script:isLauncher) { '게임 시작' } else { '게임 실행' }
 
 function Write-Log([string]$line) {
   $script:logText += ($line + "`r`n")
@@ -221,7 +227,7 @@ if ($SelfTest -or $Silent) {
 
 # ── 창(GUI) ─────────────────────────────────────────────────────────────
 $form = New-Object System.Windows.Forms.Form
-$form.Text = '요세의 수호자 다운로더'
+$form.Text = $appName
 $form.Size = New-Object System.Drawing.Size(620, 520)
 $form.StartPosition = 'CenterScreen'
 $form.FormBorderStyle = 'FixedSingle'
@@ -229,7 +235,7 @@ $form.MaximizeBox = $false
 $form.BackColor = [System.Drawing.Color]::FromArgb(242, 243, 245)
 
 $title = New-Object System.Windows.Forms.Label
-$title.Text = '요세의 수호자 — 다운로드 & 설치'
+$title.Text = if ($script:isLauncher) { '요세의 수호자 — 게임 다운로드 & 시작' } else { '요세의 수호자 — 다운로드 & 설치' }
 $title.Font = New-Object System.Drawing.Font('Malgun Gothic', 15, [System.Drawing.FontStyle]::Bold)
 $title.ForeColor = [System.Drawing.Color]::FromArgb(32, 36, 44)
 $title.Location = New-Object System.Drawing.Point(22, 18)
@@ -237,7 +243,7 @@ $title.Size = New-Object System.Drawing.Size(560, 32)
 $form.Controls.Add($title)
 
 $sub = New-Object System.Windows.Forms.Label
-$sub.Text = '최신 버전을 내려받아 설치합니다. 인터넷이 없으면 내장 판으로 설치합니다.'
+$sub.Text = if ($script:isLauncher) { '최신 게임을 내려받아 설치하고 바로 시작합니다. 인터넷이 없으면 내장 판으로 설치합니다.' } else { '최신 버전을 내려받아 설치합니다. 인터넷이 없으면 내장 판으로 설치합니다.' }
 $sub.ForeColor = [System.Drawing.Color]::FromArgb(92, 99, 110)
 $sub.Location = New-Object System.Drawing.Point(24, 52)
 $sub.Size = New-Object System.Drawing.Size(560, 20)
@@ -263,26 +269,26 @@ $script:bar.Size = New-Object System.Drawing.Size(560, 16)
 $form.Controls.Add($script:bar)
 
 $installBtn = New-Object System.Windows.Forms.Button
-$installBtn.Text = '최신 버전 설치'
+$installBtn.Text = $installLabel
 $installBtn.Location = New-Object System.Drawing.Point(24, 150)
-$installBtn.Size = New-Object System.Drawing.Size(150, 34)
+$installBtn.Size = New-Object System.Drawing.Size(176, 34)
 $form.Controls.Add($installBtn)
 
 $openBtn = New-Object System.Windows.Forms.Button
 $openBtn.Text = '설치 폴더 열기'
-$openBtn.Location = New-Object System.Drawing.Point(182, 150)
+$openBtn.Location = New-Object System.Drawing.Point(208, 150)
 $openBtn.Size = New-Object System.Drawing.Size(140, 34)
 $form.Controls.Add($openBtn)
 
 $playBtn = New-Object System.Windows.Forms.Button
-$playBtn.Text = '게임 실행'
-$playBtn.Location = New-Object System.Drawing.Point(330, 150)
+$playBtn.Text = $playLabel
+$playBtn.Location = New-Object System.Drawing.Point(356, 150)
 $playBtn.Size = New-Object System.Drawing.Size(120, 34)
 $form.Controls.Add($playBtn)
 
 $closeBtn = New-Object System.Windows.Forms.Button
 $closeBtn.Text = '닫기'
-$closeBtn.Location = New-Object System.Drawing.Point(468, 150)
+$closeBtn.Location = New-Object System.Drawing.Point(480, 150)
 $closeBtn.Size = New-Object System.Drawing.Size(116, 34)
 $form.Controls.Add($closeBtn)
 
@@ -306,8 +312,8 @@ function Update-InstallButton([string]$latestTag) {
   switch ($st.mode) {
     'install' {
       $installBtn.Visible = $true
-      $installBtn.Text = '최신 버전 설치'
-      $script:status.Text = '아직 설치되지 않았습니다 — [최신 버전 설치] 를 누르세요'
+      $installBtn.Text = $installLabel
+      $script:status.Text = if ($script:isLauncher) { '아직 설치되지 않았습니다 — [게임 다운로드 & 설치] 를 누르세요' } else { '아직 설치되지 않았습니다 — [최신 버전 설치] 를 누르세요' }
     }
     'update' {
       $installBtn.Visible = $true
@@ -340,10 +346,10 @@ $installBtn.Add_Click({
     $latest = Get-Latest
     $st = Update-InstallButton $latest.tag
     $installBtn.Visible = $false           # 설치가 끝나면 [설치] 버튼은 사라진다
-    $script:status.Text = ('설치 완료 — 최신 버전(' + $st.latest + ') · 게임 실행을 누르세요')
+    $script:status.Text = ('설치 완료 — 최신 버전(' + $st.latest + ') · [' + $playLabel + '] 를 누르세요')
     $script:info.Text = '설치 위치: ' + $app + '  (설치 ' + $st.latest + ')'
     Write-Log ('· 설치 완료 — 이제 최신 버전입니다 (버튼 숨김)')
-    [System.Windows.Forms.MessageBox]::Show('설치가 끝났습니다. 지금 게임을 시작합니다.', '요세의 수호자 다운로더') | Out-Null
+    [System.Windows.Forms.MessageBox]::Show('설치가 끝났습니다. 지금 게임을 시작합니다.', $appName) | Out-Null
     if (Start-Game) { Write-Log ('· 게임을 시작했습니다') }
   } catch {
     $script:status.Text = '실패 — 아래 기록을 확인하세요'
@@ -361,7 +367,7 @@ $openBtn.Add_Click({
 
 $playBtn.Add_Click({
   if (Start-Game) { Write-Log ('· 게임을 시작했습니다') }
-  else { [System.Windows.Forms.MessageBox]::Show('아직 설치되지 않았습니다. [최신 버전 설치] 를 먼저 눌러 주세요.', '요세의 수호자 다운로더') | Out-Null }
+  else { [System.Windows.Forms.MessageBox]::Show(('아직 설치되지 않았습니다. [' + $installLabel + '] 를 먼저 눌러 주세요.'), $appName) | Out-Null }
 }.GetNewClosure())
 
 $closeBtn.Add_Click({ $form.Close() }.GetNewClosure())

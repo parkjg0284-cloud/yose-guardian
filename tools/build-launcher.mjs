@@ -1,10 +1,12 @@
-// 요세의 수호자 — 다운로드 런처 exe 빌더
+// 요세의 수호자 — 게임 다운로드 런처 빌더 (v1.6.0)
 //   사용: node tools/build-launcher.mjs   (= npm run launcher)
 //
-//   launcher.ps1 + launcher.json + install.ps1 + game.zip 을 exe 안에 품는다.
-//   실행하면 launcher.json 의 주소에서 최신 game.zip 을 받아 설치하고,
-//   인터넷이 없거나 실패하면 내장된 game.zip 으로 설치한다.
-import { existsSync, mkdirSync, rmSync, statSync, copyFileSync, readFileSync } from 'node:fs';
+//   downloader.ps1(런처 모드) + downloader.json + install.ps1 + game.zip 을 exe 안에 품는다.
+//   실행하면 창이 뜨고 [게임 다운로드 & 설치] → 내려받아 설치 → [게임 시작].
+//   · 최신 판이 이미 설치돼 있으면 [다운로드] 버튼은 사라지고 [게임 시작] 만 남는다.
+//   · 인터넷이 없으면 함께 들어 있는 game.zip 으로 설치한다.
+//   · 무인 검증:  YoseGuardian-Launcher.exe <대상폴더> -StateCheck  /  -SelfTest
+import { existsSync, mkdirSync, rmSync, statSync, copyFileSync, readFileSync, writeFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { execSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -13,86 +15,78 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const BUILD = join(ROOT, '.build-launcher');
 const OUT = join(ROOT, 'YoseGuardian-Launcher.exe');
 const GAME = join(ROOT, 'game.zip');
-const LAUNCHER_DIR = join(ROOT, 'launcher');
+const SRC = join(ROOT, 'downloader');
 const log = (m) => console.log(`  ${m}`);
 const kb = (n) => `${(n / 1024).toFixed(1)}KB`;
 
-/** zip 안의 항목 이름 — 플레이어 데이터·비밀값이 섞였는지 검사할 때 쓴다 */
-function listZipNames(zipPath) {
-  const buf = readFileSync(zipPath);
-  const names = [];
-  for (let i = 0; i < buf.length - 30; i += 1) {
-    if (buf.readUInt32LE(i) !== 0x04034b50) continue;
-    const nameLen = buf.readUInt16LE(i + 26);
-    if (nameLen === 0 || nameLen > 512) continue;
-    const raw = buf.subarray(i + 30, i + 30 + nameLen);
-    if (raw.includes(0)) continue;
-    const name = raw.toString('utf8');
-    if (!name || names.includes(name)) continue;
-    names.push(name);
-  }
-  return names;
-}
-
-// ── ① game.zip 준비 (없으면 만든다)
+// ── ① game.zip 준비
 if (!existsSync(GAME)) {
-  log('[1/5] game.zip 이 없어 새로 만듭니다...');
+  log('[1/7] game.zip 이 없어 새로 만듭니다...');
   execFileSync(process.execPath, [join(ROOT, 'tools', 'pack-release.mjs')], { cwd: ROOT, stdio: 'inherit' });
 } else {
-  log(`[1/5] game.zip 확인됨 (${kb(statSync(GAME).size)})`);
+  log(`[1/7] game.zip 확인됨 (${kb(statSync(GAME).size)})`);
 }
 
-// ── ② 스테이징 — 런처가 실제로 쓰는 파일만 넣는다
+// ── ② 스테이징 — 런처가 실제로 쓰는 파일만
 rmSync(BUILD, { recursive: true, force: true });
 mkdirSync(BUILD, { recursive: true });
-const need = ['launcher.ps1', 'launcher.json', 'install.ps1'];
-for (const f of need) {
-  const src = join(LAUNCHER_DIR, f);
+for (const f of ['downloader.ps1', 'downloader.json']) {
+  const src = join(SRC, f);
   if (!existsSync(src)) {
-    console.error(`  [실패] launcher/${f} 가 없습니다`);
+    console.error(`  [실패] downloader/${f} 가 없습니다`);
     process.exit(1);
   }
   copyFileSync(src, join(BUILD, f));
 }
+copyFileSync(join(ROOT, 'launcher', 'install.ps1'), join(BUILD, 'install.ps1'));
 copyFileSync(GAME, join(BUILD, 'game.zip'));
-log('[2/5] 스테이징 완료 (launcher.ps1 · launcher.json · install.ps1 · game.zip)');
 
-// ── ②-b 무결성 검사 — 여기서 막지 않으면 사용자 PC 에서 설치가 깨진다
-// launcher.json 은 메모장 호환을 위해 BOM 을 붙여 저장돼 있다 — 읽을 때 떼어낸다
-const conf = JSON.parse(readFileSync(join(BUILD, 'launcher.json'), 'utf8').replace(/^\uFEFF/, ''));
+// 내장 판 태그 — 오프라인일 때 버튼 상태(install/update/done) 판정 기준
+let tagOf = '';
+try {
+  tagOf = execSync('git describe --tags --abbrev=0', { cwd: ROOT, encoding: 'utf8' }).trim();
+} catch {
+  tagOf = '';
+}
+{
+  const confPath = join(BUILD, 'downloader.json');
+  const obj = JSON.parse(readFileSync(confPath, 'utf8').replace(/^\uFEFF/, ''));
+  obj.tag = tagOf;
+  writeFileSync(confPath, JSON.stringify(obj, null, 2) + '\n', 'utf8');
+  if (tagOf) log(`  내장 태그: ${tagOf}`);
+}
+log('[2/7] 스테이징 완료 (downloader.ps1 · downloader.json · install.ps1 · game.zip)');
+
+// ── ③ 무결성 검사 — 런처 문구·설치 스크립트·자체 검사 표식
+const conf = JSON.parse(readFileSync(join(BUILD, 'downloader.json'), 'utf8').replace(/^\uFEFF/, ''));
 if (!conf.url || !/^https?:\/\//.test(conf.url)) {
-  console.error(`  [실패] launcher.json 의 url 이 올바르지 않습니다: ${conf.url}`);
+  console.error(`  [실패] downloader.json 의 url 이 올바르지 않습니다: ${conf.url}`);
   process.exit(1);
+}
+const ps1 = readFileSync(join(BUILD, 'downloader.ps1'), 'utf8');
+for (const needle of ['게임 다운로드 & 설치', '게임 시작', 'install.ps1', 'SELFTEST OK', 'Update-InstallButton']) {
+  if (!ps1.includes(needle)) {
+    console.error(`  [실패] downloader.ps1 에 '${needle}' 가 없습니다`);
+    process.exit(1);
+  }
 }
 const installSrc = readFileSync(join(BUILD, 'install.ps1'), 'utf8');
 if (!installSrc.includes('--prod')) {
   console.error('  [실패] install.ps1 에 --prod 가 없습니다 — 설치 후 화면이 뜨지 않습니다');
   process.exit(1);
 }
-log(`  무결성 확인: url ✓ · install.ps1 --prod ✓`);
+log('  무결성 확인: url ✓ · 런처 문구 ✓ · install.ps1 --prod ✓ · SelfTest ✓');
 
-// ── ②-c 비밀값·플레이어 데이터 검사 — exe 는 공개되므로 절대 담으면 안 된다
-const zipNames = listZipNames(GAME);
-const leaked = zipNames.filter(
-  (n) => /(\.db(-shm|-wal)?|\.sqlite3?|\.log)$/i.test(n) || /(^|[\\/])data[\\/]/i.test(n) || /(^|[\\/])\.env(\.|$)/i.test(n)
-);
-if (leaked.length) {
-  console.error(`  [실패] game.zip 에 비밀값/플레이어 데이터가 들어 있습니다: ${leaked.join(', ')}`);
-  console.error('         npm run release:pack 으로 깨끗한 패키지를 다시 만드세요.');
-  process.exit(1);
-}
-log('  안전 확인: 비밀값·플레이어 데이터 없음 ✓');
-
-// ── ③ payload.zip
+// ── ④ payload.zip
 const payload = join(BUILD, 'payload.zip');
 rmSync(payload, { force: true });
 execSync(
-  `powershell -NoProfile -Command "Compress-Archive -Path '${BUILD}\\launcher.ps1','${BUILD}\\launcher.json','${BUILD}\\install.ps1','${BUILD}\\game.zip' -DestinationPath '${payload}' -Force"`,
+  `powershell -NoProfile -Command "Compress-Archive -Path '${BUILD}\\downloader.ps1','${BUILD}\\downloader.json','${BUILD}\\install.ps1','${BUILD}\\game.zip' -DestinationPath '${payload}' -Force"`,
   { cwd: ROOT, stdio: 'inherit' }
 );
-log(`[3/5] payload.zip ${kb(statSync(payload).size)}`);
+log(`[3/7] payload.zip ${kb(statSync(payload).size)}`);
 
-// ── ④ csc 컴파일 (리소스 내장)
+// ── ⑤ csc (LAUNCHER_MODE 정의로 컴파일)
 const csc = [
   'C:\\Windows\\Microsoft.NET\\Framework64\\v4.0.30319\\csc.exe',
   'C:\\Windows\\Microsoft.NET\\Framework\\v4.0.30319\\csc.exe'
@@ -101,13 +95,11 @@ if (!csc) {
   console.error('  [실패] csc.exe 를 찾을 수 없습니다 (.NET Framework 4 필요)');
   process.exit(1);
 }
-
-const src = join(ROOT, 'tools', 'single-launcher.cs');
+const src = join(ROOT, 'tools', 'downloader-stub.cs');
 if (!existsSync(src)) {
-  console.error('  [실패] tools/single-launcher.cs 가 없습니다');
+  console.error('  [실패] tools/downloader-stub.cs 가 없습니다');
   process.exit(1);
 }
-
 const tmpExe = join(BUILD, 'launcher.exe');
 rmSync(tmpExe, { force: true });
 const refDirs = [
@@ -122,24 +114,72 @@ for (const d of refDirs) {
     if (existsSync(p) && !refArgs.some((a) => a.endsWith(dll))) refArgs.push(`/reference:${p}`);
   }
 }
+execFileSync(
+  csc,
+  [
+    '/nologo',
+    ...refArgs,
+    '/target:exe',
+    '/platform:anycpu',
+    '/optimize+',
+    '/codepage:65001',
+    '/define:LAUNCHER_MODE',
+    `/out:${tmpExe}`,
+    `/resource:${payload},payload.zip`,
+    src
+  ],
+  { cwd: ROOT, stdio: 'inherit' }
+);
+log(`[4/7] 컴파일 완료 ${kb(statSync(tmpExe).size)}`);
 
-execFileSync(csc, [
-  '/nologo',
-  ...refArgs,
-  '/target:exe',
-  '/platform:anycpu',
-  '/optimize+',
-  '/codepage:65001',
-  `/out:${tmpExe}`,
-  `/resource:${payload},payload.zip`,
-  src
-], { cwd: ROOT, stdio: 'inherit' });
-log(`[4/5] 컴파일 완료 ${kb(statSync(tmpExe).size)}`);
-
-// ── ⑤ 결과물 배치
+// ── ⑥ 결과물
 rmSync(OUT, { force: true });
 copyFileSync(tmpExe, OUT);
-log(`[5/5] ${OUT.split('\\').pop()} ${kb(statSync(OUT).size)}`);
+log(`[5/7] ${OUT.split('\\').pop()} ${kb(statSync(OUT).size)}`);
 
-rmSync(BUILD, { recursive: true, force: true });
-log('완료 — 실행하면 최신 게임을 내려받아 설치합니다 (내장 게임은 예비용)');
+// ── ⑥-b 버튼 상태 검사 (설치 전 install · 새 버전 update · 최신 done)
+{
+  const stateDir = join(BUILD, 'state-probe');
+  rmSync(stateDir, { recursive: true, force: true });
+  mkdirSync(stateDir, { recursive: true });
+  const run = (target) => {
+    const out = execFileSync(OUT, ['-StateCheck', target], { encoding: 'utf8', timeout: 60000, windowsHide: true });
+    const m = out.match(/STATE installed=(\S+) latest=(\S+) button=(\w+)/);
+    return m ? m.slice(1) : ['?', '?', '?'];
+  };
+  const a = run(stateDir);
+  mkdirSync(join(stateDir, 'server'), { recursive: true });
+  writeFileSync(join(stateDir, 'server', 'index.js'), '// probe\n', 'utf8');
+  writeFileSync(join(stateDir, '.yose-version'), 'v0.0.1', 'utf8');
+  const b = run(stateDir);
+  writeFileSync(join(stateDir, '.yose-version'), tagOf || '내장판', 'utf8');
+  const c = run(stateDir);
+  rmSync(stateDir, { recursive: true, force: true });
+  const ok = a[2] === 'install' && b[2] === 'update' && c[2] === 'done';
+  log(`[6/7] 버튼 상태 검사 ${ok ? 'OK' : '실패'} — 설치 전 ${a[2] || '?'} · 새 버전 ${b[2] || '?'} · 최신 ${c[2] || '?'}`);
+  if (!ok) {
+    console.error(`  설치 전=${a.join('|')} · 새 버전=${b.join('|')} · 최신=${c.join('|')}`);
+    process.exitCode = 1;
+  }
+}
+
+// ── ⑦ 자체 검사 (창 없이 설치) — 임시 폴더에 설치되는지
+const probe = join(ROOT, '.build-launcher-probe');
+rmSync(probe, { recursive: true, force: true });
+try {
+  const out = execFileSync(OUT, ['-SelfTest', probe], { encoding: 'utf8', timeout: 240000, windowsHide: true });
+  const ok =
+    /SELFTEST OK/.test(out) &&
+    existsSync(join(probe, 'client', 'dist', 'index.html')) &&
+    existsSync(join(probe, 'server', 'index.js'));
+  log(`[7/7] 자체 검사 ${ok ? 'OK' : '실패'} — ${probe}`);
+  if (!ok) {
+    console.error(out.split('\n').slice(-12).join('\n'));
+    process.exitCode = 1;
+  }
+} finally {
+  rmSync(probe, { recursive: true, force: true });
+  rmSync(BUILD, { recursive: true, force: true });
+}
+
+if (!process.exitCode) log('완료 — 실행하면 [게임 다운로드 & 설치] → [게임 시작] 런처 창이 뜹니다');

@@ -92,24 +92,35 @@ jobs:
           body: |
             ## 요세의 수호자
 
-            ### 다운로드 — 하나만 받으면 됩니다
+            ### 게임 다운로드 — 런처 exe (권장)
+
+            **[YoseGuardian-Launcher.exe](https://github.com/parkjg0284-cloud/yose-guardian/releases/latest/download/YoseGuardian-Launcher.exe)** 하나만 받으면 됩니다 (약 650KB).
+
+            1. 내려받기 → **더블클릭**
+            2. 창에서 **[게임 다운로드 & 설치]** 한 번
+            3. 최신 게임을 내려받아 설치하고 **바로 시작**합니다
+
+            | 상태 | 버튼 |
+            | --- | --- |
+            | 설치 전 | **게임 다운로드 & 설치** |
+            | 새 버전이 있을 때 | **업데이트 (v1.5.0 → v1.6.0)** |
+            | 이미 최신 | 버튼이 사라지고 **[게임 시작]** 만 남음 |
+
+            - 인터넷이 없으면 파일 안에 든 게임으로 설치됩니다.
+            - 설치 폴더를 지우면 **[게임 다운로드 & 설치]** 버튼이 다시 나타납니다.
+
+            ### 다른 파일
 
             | 파일 | 설명 |
             | --- | --- |
-            | **YoseGuardian-Setup.exe** | **권장** — 이 파일 하나로 설치 (게임 내장, 약 1MB) |
-            | **YoseGuardian-Downloader.exe** | **다운로더 앱** — 창에서 [최신 버전 설치] 한 번으로 내려받아 설치·실행 |
-            | **YoseGuardian-Launcher.exe** | 런처 — 실행하면 **최신 게임을 자동으로** 내려받아 설치 |
-            | YoseGuardian-launcher.zip | 런처 압축본 (게임 내장, 풀어서 사용) |
+            | **YoseGuardian-Launcher.exe** | **권장** — 게임 다운로드 런처 (다운로드 · 설치 · 시작) |
+            | YoseGuardian-Setup.exe | 설치 프로그램 (게임 내장, 인터넷 없이 설치) |
+            | YoseGuardian-Downloader.exe | 다운로더 앱 (같은 설치 흐름) |
+            | YoseGuardian-launcher.zip | 런처 압축본 (풀어서 `설치실행.cmd`) |
             | game.zip | 게임 본체 (서버·수동 설치용) |
-
-            > 저장소를 직접 받았다면 `요세의수호자_설치.exe` 를 더블클릭해도 됩니다 (같은 파일).
-
-            ### 설치 방법 (가장 쉬움)
-            1. `요세의수호자_설치.exe` 내려받기
-            2. 더블클릭
-            3. 자동 설치 후 게임이 실행됩니다
 
             ### 직접 실행 (개발자)
             ```bash
             npm install && npm run build && npm start
             ```
+`
