@@ -2,6 +2,7 @@
 // 계약 §4.13: PanelManager 는 #panel-root 안에 11개 패널을 한 번만 만들고,
 // 이후에는 .open 클래스 토글 + 내용 갱신만 한다. game 컨텍스트는 항상 방어적으로 읽는다.
 import { CHARACTER_SKIN_BY_ID } from '../character.js';
+import { MAX_TURRETS, MAX_FACILITIES } from '../systems/turrets.js';
 import {
   TURRETS,
   TURRET_CATEGORIES,
@@ -84,7 +85,7 @@ import {
   PORTAL_RECIPE_COUNT
 } from '../crafting.js';
 import { normalizeSeed } from '../utils/rng.js';
-import { auth, leaderboard, net } from '../net.js';
+import { auth, leaderboard, net, api } from '../net.js';
 import { NICKNAME_MAX, currentNickname, isValidNickname, nicknameFor, sanitizeNickname, setNickname } from '../profile.js';
 import { ARCANA_UPGRADES, hasArcanaTable } from '../systems/arcana.js';
 import {
@@ -838,6 +839,9 @@ export class PanelManager {
       this._render('settings');
       break;
     }
+    case 'settings-server-port-save':
+      this._saveServerPort();
+      break;
     case 'admin-console':
       this.close();
       this.game?.ui?.admin?.open?.();
@@ -1191,6 +1195,8 @@ export class PanelManager {
     const st = this.state.build;
     body.textContent = '';
     body.appendChild(row('보유 자원', `골드 ${fmt(g?.economy?.gold ?? 0)} · 목재 ${fmt(g?.economy?.wood ?? 0)}`));
+    const counts = safe(() => g?.turrets?.structureCounts?.(), null) || { total: 0, facilities: 0 };
+    body.appendChild(row('건설 한도', `전체 ${fmt(counts.total)}/${MAX_TURRETS} · 시설 ${fmt(counts.facilities)}/${MAX_FACILITIES} (전선 별도)`));
     const demolishBtn = h('button', 'btn ghost btn-ghost build-demolish', '🔨 철거 모드 — 조준한 포탑·시설 철거 (재료 25% 환불 · Z)');
     demolishBtn.type = 'button';
     demolishBtn.dataset.act = 'build-demolish';
@@ -2834,6 +2840,7 @@ export class PanelManager {
     // 직업 카드
     body.appendChild(sectionTitle(`직업 ${CLASSES.length - 1}종 — 계열 하나가 직업 하나`));
     body.appendChild(row('규칙', '한 직업으로 전직하면 그 계열 무기만 쓸 수 있고, 다른 계열 무기는 전부 잠깁니다.'));
+    body.appendChild(row('전직 보상', '전직할 때 그 직업 계열의 1티어(일반) 무기를 지급합니다 — 이미 가지고 있으면 중복 지급하지 않습니다.'));
     body.appendChild(row('직업 변경', `${fmt(CLASS_RULES.respecCost)} 골드 — 웨이브 제한 없이 언제든 다른 직업으로 바꿀 수 있습니다 (1차로 돌아감)`));
 
     const list = grid('card-grid class-grid');
@@ -3374,6 +3381,84 @@ export class PanelManager {
     body.appendChild(row('안내', '조준선은 즉시 적용되고 브라우저에 저장됩니다 · 금빛/보라 등 색과 크기를 함께 조절하세요'));
   }
 
+  // ── 서버 포트 (v1.16.0) ─────────────────────────────
+  _loadServerPort() {
+    const st = this.state.settings;
+    if (st.serverPortLoading || st.serverPortTried) return;
+    st.serverPortTried = true;
+    st.serverPortLoading = true;
+    api('/api/server/port', { timeout: 4000 })
+      .then((r) => {
+        if (r.ok && r.data?.port) st.serverPortInfo = r.data;
+      })
+      .finally(() => {
+        st.serverPortLoading = false;
+        if (this.currentId === 'settings' && this._bodies.settings) this._renderSettings(this._bodies.settings);
+      });
+  }
+
+  async _saveServerPort() {
+    const st = this.state.settings;
+    if (!safe(() => auth.isAdmin, false)) {
+      this._toast('관리자 로그인 후 포트를 바꿀 수 있습니다', 'warn');
+      return;
+    }
+    const raw = String(this._field('settings', 'settings-server-port', '') || '').trim();
+    const port = Number(raw);
+    if (!Number.isInteger(port) || port < 1024 || port > 65535) {
+      st.serverPortMsg = '포트는 1024~65535 사이의 정수로 입력하세요.';
+      st.serverPortDraft = raw;
+      this._render('settings');
+      return;
+    }
+    st.serverPortDraft = raw;
+    st.serverPortMsg = `포트 ${port} 로 변경하는 중…`;
+    this._render('settings');
+
+    const res = await api('/api/server/port', { method: 'POST', body: { port, restart: true }, timeout: 20000 });
+    if (!res.ok) {
+      st.serverPortMsg = `변경 실패 — ${res.error || '서버가 거부했습니다'}`;
+      this._render('settings');
+      return;
+    }
+    st.serverPortInfo = { ...(st.serverPortInfo || {}), port: res.data?.port || port };
+    if (!res.data?.restarting) {
+      st.serverPortMsg = `포트 ${port} 를 저장했습니다. 앱을 완전히 종료한 뒤 다시 실행하면 새 포트로 열립니다.`;
+      this._render('settings');
+      return;
+    }
+
+    st.serverPortMsg = `새 포트 ${port} 로 재시작 중… 잠시만 기다려 주세요.`;
+    this._render('settings');
+    const ready = await this._waitForServerPort(port);
+    if (!ready) {
+      st.serverPortMsg = `새 포트 ${port} 응답을 확인하지 못했습니다. 게임을 완전히 종료한 뒤 다시 실행하세요.`;
+      this._render('settings');
+      return;
+    }
+    const loc = globalThis.location;
+    const target = `${loc.protocol}//${loc.hostname}:${port}${loc.pathname || '/'}${loc.search || ''}${loc.hash || ''}`;
+    loc.replace(target);
+  }
+
+  async _waitForServerPort(port, maxMs = 16000) {
+    const loc = globalThis.location;
+    if (!loc || !Number.isInteger(port)) return false;
+    const origin = `${loc.protocol}//${loc.hostname}:${port}`;
+    const started = Date.now();
+    while (Date.now() - started < maxMs) {
+      try {
+        const ctl = globalThis.AbortController ? new globalThis.AbortController() : null;
+        const timer = ctl ? setTimeout(() => ctl.abort(), 900) : null;
+        const res = await fetch(`${origin}/api/health`, { cache: 'no-store', signal: ctl?.signal });
+        if (timer) clearTimeout(timer);
+        if (res.ok) return true;
+      } catch { /* 아직 새 서버가 안 떴다 */ }
+      await new Promise((r) => setTimeout(r, 300));
+    }
+    return false;
+  }
+
   // ── 설정 ────────────────────────────────────────
   _renderSettings(body) {
     const g = this.game;
@@ -3427,6 +3512,39 @@ export class PanelManager {
       body.appendChild(adminRow);
       body.appendChild(row('명령어', '/도움말 · /돈 100000 · /플라이 · /무기 … (게임 중 ` 또는 / 로도 열립니다)'));
     }
+
+    // ── 서버 포트 (v1.16.0) ─────────────────────────────
+    //   포트는 이 PC 의 서버 전체 설정이라 관리자만 바꾼다. 저장하면 새 포트의 서버가
+    //   먼저 뜬 뒤 이 서버가 내려가고, 브라우저는 새 주소로 이동한다.
+    body.appendChild(sectionTitle('서버 · 포트'));
+    const sp = this.state.settings;
+    if (!sp.serverPortInfo && !sp.serverPortLoading && !sp.serverPortTried) this._loadServerPort();
+    const shownPort = Number(sp.serverPortInfo?.port) || Number(globalThis.location?.port) || 3001;
+    const shownProto = globalThis.location?.protocol || 'http:';
+    const shownHost = globalThis.location?.hostname || '127.0.0.1';
+    body.appendChild(row('현재 포트', `${shownPort}  ·  ${shownProto}//${shownHost}:${shownPort}`));
+    if (!safe(() => auth.isAdmin, false)) {
+      body.appendChild(row('변경 권한', '관리자 계정으로 로그인하면 서버 포트를 바꿀 수 있습니다.'));
+    } else {
+      const portRow = this._inputRow('settings', '새 포트', 'settings-server-port', 'number', '1024~65535', sp.serverPortDraft ?? '');
+      const portInput = portRow.querySelector?.('input');
+      if (portInput) {
+        portInput.min = String(sp.serverPortInfo?.min ?? 1024);
+        portInput.max = String(sp.serverPortInfo?.max ?? 65535);
+        portInput.step = '1';
+        portInput.inputMode = 'numeric';
+      }
+      body.appendChild(portRow);
+      const portBtnRow = h('div', 'row');
+      const savePort = h('button', 'btn primary btn-primary', '포트 변경 · 재시작');
+      savePort.type = 'button';
+      savePort.dataset.act = 'settings-server-port-save';
+      portBtnRow.appendChild(savePort);
+      body.appendChild(portBtnRow);
+      body.appendChild(row('안내', '새 포트에 서버가 뜬 것을 확인한 뒤 이전 서버를 내립니다. 진행 중인 멀티 방은 종료되고, 브라우저는 새 주소로 이동합니다. 주소가 바뀌므로 로그인·닉네임은 새 주소에서 다시 설정해야 할 수 있습니다.'));
+    }
+    if (sp.serverPortMsg) body.appendChild(row('포트 알림', sp.serverPortMsg));
+
     body.appendChild(row('버전', String(g?.VERSION ?? VERSION)));
 
     // ── 화면 — 현재 해상도 표시 + 전체 화면(1920x1080 모니터에서 꽉 채운다) ──

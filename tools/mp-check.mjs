@@ -287,6 +287,14 @@ try {
   const roomsNow = await fetch(`${BASE}/api/rooms`).then((r) => r.json()).catch(() => ({}));
   check('비공개 방은 목록에서 숨김', !String(roomsNow.rooms?.map((r) => r.code).join(',')).includes(String(privCreated.code)));
   check('room:state 에 private 표시', privCreated.state?.private === true);
+
+  // ── 7. 방장이 새로고침/순단으로 끊겨도 초대코드는 잠시 살아 있어야 한다
+  extra.close();
+  await sleep(250);
+  const graceGuest = await connectClient('감사-유예참가');
+  const graceJoin = await ack(graceGuest, 'room:join', { code: privCreated.code, nickname: '감사-유예참가' });
+  check('방장 접속 끊김 — 20초 동안 초대코드 유지', graceJoin.ok === true, String(graceJoin.error || graceJoin.code || 'ok'));
+  graceGuest.close();
 } catch (err) {
   check('검사 실행', false, err?.stack || String(err));
 } finally {

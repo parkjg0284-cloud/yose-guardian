@@ -3,23 +3,25 @@ import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { spawn } from 'node:child_process';
 import { config as loadEnv } from 'dotenv';
 import cors from 'cors';
 import express from 'express';
 import { Server as SocketServer } from 'socket.io';
+import { envFilePath, isPortAvailable, MAX_PORT, MIN_PORT, normalizePort, parsePort, writeEnvPort } from './port-config.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const CLIENT_DIST = path.join(ROOT, 'client', 'dist');
 
-loadEnv({ path: path.join(ROOT, '.env') });
+loadEnv({ path: envFilePath() });
 
 // .env를 읽은 뒤에 process.env 의존 모듈을 불러온다 (동적 import 순서 보장)
 const dbModule = await import('./db.js');
 const protocol = await import('./game/protocol.js');
 const { C2S, S2C, DEFAULT_MODE, DIFFICULTY_IDS, DEFAULT_DIFFICULTY, clampNum, normalizeMode, sanitizeText, toInt } =
   protocol;
-const { default: authRouter, ensureAdminAccount } = await import('./api/auth.js');
+const { default: authRouter, ensureAdminAccount, requireAdmin } = await import('./api/auth.js');
 const { default: saveRouter } = await import('./api/save.js');
 const { default: leaderboardRouter } = await import('./api/leaderboard.js');
 const { default: statsRouter } = await import('./api/stats.js');
@@ -37,7 +39,7 @@ const VERSION = (() => {
   }
 })();
 
-const PORT = toInt(clampNum(process.env.PORT, 1, 65535, 3001), 3001);
+const PORT = normalizePort(process.env.PORT, 3001);
 const HOST = process.env.HOST || '0.0.0.0';
 const isProduction =
   process.env.NODE_ENV === 'production' || process.argv.includes('--prod') || process.argv.includes('--serve');
@@ -109,6 +111,69 @@ app.use('/api/admin', adminRouter);
 // 친구 — 친구 코드 등록·조회. 같은 서버(같은 PC·LAN)에 있으면 코드만으로 방을 찾는다.
 const friendRegistry = createFriendRegistry({ port: PORT });
 registerFriendRoutes(app, friendRegistry);
+
+// ── 서버 포트 설정 (v1.16.0) ─────────────────────────────────────────
+//  GET 은 누구나 현재 포트를 볼 수 있고, POST 는 관리자만 바꿀 수 있다.
+//  저장은 .env 의 PORT 한 줄만 수정한다. restart:true 면 새 포트에 새 서버를 띄운 뒤
+//  이 서버를 정상 종료하고, 응답을 받은 브라우저가 새 주소로 이동한다.
+let portChangeBusy = false;
+app.get('/api/server/port', (req, res) => {
+  res.json({
+    ok: true,
+    port: PORT,
+    min: MIN_PORT,
+    max: MAX_PORT,
+    canRestart: process.env.YOSE_NO_PORT_RESTART !== '1',
+  });
+});
+
+app.post('/api/server/port', requireAdmin, async (req, res) => {
+  const wanted = parsePort(req.body?.port);
+  if (wanted === null) {
+    return res.status(400).json({ error: `포트는 ${MIN_PORT}~${MAX_PORT} 사이의 정수여야 합니다` });
+  }
+  if (wanted === PORT) {
+    return res.status(400).json({ error: '지금 사용 중인 포트와 같습니다' });
+  }
+  if (portChangeBusy) {
+    return res.status(409).json({ error: '포트를 바꾸는 중입니다 — 잠시 후 다시 시도하세요' });
+  }
+
+  // 검사·저장·재시작 전체를 한 번에 잠근다 — 버튼을 연달아 눌러도 두 서버가 뜨지 않게.
+  portChangeBusy = true;
+  try {
+    if (!(await isPortAvailable(wanted))) {
+      return res.status(409).json({ error: `포트 ${wanted} 은(는) 이미 사용 중입니다` });
+    }
+
+    const restart = req.body?.restart !== false;
+    try {
+      writeEnvPort(wanted);
+    } catch (err) {
+      return res.status(500).json({ error: `설정 저장 실패: ${err?.message || err}` });
+    }
+
+    if (!restart || process.env.YOSE_NO_PORT_RESTART === '1') {
+      return res.json({ ok: true, port: wanted, restarting: false, restartRequired: true });
+    }
+
+    try {
+      const changed = await switchPort(wanted);
+      if (!changed.ok) {
+        // 새 서버가 뜨지 못했으면 .env 를 되돌리고 기존 서버를 계속 쓴다.
+        try { writeEnvPort(PORT); } catch { /* 무시 */ }
+        return res.status(500).json({ error: changed.error || '새 포트에서 서버를 시작하지 못했습니다' });
+      }
+      res.json({ ok: true, port: wanted, restarting: true, restartRequired: true });
+      schedulePortShutdown();
+    } catch (err) {
+      try { writeEnvPort(PORT); } catch { /* 무시 */ }
+      return res.status(500).json({ error: err?.message || '포트 변경에 실패했습니다' });
+    }
+  } finally {
+    portChangeBusy = false;
+  }
+});
 
 app.use('/api', (req, res) => {
   res.status(404).json({ error: '존재하지 않는 API 경로입니다' });
@@ -402,6 +467,61 @@ io.on('connection', (socket) => {
 // 빈 방/끝난 방 정리용 관리자 틱 (방별 20Hz 루프와 중복 호출 안전)
 const cleanupTimer = setInterval(() => rooms.tickAll(), 1000 / clampNum(protocol.TICK_HZ, 1, 120, 20));
 if (typeof cleanupTimer.unref === 'function') cleanupTimer.unref();
+
+/** 새 포트의 /api/health 가 응답하는지 한 번 확인한다. */
+function probeHealth(port) {
+  return new Promise((resolve) => {
+    const req = http.get(
+      { host: '127.0.0.1', port, path: '/api/health', timeout: 900 },
+      (res) => {
+        res.resume();
+        resolve(res.statusCode === 200);
+      },
+    );
+    req.on('error', () => resolve(false));
+    req.on('timeout', () => {
+      req.destroy();
+      resolve(false);
+    });
+  });
+}
+
+async function waitForHealth(port, maxMs = 15000) {
+  const started = Date.now();
+  while (Date.now() - started < maxMs) {
+    if (await probeHealth(port)) return true;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  return false;
+}
+
+/**
+ * 새 포트에 새 서버 프로세스를 띄우고 health 가 뜰 때까지 기다린다.
+ * 성공하면 이 프로세스는 곧 종료되고(새 프로세스는 detached 로 남는다), 실패하면 새 프로세스를 죽인다.
+ */
+async function switchPort(nextPort) {
+  const child = spawn(process.execPath, [path.join(__dirname, 'index.js')], {
+    cwd: ROOT,
+    detached: true,
+    stdio: 'ignore',
+    windowsHide: true,
+    env: { ...process.env, PORT: String(nextPort), NODE_ENV: 'production', YOSE_PORT_CHANGE: '1' },
+  });
+  child.unref();
+  const ok = await waitForHealth(nextPort);
+  if (!ok) {
+    try { child.kill(); } catch { /* 무시 */ }
+    return { ok: false, error: `새 포트 ${nextPort} 에서 서버가 응답하지 않았습니다` };
+  }
+  return { ok: true, port: nextPort };
+}
+
+/** 응답이 브라우저에 도착할 시간을 준 뒤 이전 서버를 정상 종료한다. */
+function schedulePortShutdown() {
+  setTimeout(() => {
+    try { shutdown('포트 변경'); } catch { process.exit(0); }
+  }, 700).unref?.();
+}
 
 let shuttingDown = false;
 /** SIGINT/SIGTERM 정상 종료 */

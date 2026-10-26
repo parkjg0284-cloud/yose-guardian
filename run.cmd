@@ -14,6 +14,10 @@ if /i "%~1"=="firewall" goto firewall
 if /i "%~1"=="firewall-run" goto firewallrun
 if /i "%~1"=="build" goto build
 
+rem 설정 화면에서 바꾼 .env 의 PORT 를 읽는다 (없으면 3001).
+set "GAME_PORT=3001"
+if exist ".env" for /f "usebackq tokens=1,* delims==" %%A in (".env") do if /i "%%A"=="PORT" set "GAME_PORT=%%B"
+
 where node >nul 2>&1
 if errorlevel 1 goto nonode
 if not exist "node_modules" goto install
@@ -35,12 +39,12 @@ echo.
 echo   이 창을 닫으면 서버가 꺼집니다. 최소화해 두세요.
 echo   서버가 갑자기 죽으면 자동으로 다시 켜집니다(감시자).
 echo.
-echo   게임 주소 : http://localhost:3001
+echo   게임 주소 : http://localhost:%GAME_PORT%
 echo   다운로드  : http://localhost:8099
 echo.
 echo   브라우저가 안 열리면 위 주소를 복사해 열어 주세요 -
 echo.
-start "" explorer "http://localhost:3001"
+start "" explorer "http://localhost:%GAME_PORT%"
 node tools\supervise.mjs
 echo.
 echo  [종료] 서버가 멈췄습니다. 위에 오류가 있으면 그대로 알려주세요 -
@@ -66,8 +70,7 @@ exit /b 0
 
 :firewallrun
 echo 관리자 권한으로 방화벽 규칙을 추가합니다 ...
-netsh advfirewall firewall add rule name="요새의 수호자 3001" dir=in action=allow protocol=TCP localport=3001
-netsh advfirewall firewall add rule name="요새의 수호자 3002" dir=in action=allow protocol=TCP localport=3002
+netsh advfirewall firewall add rule name="요새의 수호자 %GAME_PORT%" dir=in action=allow protocol=TCP localport=%GAME_PORT%
 netsh advfirewall firewall add rule name="요새의 수호자 8099" dir=in action=allow protocol=TCP localport=8099
 echo.
 echo  완료했습니다. 이 창은 닫아도 됩니다 -

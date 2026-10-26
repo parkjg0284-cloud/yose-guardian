@@ -7,7 +7,31 @@ const http = require('node:http');
 const os = require('node:os');
 
 const ROOT = __dirname;
-const PORT = Number(process.env.PORT || 3001);
+
+// .env 의 PORT 를 읽는다 — 설정 화면에서 포트를 바꾸면 다음 앱 실행부터 이 값으로 뜬다.
+// (서버와 같은 규칙: 명시적 환경변수 > .env > 3001)
+function readEnvPort() {
+  try {
+    const file = process.env.YOSE_ENV_FILE ? path.resolve(ROOT, process.env.YOSE_ENV_FILE) : path.join(ROOT, '.env');
+    const raw = fs.readFileSync(file, 'utf8');
+    let found = 0;
+    for (const line of raw.split(/\r?\n/)) {
+      const m = /^\s*PORT\s*=\s*(.*?)\s*$/i.exec(line);
+      if (!m) continue;
+      const n = Number(String(m[1]).replace(/^['"]|['"]$/g, ''));
+      if (Number.isInteger(n) && n >= 1024 && n <= 65535) found = n;
+    }
+    return found;
+  } catch {
+    return 0;
+  }
+}
+
+const PORT = (() => {
+  const fromEnv = Number(process.env.PORT);
+  if (Number.isInteger(fromEnv) && fromEnv >= 1024 && fromEnv <= 65535) return fromEnv;
+  return readEnvPort() || 3001;
+})();
 const EDGE = [
   'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe',
   'C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe',

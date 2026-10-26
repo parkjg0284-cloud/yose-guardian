@@ -405,14 +405,34 @@ const ATTACK_FAMILY_ROW = [0, 1, 2, 3, 4, 5, 6];
  */
 export const TURRET_DAMAGE_SCALE = 60;
 
+/**
+ * 티어별 포탑 피해 성장 — **1티어를 100%로 두고 티어마다 정확히 47%씩** 올린다.
+ *
+ *  · 몬스터 체력은 웨이브 30 이후 `1.16^(10 × 0.28)` = 약 ×1.515 / 10웨이브로 완만해진다.
+ *    47% 성장은 그보다 조금 낮게 잡아, 상위 티어 포탑이 웨이브 10N 의 표준 몬스터를
+ *    한두 발에 정리하면서도 예전처럼 10~30배씩 폭주하지 않게 맞춘 값이다.
+ *  · 1티어 피해(계열 기본 피해 × 60)는 그대로 두어 초반 난이도가 바뀌지 않는다.
+ *  · 실제 피해 = `fam.damage × TOWER_TIER_DAMAGE_MULT[tier] × TURRET_DAMAGE_SCALE`.
+ */
+export const TOWER_TIER_DAMAGE_GROWTH = 1.47;
+export const TOWER_TIER_DAMAGE_MULT = Object.freeze({
+  1: 1,
+  2: 1.47,
+  3: 2.1609,
+  4: 3.1765,
+  5: 4.6695,
+  6: 6.8641,
+  7: 10.0903
+});
+
 export const TOWER_TIER_SCALE = {
-  1: { hp: 1, damage: 1, range: 1, costMult: 1 },
-  2: { hp: 1.5, damage: 1.75, range: 1.06, costMult: 2.1 },
-  3: { hp: 2.3, damage: 3.1, range: 1.12, costMult: 4.4 },
-  4: { hp: 3.6, damage: 5.4, range: 1.18, costMult: 9.2 },
-  5: { hp: 5.6, damage: 9.5, range: 1.25, costMult: 19 },
-  6: { hp: 8.8, damage: 17, range: 1.32, costMult: 40 },
-  7: { hp: 14, damage: 31, range: 1.4, costMult: 84 }
+  1: { hp: 1, damage: TOWER_TIER_DAMAGE_MULT[1], range: 1, costMult: 1 },
+  2: { hp: 1.5, damage: TOWER_TIER_DAMAGE_MULT[2], range: 1.06, costMult: 2.1 },
+  3: { hp: 2.3, damage: TOWER_TIER_DAMAGE_MULT[3], range: 1.12, costMult: 4.4 },
+  4: { hp: 3.6, damage: TOWER_TIER_DAMAGE_MULT[4], range: 1.18, costMult: 9.2 },
+  5: { hp: 5.6, damage: TOWER_TIER_DAMAGE_MULT[5], range: 1.25, costMult: 19 },
+  6: { hp: 8.8, damage: TOWER_TIER_DAMAGE_MULT[6], range: 1.32, costMult: 40 },
+  7: { hp: 14, damage: TOWER_TIER_DAMAGE_MULT[7], range: 1.4, costMult: 84 }
 };
 
 // 티어 N 포탑은 **티어 N 지형에서 나는 광물**만 요구한다(각 지형을 돌아야 다음 티어가 열린다).
@@ -469,7 +489,7 @@ const SUPPORT_TABLE = {
     mineRate: [0.6, 1.2, 2.2, 3.8, 6.5, 11, 20],
     hp: [120, 180, 280, 430, 660, 1050, 1700],
     gold: [90, 190, 400, 850, 1800, 3900, 8400],
-    desc: '반경 내 광물을 자동으로 채굴해 인벤토리에 넣는다.'
+    desc: '반경 내 광물을 자동으로 채굴하고, 주변에 광물이 없으면 맨땅을 시추해 설치한 지형 티어의 광물을 캔다.'
   },
   lumber: {
     names: ['벌목초소', '도끼탑', '제재소', '벌목기탑', '숲의 탑', '대벌목탑', '세계수의 낫'],
@@ -504,7 +524,10 @@ for (const [category, T] of Object.entries(SUPPORT_TABLE)) {
       cost: {
         gold: T.gold[i],
         wood: Math.round(20 * Math.pow(tier, 1.4)),
-        ...(tier > 1 ? { minerals: tierMinerals(tier, tier + 1, 0) } : {})
+        // T2 채굴탑은 은(silver)을 요구하지 않는다 — 골드·목재만으로 짓는다.
+        ...(tier > 1
+          ? { minerals: category === 'mining' && tier === 2 ? {} : tierMinerals(tier, tier + 1, 0) }
+          : {})
       },
       desc: T.desc
     });
@@ -924,6 +947,12 @@ export const WEAPON_FAMILIES = [
     desc: '원거리 마법. 속성을 실어 적을 약화시킨다.'
   },
   {
+    id: 'fairywand', name: '요정의 지팡이', icon: '🧚', hands: 1, kind: 'wand', swing: 'cast',
+    baseDamage: 20, cooldown: 0.62, range: 64, projectile: true, behavior: 'homing',
+    fairy: true,
+    desc: '요정의 마법을 담은 지팡이. 꽃가루가 적을 스스로 쫓아가며, 티어가 오를수록 꽃과 빛이 짙어진다.'
+  },
+  {
     id: 'sword1h', name: '한손검', icon: '🗡️', hands: 1, kind: 'melee', swing: 'slash',
     baseDamage: 34, cooldown: 0.5, range: 3.2,
     desc: '빠르고 균형 잡힌 근접 무기.'
@@ -1311,6 +1340,34 @@ export const WEAPON_MOTIONS = {
       ]
     },
     recoil: { duration: 0.14, kick: [0, 0.022, 0.075], rot: [-0.13, 0, 0], shake: 0.18 }
+  },
+  fairywand: {
+    rest: { pos: [0.34, -0.3, -0.62], rot: [-0.12, 0.18, -0.22], scale: 1 },
+    swap: {
+      duration: 0.62, style: 'fairyBloom', desc: '꽃잎을 피우며 지팡이를 세운다.',
+      phases: [
+        { t: 0, pos: [0.34, -0.96, -0.34], rot: [-0.62, 2.4, -1.05], scale: 0.9, ease: 'easeInQuad' },
+        { t: 0.48, pos: [0.26, 0.04, -0.72], rot: [0.12, 0.38, 0.26], scale: 1.06, ease: 'easeOutBack' },
+        { t: 1, pos: [0.34, -0.3, -0.62], rot: [-0.12, 0.18, -0.22], scale: 1, ease: 'easeOutCubic' }
+      ]
+    },
+    attack: {
+      duration: 0.48, style: 'fairyCast', release: 0.34,
+      phases: [
+        { t: 0, pos: [0.34, -0.3, -0.62], rot: [-0.12, 0.18, -0.22], scale: 1, ease: 'easeOutQuad' },
+        { t: 0.34, pos: [0.29, -0.18, -1.02], rot: [-0.26, 0.08, -0.06], scale: 1.04, ease: 'easeInQuad' },
+        { t: 1, pos: [0.34, -0.3, -0.62], rot: [-0.12, 0.18, -0.22], scale: 1, ease: 'easeOutCubic' }
+      ]
+    },
+    skill: {
+      duration: 1.2, style: 'fairyRing',
+      phases: [
+        { t: 0, pos: [0.34, -0.3, -0.62], rot: [-0.12, 0.18, -0.22], scale: 1, ease: 'easeOutQuad' },
+        { t: 0.42, pos: [0.32, 0.16, -0.48], rot: [0.38, 0.24, 0.12], scale: 1.12, ease: 'easeOutBack' },
+        { t: 1, pos: [0.34, -0.3, -0.62], rot: [-0.12, 0.18, -0.22], scale: 1, ease: 'easeOutCubic' }
+      ]
+    },
+    recoil: { duration: 0.2, kick: [0, 0.028, 0.07], rot: [-0.12, 0, 0], shake: 0.24 }
   }
 };
 
@@ -1342,6 +1399,10 @@ export const WEAPON_IMPACTS = {
   gun: {
     kind: 'bullet', color: 0xffe3a0, particles: 10, scale: 0.52, shake: 0.14, sound: 'impactBullet',
     ring: 0.5, tracer: 0xffd27a, desc: '총구 화염과 작은 충격 고리가 함께 터진다.'
+  },
+  fairywand: {
+    kind: 'burst', color: 0xffb8d0, particles: 22, scale: 0.9, shake: 0.18, sound: 'impactMagic',
+    petals: true, halo: 0xffd9e8, desc: '꽃가루와 작은 꽃잎이 터지며 요정의 빛이 번진다.'
   }
 };
 
@@ -1529,6 +1590,7 @@ const CRAFT_ONLY_SPECS = [
 //    화살(ARROW_TIERS 7종)은 무기가 아니라 소모품이다 — economy 의 arrows 원장에 쌓인다.
 const WEAPON_NAME_TABLE = {
   staff: ['수습 지팡이', '철제 지팡이', '수정 지팡이', '비전 지팡이', '고대 지팡이', '신화 지팡이', '시간의 지팡이'],
+  fairywand: ['요정의 지팡이', '꽃망울 지팡이', '이슬빛 지팡이', '달빛 지팡이', '여왕의 지팡이', '세계수의 지팡이', '요정 여왕의 홀'],
   sword1h: ['녹슨 검', '철검', '강철 장검', '룬 블레이드', '성기사의 검', '용살검', '엑스칼리버'],
   sword2h: ['나무 대검', '철 대검', '기사 대검', '룬 대검', '심판의 대검', '신화 대검', '세계수의 검'],
   scythe: ['낫', '철 낫', '전투 낫', '룬 낫', '사신의 낫', '신화 낫', '종말의 낫'],
@@ -1539,6 +1601,7 @@ const WEAPON_NAME_TABLE = {
 
 const WEAPON_ELEMENT_TABLE = {
   staff: ['fire', 'ice', 'lightning', 'arcane', 'nature', 'holy', 'arcane'],
+  fairywand: ['nature', 'wind', 'water', 'light', 'nature', 'spirit', 'holy'],
   sword1h: [null, null, null, 'metal', 'holy', 'chaos', 'holy'],
   sword2h: [null, null, null, 'earth', 'metal', 'nature', 'nature'],
   scythe: [null, null, null, 'metal', 'blood', 'void', 'void'],
@@ -1578,6 +1641,8 @@ export const WEAPONS = (() => {
         kind: family.kind,
         swing: family.swing,
         projectile: !!family.projectile,
+        behavior: family.behavior || 'projectile',
+        fairy: !!family.fairy,
         pierce: family.pierce || 0,
         nonLethal: !!family.nonLethal,
         ultimate: ultimate ? ultimate.id : null,
@@ -2903,6 +2968,16 @@ export const CLASSES = [
     signature: 'bow_forever'
   },
   {
+    id: 'fairy',
+    name: '요정',
+    glyph: '🧚',
+    family: 'fairywand',
+    color: 0xff9fd2,
+    desc: '요정의 지팡이 계열 전용. 꽃가루 마법이 적을 추적하고, 마나가 빨리 차며 발이 가볍다.',
+    passive: { manaRegen: 1.3, moveSpeed: 1.08, weaponDamage: 1.08 },
+    signature: 'fairywand_relic'
+  },
+  {
     id: 'gunmaster',
     name: '건마스터',
     glyph: '🔫',
@@ -2952,6 +3027,12 @@ export const CLASS_BY_ID = Object.freeze(CLASSES.reduce((acc, c) => ((acc[c.id] 
 /** 직업 정의 (없으면 초심자) */
 export function classById(id) {
   return CLASS_BY_ID[String(id ?? '')] || CLASS_BY_ID.novice;
+}
+
+/** 전직할 때 지급하는 그 직업 계열의 1티어(일반) 무기 id */
+export function classStarterWeaponId(classId) {
+  const def = classById(classId);
+  return def.family ? `${def.family}_common` : null;
 }
 
 /** 계열 id → 그 계열 직업 id (공용/미지 계열은 null) */

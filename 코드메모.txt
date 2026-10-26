@@ -799,3 +799,75 @@ npm install 이 실패한다
   [검증] smoke 954/954 · headless 579/579 · ui-dom 348/348 · mp 37/37
          실전 브라우저 .tmp/demolish-live.mjs 17/17 — 작업대 162g·40w·철1·구리1, 포탑 15g·3w, 조준선 적색/원복, Z 토글, HUD/조준선 원복, 예외 0
   끝.
+
+[50] 건설 50/40 · 맨땅 채굴 · 전직 1티어 · T2 은 제거 · 초대코드 · 6초 리스폰 (v1.14.0)
+  [요청] 건물 최대 50·작업대류 40 · 채굴기 맨땅 채굴 · 전직 직업별 1티어 무기 · T2 채굴탑 은 제거 ·
+         초대코드 '방을 찾을 수 없습니다' 수정 · 관리자 계정 안내/로그인 · 나무·광물 6초 리스폰
+  · 건설 한도 — MAX_TURRETS 50 · MAX_FACILITIES 40(turrets.js)
+    structureCounts() 하나로 전체/시설 계산, canPlace·place·placeRemote 공통
+    전선은 MAX_CABLES 160 별도 · 건설 패널 '전체 n/50 · 시설 n/40 (전선 별도)'
+  · 맨땅 채굴 — _updateAutoMiner 의 시추부를 _drillTerrain(dt, rate) 로 분리
+    채굴 카테고리 탑도 mineral 이 없으면 _drillTerrain 호출(주변 12m 광물 없어도 15초 산출 확인)
+    채굴기(시설)는 기존처럼 3kW 전력 필요, 무전력 정지 유지(계약 §4.63)
+  · 전직 보상 — advance 이벤트에서 family_common 지급(staff/sword1h/sword2h/scythe/dagger/bow/gun)
+    중복 지급 없음 · 현재 무기 사용 불가면 1티어 자동 장착 · 승급은 대상 아님
+    전직 패널 '전직 보상' 안내 · 실전 7직업 전부 owned=true
+  · T2 채굴탑 — mining_t2 cost.minerals {} (은 제거) → 골드 190·목재 53만
+  · 초대코드 — lobby.join '방을 찾을 수 없습니다' 350ms×3 재시도
+    Room.handleDisconnect keepEmpty → 20초 코드 유지 · 명시적 leave 는 즉시 삭제
+    RoomManager.listPublic 빈 방 숨김 · mp-check 끊김 250ms 후 코드 참가 성공
+  · 관리자 — 로그인 username 정확 매칭 우선, 없으면 COLLATE NOCASE 재조회(Admin/ADMIN 허용)
+    자격 증명은 .env(설치 %LOCALAPPDATA%\YoseGuardian\app\.env), 문서에 비밀번호 기록하지 않음
+  · 6초 리스폰 — minerals RESPAWN_DELAY 120→6 · trees 90→6
+  · 문서 — README 기능/전직/한도/리스폰 · docs 배지 v1.14.0 · CONTRACT §4.78 · 코드메모 [50]
+  [검증] smoke 959/959(신규 5) · headless 592/592(신규 13) · mp 38/38(신규 1) · live .tmp/feature-live.mjs 19/19
+         광물 5.9초 미복구→6.1초 복구 · 나무 동일 · T2 {"gold":190,"wood":53,"minerals":{}}
+  끝.
+
+[51] 티어별 포탑 피해 — 1티어 100% · 47% 복리 · 몬스터 체력 기준 (v1.15.0)
+  [요청] 포탑 피해를 티어별로 다시 설정 · 100에서 47%씩 · 몬스터 체력을 기준으로
+  · data.js — TOWER_TIER_DAMAGE_GROWTH 1.47 · TOWER_TIER_DAMAGE_MULT
+    T1 1 → T2 1.47 → T3 2.1609 → T4 3.1765 → T5 4.6695 → T6 6.8641 → T7 10.0903
+    TOWER_TIER_SCALE.damage 가 이 표를 사용, 피해식은 fam.damage × 배율 × TURRET_DAMAGE_SCALE(60)
+  · 1티어 피해는 그대로(화살탑 780) · 화살탑 T2 1,147 · T3 1,686 · T4 2,478 · T5 3,642 · T6 5,354 · T7 7,870
+    기존 T7 배율 31 → 10.0903 (상위 티어 폭주 완화)
+  · 몬스터 기준 — 표준 고블린 HP 60×1.16^(웨이브-1), 30웨이브 이후 10웨이브당 ×1.515
+    기준 웨이브 10N 평균 피해 처치 발수 T2 0.65 · T3 1.97 · T4 2.03 · T5 2.09 · T6 2.12 · T7 2.19
+  · 문서 — README 요새 방어 · docs 배지 v1.15.0 · CONTRACT §4.79 · 코드메모 [51]
+  [검증] smoke 963/963(신규 4) · headless 592/592 · live .tmp/feature-live.mjs 20/20
+         건설 카드 T1/T2/T7 화살탑 780/1,147/7,870 실제 표시
+  끝.
+
+[52] 서버 포트 변경 — 설정 UI · .env 저장 · 자동 재시작 (v1.16.0)
+  [요청] 서버포트 바꾸는 기능
+  · server/port-config.js — 1024~65535 검증, .env 의 PORT 줄만 수정(다른 비밀 값 보존)
+  · server/index.js — GET/POST /api/server/port (POST 는 requireAdmin)
+    새 포트에 node server/index.js 를 detached 로 먼저 띄우고 /api/health 확인
+    성공 후 0.7초 뒤 기존 서버 종료, 실패 시 .env 원복·기존 서버 유지
+  · UI — 설정 → 서버 · 포트, 현재 포트·입력·[포트 변경 · 재시작], 게스트는 안내만
+    성공 시 새 포트 health 폴링 후 location.replace(새 주소)
+  · 실행 경로 — app.js / 게임실행.vbs / run.cmd / tools/dev.mjs 가 .env PORT 를 읽음
+  · 문서 — README 서버 포트 바꾸기 · docs 배지 v1.16.0 · CONTRACT §4.80 · 코드메모 [52]
+  [검증] smoke 965/965(신규 2) · ui-dom 349/349(신규 1) · live admin UI 5/5 · live 포트 UI flow 6/6
+         실서버 3161→3162→3161 재시작 성공(이전 포트 DOWN·새 포트 OK·비밀 값 보존)
+  끝.
+
+
+[53] 요정 직업 · 요정의 지팡이 7티어 · 런처 업데이트 내역 (v1.17.0)
+  [요청] 요정직업에 요정의 지팡이를 티어별로 만들고 1티어는 전직하면 주는걸로 · 깃허브 업로드
+         다운로드 런처 업데이트 추가 · 업데이트 내역에 무엇을 바꿨는지 표시
+  · data.js — 새 계열 fairywand(요정의 지팡이) + fairy 직업(🧚)
+    T1 요정의 지팡이 → T2 꽃망울 → T3 이슬빛 → T4 달빛 → T5 여왕의 → T6 세계수의 → T7 요정 여왕의 홀
+    kind:'wand' · behavior:'homing' · 사거리 64 · 기본 피해 20 · 쿨다운 0.62초부터 등급마다 감소
+    패시브 manaRegen×1.3 · moveSpeed×1.08 · weaponDamage×1.08 · 시그니처 fairywand_relic
+    classStarterWeaponId('fairy') === 'fairywand_common'
+  · main.js — _wandAttack(): 무기 피해 × 직업/장비/마법부여 배율로 추적 꽃가루 발사
+    기존 _grantClassStarterWeapon 이 전직(kind='전직') 시 T1을 자동 지급(보유 시 중복 없음)
+  · staff.js — buildStaffMesh({fairy}) + buildFairyBloom(꽃잎 6·꽃술 오브·빛 고리)
+    weaponRig.js 가 fairywand 형태를 이 빌더로 연결 · WEAPON_MOTIONS/IMPACTS 추가
+  · crafting.js — FAMILY_FORGE_FAMILIES 에 fairywand 추가 → forge_t1~t7 레시피
+  · 수량 — 무기 82종 · 계열 11개 · 작업대 81종 · 제작 레시피 48종 · 직업 9개(초심자 포함)
+  · 런처 — launcher/installer/downloader updates.json + [업데이트 내역] 버튼·읽기 전용 창, 시작 로그에 최신 버전
+  · 문서 — README 요정 절 · docs 배지 v1.17.0 · 업데이트 내역 섹션 · WEAPONS.md 82종 · CONTRACT §4.81 · 코드메모 [53]
+  [검증] smoke 971/971 · headless 594/594 · ui-dom 349/349 · verify 2,273/2,273 · 런처/다운로더 SelfTest OK
+  끝.

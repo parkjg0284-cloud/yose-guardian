@@ -82,7 +82,9 @@ function Install-Game_Legacy([string]$target, [scriptblock]$progress) {
     '@echo off', 'cd /d "%~dp0"',
     'where node >nul 2>nul || (echo [!] Node.js 22+ is required - https://nodejs.org & pause & exit /b 1)',
     'if not exist "node_modules\express" (echo First run: installing libraries... (1-2 min) & call npm install --omit=dev --no-audit --no-fund || (echo npm install failed & pause & exit /b 1))',
-    'start "" http://127.0.0.1:3001', 'node server/index.js')
+    'set "GAME_PORT=3001"',
+    'if exist ".env" for /f "usebackq tokens=1,* delims==" %%A in (".env") do if /i "%%A"=="PORT" set "GAME_PORT=%%B"',
+    'start "" http://127.0.0.1:%GAME_PORT%', 'node server/index.js')
   Set-Content -Path (Join-Path $target 'uninstall.cmd') -Encoding OEM -Value @(
     '@echo off', 'echo Removing Yose Guardian...',
     'del "%USERPROFILE%\Desktop\요세의 수호자.lnk" >nul 2>nul',

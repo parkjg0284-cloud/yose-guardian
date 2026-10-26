@@ -149,7 +149,7 @@ const EXTRA_RECIPES = [
 // ── 계열별 티어 제작(계약 §4.45) — 활·쌍권총은 "그 티어의 무기"를 그 티어 제단에서 만든다 ──
 // 자동 생성 무기(계열 × 등급)를 그대로 레시피로 쓴다. 제작 전용 무기 뒤에 붙여
 // RECIPES_BY_TABLE 의 첫 레시피(제작 전용)가 유지된다.
-export const FAMILY_FORGE_FAMILIES = ['bow', 'gun'];
+export const FAMILY_FORGE_FAMILIES = ['bow', 'gun', 'fairywand'];
 
 export const FAMILY_TIER_RECIPES = WEAPONS.filter(
   (w) => FAMILY_FORGE_FAMILIES.includes(w.family) && !w.craftOnly && !w.secret

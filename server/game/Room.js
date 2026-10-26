@@ -9,6 +9,8 @@ const MAX_ENEMIES = 200;
 const MAX_CHAT_LOG = 50;
 /** 접속이 끊겨도 이 시간 동안은 자리를 비워 둔다 — 그 안에 돌아오면 이어서 한다. */
 export const RECONNECT_GRACE_MS = 45000;
+/** 로비에서 방장이 끊겼을 때 초대코드를 살려 두는 시간 — 새로고침·순단 대비 */
+const EMPTY_GRACE_MS = 20000;
 /** 재접속 토큰 최대 길이 */
 const TOKEN_MAX = 64;
 /** 캐릭터 외형 살균 — 스킨 id·아이콘·색만 남긴다(코스메틱, 능력치 없음) */
@@ -145,7 +147,7 @@ export class Room {
   }
 
   /** 플레이어 퇴장 — 진행 중 이탈도 안전해야 한다 */
-  removePlayer(socketId, { silent = false } = {}) {
+  removePlayer(socketId, { silent = false, keepEmpty = false } = {}) {
     const player = this.players.get(socketId);
     if (!player) return null;
     this.players.delete(socketId);
@@ -155,6 +157,12 @@ export class Room {
     if (this.players.size === 0) {
       if (this.phase === 'playing') this.end();
       this.stopTimer();
+      // 접속이 끊긴 경우(새로고침·와이파이 순단)에는 코드를 잠시 살려 둔다.
+      //  바로 지우면 친구가 같은 초대코드로 들어올 때 '방을 찾을 수 없습니다'가 된다.
+      if (keepEmpty) {
+        this.emptyGraceUntil = Date.now() + EMPTY_GRACE_MS;
+        return player;
+      }
       if (typeof this.onEmpty === 'function') {
         try { this.onEmpty(this); } catch { /* 정리 실패는 무시 */ }
       }
@@ -200,7 +208,7 @@ export class Room {
       });
       return player;
     }
-    return this.removePlayer(socketId, { silent: true });
+    return this.removePlayer(socketId, { silent: true, keepEmpty: true });
   }
 
   /** 재접속 — 토큰으로 좌석을 찾아 새 소켓에 다시 붙인다. */

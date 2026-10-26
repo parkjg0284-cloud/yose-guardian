@@ -207,7 +207,10 @@ router.post('/login', handle((req, res) => {
   const username = String(body.username ?? '').trim();
   const password = typeof body.password === 'string' ? body.password : '';
   if (!username || !password) return res.status(400).json({ error: '아이디와 비밀번호를 입력하세요' });
-  const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+  const row = db.prepare('SELECT * FROM users WHERE username = ?').get(username)
+    // 아이디 대소문자를 잘못 입력해도 관리자 로그인이 막히지 않게 정확한 철자를 먼저 보고,
+    //  정확한 계정이 없을 때만 대소문자 무시로 한 번 더 찾는다.
+    ?? db.prepare('SELECT * FROM users WHERE username = ? COLLATE NOCASE').get(username);
   if (!row || !bcrypt.compareSync(password, row.password_hash)) {
     return res.status(401).json({ error: '아이디 또는 비밀번호가 올바르지 않습니다' });
   }

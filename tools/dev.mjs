@@ -8,19 +8,23 @@
 //         실제로 /src/main.js 를 변환해 주는지 자체 점검한다.
 //   Vite(esbuild)가 막히면 조용히 건너뛰므로, 어떤 환경에서도 게임 주소 하나는 확실히 뜬다.
 //
-//   게임(항상)   : http://localhost:3001
+//   게임(항상)   : http://localhost:3001 (기본 — .env 의 PORT 로 변경 가능)
 //   HMR(가능 시) : http://localhost:5173
 
 import path from 'node:path';
 import net from 'node:net';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import fs from 'node:fs';
+import { config as loadEnv } from 'dotenv';
 import { localShareUrls } from '../server/net-info.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// 설정 화면에서 바꾼 포트(.env)를 개발 런처도 따른다.
+loadEnv({ path: process.env.YOSE_ENV_FILE ? path.resolve(ROOT, process.env.YOSE_ENV_FILE) : path.join(ROOT, '.env') });
 const CLIENT_DIR = path.join(ROOT, 'client');
 const DIST_INDEX = path.join(CLIENT_DIR, 'dist', 'index.html');
 let SERVER_PORT = Number(process.env.PORT || 3001);
+if (!Number.isInteger(SERVER_PORT) || SERVER_PORT < 1024 || SERVER_PORT > 65535) SERVER_PORT = 3001;
 let SERVER_URL = process.env.VITE_SERVER_URL || `http://localhost:${SERVER_PORT}`;
 const CLIENT_PORT = Number(process.env.CLIENT_PORT || 5173);
 

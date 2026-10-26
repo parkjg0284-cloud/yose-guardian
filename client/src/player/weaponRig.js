@@ -729,10 +729,11 @@ export function buildWeaponMesh(weaponId, opts = {}) {
   const shape = weapon.model ?? weapon.family;
   let built;
 
-  if (shape === 'staff') {
+  if (shape === 'staff' || shape === 'fairywand') {
     const relic = weaponId === 'staff_relic' ? 'time' : weaponId === 'staff_genesis' ? 'genesis' : null;
-    const tier6 = Math.max(1, Math.min(6, relic ? 6 : tier));
-    const group = buildStaffMesh({ tier: tier6, element: weapon.element ?? 'arcane', relic });
+    const fairy = shape === 'fairywand';
+    const staffTier = Math.max(1, Math.min(fairy ? 7 : 6, relic ? 6 : tier));
+    const group = buildStaffMesh({ tier: staffTier, element: weapon.element ?? 'arcane', relic, fairy });
     const animated = group.userData.animated ?? emptyAnimated();
     group.userData.animated = animated;
     built = { group, animated };

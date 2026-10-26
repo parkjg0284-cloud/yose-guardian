@@ -186,6 +186,8 @@ const adminCred = { username: envValue('ADMIN_USERNAME') || 'admin', password: a
 const adminLogin = await req('POST', '/api/auth/login', { body: adminCred });
 check('관리자 로그인 200 + 토큰', adminLogin.status === 200 && typeof adminLogin.json?.token === 'string', `status=${adminLogin.status}`);
 check('관리자 role=admin/isAdmin', adminLogin.json?.user?.role === 'admin' && adminLogin.json?.user?.isAdmin === true, JSON.stringify(adminLogin.json?.user));
+const adminUpper = await req('POST', '/api/auth/login', { body: { ...adminCred, username: adminCred.username.toUpperCase() } });
+check('관리자 아이디 대소문자 무시(Admin/ADMIN)', adminUpper.status === 200 && adminUpper.json?.user?.isAdmin === true, `status=${adminUpper.status}`);
 const adminToken = adminLogin.json?.token;
 const adminMe = await req('GET', '/api/auth/me', { token: adminToken });
 check('관리자 /me role 유지', adminMe.status === 200 && adminMe.json?.user?.role === 'admin', JSON.stringify(adminMe.json?.user));

@@ -43,6 +43,56 @@ function Get-DefaultUrl {
   return ''
 }
 
+# ── 업데이트 내역 (launcher\updates.json) ──────────────────────────────
+function Get-Updates {
+  $path = Join-Path $here 'updates.json'
+  if (-not (Test-Path $path)) { return @() }
+  try {
+    $j = Get-Content $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($j.entries) { return @($j.entries) }
+  } catch { }
+  return @()
+}
+
+function Get-UpdatesText {
+  $entries = @(Get-Updates)
+  if (-not $entries.Count) { return '업데이트 내역이 없습니다.' }
+  $lines = @('요세의 수호자 — 업데이트 내역', '')
+  foreach ($e in $entries) {
+    $lines += ('v' + $e.version + '   ' + $e.date + '   ' + $e.title)
+    foreach ($n in @($e.notes)) { $lines += ('  · ' + $n) }
+    $lines += ''
+  }
+  return ($lines -join "`r`n")
+}
+
+function Show-Updates {
+  $f = New-Object System.Windows.Forms.Form
+  $f.Text = '요세의 수호자 — 업데이트 내역'
+  $f.Size = New-Object System.Drawing.Size(760, 620)
+  $f.StartPosition = 'CenterParent'
+  $f.BackColor = [System.Drawing.Color]::FromArgb(255, 218, 185)
+  $f.ForeColor = [System.Drawing.Color]::FromArgb(74, 46, 30)
+  $box = New-Object System.Windows.Forms.TextBox
+  $box.Multiline = $true
+  $box.ReadOnly = $true
+  $box.ScrollBars = 'Vertical'
+  $box.Font = New-Object System.Drawing.Font('Malgun Gothic', 10)
+  $box.BackColor = [System.Drawing.Color]::FromArgb(255, 246, 236)
+  $box.ForeColor = [System.Drawing.Color]::FromArgb(74, 46, 30)
+  $box.Location = New-Object System.Drawing.Point(20, 20)
+  $box.Size = New-Object System.Drawing.Size(706, 500)
+  $box.Text = Get-UpdatesText
+  $f.Controls.Add($box)
+  $close = New-Object System.Windows.Forms.Button
+  $close.Text = '닫기'
+  $close.Location = New-Object System.Drawing.Point(606, 532)
+  $close.Size = New-Object System.Drawing.Size(120, 36)
+  $close.Add_Click({ $f.Close() })
+  $f.Controls.Add($close)
+  [void]$f.ShowDialog()
+}
+
 # ── 내려받기: 주소 → 임시 파일 (진행률 콜백) ─────────────────────────
 function Download-Package([string]$url, [scriptblock]$onProgress) {
   try { $null = Invoke-WebRequest -Uri $url -Method Head -TimeoutSec 3 -UseBasicParsing } catch { Write-Log '  [안내] 서버에 연결할 수 없어 함께 들어 있는 게임 파일로 설치합니다'; return '' }
@@ -206,6 +256,13 @@ $closeBtn.Size = New-Object System.Drawing.Size(132, 46)
 $closeBtn.Add_Click({ $form.Close() })
 $form.Controls.Add($closeBtn)
 
+$updatesBtn = New-Object System.Windows.Forms.Button
+$updatesBtn.Text = '업데이트 내역'
+$updatesBtn.Location = New-Object System.Drawing.Point(448, 570)
+$updatesBtn.Size = New-Object System.Drawing.Size(184, 46)
+$updatesBtn.Add_Click({ Show-Updates })
+$form.Controls.Add($updatesBtn)
+
 $dlBtn.Add_Click({
   if ($installed -and -not $reChk.Checked) { Write-Log '  이미 설치되어 있습니다 — 다시 설치하려면 [재설치] 를 체크하세요'; return }
   if ($script:busy) { return }
@@ -247,7 +304,17 @@ $startBtn.Add_Click({
       $dir = $cands | Where-Object { $_ -and (Test-Path (Join-Path $_ 'server\index.js')) } | Select-Object -First 1
       if (-not $dir) { Write-Log '  [안내] 게임이 설치된 곳을 찾지 못했습니다 — 먼저 [다운로드 & 설치] 를 눌러주세요'; return }
       $cmdFile = Join-Path $dir '게임실행.cmd'
-      if (Test-Path $cmdFile) { Start-Process -FilePath $cmdFile -WorkingDirectory $dir } else { Start-Process -FilePath 'node.exe' -ArgumentList 'server/index.js' -WorkingDirectory $dir -WindowStyle Hidden; Start-Sleep -Seconds 3; Start-Process 'http://127.0.0.1:3001' }
+      if (Test-Path $cmdFile) { Start-Process -FilePath $cmdFile -WorkingDirectory $dir } else {
+        Start-Process -FilePath 'node.exe' -ArgumentList 'server/index.js' -WorkingDirectory $dir -WindowStyle Hidden
+        Start-Sleep -Seconds 3
+        $port = 3001
+        $envFile = Join-Path $dir '.env'
+        if (Test-Path $envFile) {
+          $line = Get-Content $envFile -Encoding UTF8 | Where-Object { $_ -match '^\s*PORT\s*=' } | Select-Object -Last 1
+          if ($line -match '=\s*[''"]?(\d+)[''"]?\s*$') { $port = [int]$Matches[1] }
+        }
+        Start-Process "http://127.0.0.1:$port"
+      }
       Write-Log ('  게임 실행: ' + $dir)
 })
 
@@ -268,10 +335,11 @@ if ($SelfTest) {
     Write-Log '  [게임 시작] 을 누르면 실행됩니다. 다시 설치하려면 [재설치] 를 체크하세요.'
   }
   $reChk.Add_Click({ $dlBtn.Enabled = ($reChk.Checked -or (-not $installed)); if ($reChk.Checked) { $dlBtn.Text = '다운로드 & 설치' } else { $dlBtn.Text = '설치 완료' } })
-  $need = @('title', 'sub', 'urlBox', 'pathBox', 'browse', 'bar', 'logBox', 'dlBtn', 'startBtn', 'closeBtn')
+  $need = @('title', 'sub', 'urlBox', 'pathBox', 'browse', 'bar', 'logBox', 'dlBtn', 'startBtn', 'updatesBtn', 'closeBtn')
   $missing = @($need | Where-Object { -not (Get-Variable -Name $_ -Scope 0 -ErrorAction SilentlyContinue) })
   Write-Host ('  컨트롤 ' + $form.Controls.Count + '개 · 누락 ' + $missing.Count + '개 · 창 ' + $form.Size.Width + 'x' + $form.Size.Height)
-  Write-Host ('  버튼: ' + $dlBtn.Text + ' / ' + $startBtn.Text + ' / ' + $closeBtn.Text)
+  Write-Host ('  버튼: ' + $dlBtn.Text + ' / ' + $startBtn.Text + ' / ' + $updatesBtn.Text + ' / ' + $closeBtn.Text)
+  Write-Host ('  업데이트 내역: ' + @(Get-Updates).Count + '개 버전 · ' + (Get-UpdatesText).Length + '자')
   if ($missing.Count) { Write-Host ('  X 누락: ' + ($missing -join ', ')); exit 1 }
   Write-Host '  OK 런처 구성 정상'; exit 0
 }
@@ -282,7 +350,12 @@ $urlLabel.Anchor = 'Top,Left'; $urlBox.Anchor = 'Top,Left,Right'
 $pathLabel.Anchor = 'Top,Left'; $pathBox.Anchor = 'Top,Left,Right'
 $browse.Anchor = 'Top,Right'; $bar.Anchor = 'Top,Left,Right'
 $logBox.Anchor = 'Top,Bottom,Left,Right'
-$dlBtn.Anchor = 'Bottom,Left'; $startBtn.Anchor = 'Bottom,Left'; $closeBtn.Anchor = 'Bottom,Right'
+$dlBtn.Anchor = 'Bottom,Left'; $startBtn.Anchor = 'Bottom,Left'; $updatesBtn.Anchor = 'Bottom,Left'; $closeBtn.Anchor = 'Bottom,Right'
 Write-Log '주소를 확인하고 [다운로드 & 설치] 를 누르세요.'
+$latest = @(Get-Updates) | Select-Object -First 1
+if ($latest) {
+  Write-Log ('최신 업데이트 — v' + $latest.version + ' · ' + $latest.title)
+  Write-Log '  전체 내역은 [업데이트 내역] 버튼에서 확인할 수 있습니다.'
+}
 if (-not (Get-DefaultUrl)) { Write-Log '  (주소가 비어 있으면 함께 들어 있는 게임 파일로 설치합니다)' }
 [void]$form.ShowDialog()

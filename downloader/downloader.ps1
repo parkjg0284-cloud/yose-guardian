@@ -36,6 +36,56 @@ if (Test-Path $conf) {
   } catch { }
 }
 
+# ── 업데이트 내역 (downloader\updates.json) ─────────────────────────────
+function Get-Updates {
+  $path = Join-Path $here 'updates.json'
+  if (-not (Test-Path $path)) { return @() }
+  try {
+    $j = Get-Content $path -Raw -Encoding UTF8 | ConvertFrom-Json
+    if ($j.entries) { return @($j.entries) }
+  } catch { }
+  return @()
+}
+
+function Get-UpdatesText {
+  $entries = @(Get-Updates)
+  if (-not $entries.Count) { return '업데이트 내역이 없습니다.' }
+  $lines = @('요세의 수호자 — 업데이트 내역', '')
+  foreach ($e in $entries) {
+    $lines += ('v' + $e.version + '   ' + $e.date + '   ' + $e.title)
+    foreach ($n in @($e.notes)) { $lines += ('  · ' + $n) }
+    $lines += ''
+  }
+  return ($lines -join "`r`n")
+}
+
+function Show-Updates {
+  $f = New-Object System.Windows.Forms.Form
+  $f.Text = '요세의 수호자 — 업데이트 내역'
+  $f.Size = New-Object System.Drawing.Size(760, 620)
+  $f.StartPosition = 'CenterParent'
+  $f.BackColor = [System.Drawing.Color]::FromArgb(246, 248, 252)
+  $f.ForeColor = [System.Drawing.Color]::FromArgb(44, 48, 56)
+  $box = New-Object System.Windows.Forms.TextBox
+  $box.Multiline = $true
+  $box.ReadOnly = $true
+  $box.ScrollBars = 'Vertical'
+  $box.Font = New-Object System.Drawing.Font('Malgun Gothic', 10)
+  $box.BackColor = [System.Drawing.Color]::White
+  $box.ForeColor = [System.Drawing.Color]::FromArgb(44, 48, 56)
+  $box.Location = New-Object System.Drawing.Point(20, 20)
+  $box.Size = New-Object System.Drawing.Size(706, 500)
+  $box.Text = Get-UpdatesText
+  $f.Controls.Add($box)
+  $close = New-Object System.Windows.Forms.Button
+  $close.Text = '닫기'
+  $close.Location = New-Object System.Drawing.Point(606, 532)
+  $close.Size = New-Object System.Drawing.Size(120, 36)
+  $close.Add_Click({ $close.FindForm().Close() })
+  $f.Controls.Add($close)
+  [void]$f.ShowDialog()
+}
+
 $script:logText = ''
 $script:busy = $false
 # 런처 모드 — 같은 엔진으로 '게임 다운로드 & 시작' 창을 띄운다(YoseGuardian-Launcher.exe)
@@ -374,6 +424,7 @@ $green = [System.Drawing.Color]::FromArgb(46, 158, 91)
 # 1줄 — 주요 동작(설치/시작) 크게
 $installBtn = New-FlatButton $installLabel 24 170 220 42 $true $blue
 $playBtn = New-FlatButton $playLabel 256 170 160 42 $true $green
+$updatesBtn = New-FlatButton '업데이트 내역' 424 170 172 42 $false $blue
 
 # 2줄 — 보조 동작
 $selectBtn = New-FlatButton '설치 파일 선택' 24 222 150 32 $false $blue
@@ -381,7 +432,7 @@ $resetBtn = New-FlatButton '선택 초기화' 182 222 110 32 $false $blue
 $openBtn = New-FlatButton '설치 폴더 열기' 300 222 130 32 $false $blue
 $closeBtn = New-FlatButton '닫기' 480 222 116 32 $false $blue
 $resetBtn.Enabled = $false
-$form.Controls.AddRange(@($installBtn, $playBtn, $selectBtn, $resetBtn, $openBtn, $closeBtn))
+$form.Controls.AddRange(@($installBtn, $playBtn, $updatesBtn, $selectBtn, $resetBtn, $openBtn, $closeBtn))
 
 $tip = New-Object System.Windows.Forms.ToolTip
 $tip.SetToolTip($selectBtn, '내려받아 둔 game.zip 을 직접 골라 설치합니다 (오프라인·이전 판)')
@@ -470,6 +521,11 @@ function Update-Layout {
 
 Write-Log ('설치 위치: ' + $app)
 Write-Log ('현재 설치된 버전: ' + (Get-InstalledVersion))
+$latestEntry = @(Get-Updates) | Select-Object -First 1
+if ($latestEntry) {
+  Write-Log ('최신 업데이트 — v' + $latestEntry.version + ' · ' + $latestEntry.title)
+  Write-Log '  전체 내역은 [업데이트 내역] 버튼에서 확인할 수 있습니다.'
+}
 Update-InstallButton (Get-BundledTag) | Out-Null
 Update-FileLabel
 Write-Log '최신 버전을 확인하는 중…'
@@ -550,6 +606,8 @@ $playBtn.Add_Click({
 }.GetNewClosure())
 
 $closeBtn.Add_Click({ $form.Close() }.GetNewClosure())
+
+$updatesBtn.Add_Click({ Show-Updates }.GetNewClosure())
 
 $form.Add_Shown({
   try {

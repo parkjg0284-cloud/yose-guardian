@@ -291,7 +291,7 @@ ok('KEYBINDS — 철거(Z)', panelsMod.KEYBINDS.some(([k, d]) => k === 'Z' && St
 ok('KEYBINDS — 앉기(Ctrl) · R 유지 회전 항목 존재', panelsMod.KEYBINDS.some((k) => k[0] === 'Ctrl') && panelsMod.KEYBINDS.some((k) => k[0] === 'R (유지)'));
 const pm = attempt('PanelManager constructs (builds #panel-root)', () => new panelsMod.PanelManager({ game }));
 
-// [bench] 패널 1회 렌더 비용 — 관리자 무기 소환(74종)이 UI 재렌더 폭주로 멈추는지 확인용.
+// [bench] 패널 1회 렌더 비용 — 관리자 무기 소환(81종)이 UI 재렌더 폭주로 멈추는지 확인용.
 // 실행 : PANEL_BENCH=1 npm run ui
 if (process.env.PANEL_BENCH) {
   const rows = [];
@@ -307,7 +307,7 @@ if (process.env.PANEL_BENCH) {
   rows.sort((a, b) => b[1] - a[1]);
   console.log('  [bench] 패널 1회 렌더(상위 6): ' + rows.slice(0, 6).map(([id, ms]) => id + ' ' + (ms < 0 ? '실패' : ms.toFixed(2) + 'ms')).join(' · '));
   const get = (id) => rows.find(([k]) => k === id)?.[1] ?? 0;
-  console.log('  [bench] /무기전부 74회 refresh 예상 — craft ' + (get('craft') * 74).toFixed(0) + 'ms · inventory ' + (get('inventory') * 74).toFixed(0) + 'ms · weapons ' + (get('weapons') * 74).toFixed(0) + 'ms');
+  console.log('  [bench] /무기전부 81회 refresh 예상 — craft ' + (get('craft') * 81).toFixed(0) + 'ms · inventory ' + (get('inventory') * 81).toFixed(0) + 'ms · weapons ' + (get('weapons') * 81).toFixed(0) + 'ms');
 }
 attempt('설정 패널(ESC) — 계속하기와 나가기가 맨 위에 있다(계약 §4.48)', () => {
   const prev = { state: game.state, waves: game.waves };
@@ -415,6 +415,21 @@ attempt('설정 패널 — 자동 화질 토글과 저장 후 새로고침(계�
     offReload?.();
     game.autoQuality = prevAuto;
     game._userQuality = prevUser;
+    pm.close();
+  }
+});
+
+attempt('설정 패널 — 서버 포트 구역과 현재 포트 안내(v1.16.0)', () => {
+  try {
+    pm.open('settings');
+    const body = pm._bodies?.settings;
+    const text = String(body?.textContent || '');
+    const hasSection = text.includes('서버 · 포트') && text.includes('현재 포트');
+    const hasInput = !!body?.querySelector?.('[data-field="settings-server-port"]');
+    const hasGuestGuide = text.includes('관리자 계정으로 로그인하면 서버 포트를 바꿀 수 있습니다');
+    // 게스트면 안내 문구, 관리자면 입력/버튼이 있어야 한다.
+    return hasSection && (hasInput ? !!body.querySelector('[data-act="settings-server-port-save"]') : hasGuestGuide);
+  } finally {
     pm.close();
   }
 });
@@ -624,7 +639,7 @@ if (pm) {
     const makes = root.querySelectorAll('[data-act="craft-make"]');
     return Boolean(tab) && makes.length === 0;
   });
-  attempt('제작 패널 — 작업대 74종 + 무기별(계열) 분류 11탭', () => {
+  attempt('제작 패널 — 작업대 81종 + 무기별(계열) 분류 12탭', () => {
     game.workbenchBuilt = () => true;
     pm.state.craft.table = 'facility_workbench';
     pm.state.craft.benchFamily = 'all';
@@ -633,7 +648,7 @@ if (pm) {
     const makes0 = root0.querySelectorAll('[data-act="craft-make"]');
     const hasDream = makes0.some((b) => b.dataset.weapon === 'dream_lantern');
     const famTabs = root0.querySelectorAll('[data-act="craft-bench-family"]');
-    if (makes0.length !== 74 || hasDream || famTabs.length !== 11) return false;
+    if (makes0.length !== 81 || hasDream || famTabs.length !== 12) return false;
     // 계열 탭 → 그 무기만 나온다
     const daggerTab = [...famTabs].find((b) => b.dataset.family === 'dagger');
     if (!daggerTab) return false;
@@ -641,17 +656,26 @@ if (pm) {
     const root1 = documentStub.getElementById('panel-root');
     const makes1 = root1.querySelectorAll('[data-act="craft-make"]');
     const onlyDaggers = [...makes1].every((b) => (b.dataset.weapon || '').startsWith('dagger_'));
+    // 요정 지팡이 탭 = 7티어
+    const fairyTab = [...root1.querySelectorAll('[data-act="craft-bench-family"]')].find((b) => b.dataset.family === 'fairywand');
+    if (!fairyTab) return false;
+    root1.dispatch('click', { target: fairyTab, preventDefault() {}, stopPropagation() {} });
+    const fairyMakes = documentStub.getElementById('panel-root').querySelectorAll('[data-act="craft-make"]');
+    if (!(fairyMakes.length === 7 && [...fairyMakes].every((b) => (b.dataset.weapon || '').startsWith('fairywand_')))) return false;
+    root1.dispatch('click', { target: daggerTab, preventDefault() {}, stopPropagation() {} });
+    const root2 = documentStub.getElementById('panel-root');
+    const makesAgain = root2.querySelectorAll('[data-act="craft-make"]');
     // 비밀 등급(T8) 꿈나무는 dream 계열에만 있다
-    const dreamTab = [...root1.querySelectorAll('[data-act="craft-bench-family"]')].find((b) => b.dataset.family === 'dream');
+    const dreamTab = [...root2.querySelectorAll('[data-act="craft-bench-family"]')].find((b) => b.dataset.family === 'dream');
     if (!dreamTab) return false;
-    root1.dispatch('click', { target: dreamTab, preventDefault() {}, stopPropagation() {} });
+    root2.dispatch('click', { target: dreamTab, preventDefault() {}, stopPropagation() {} });
     const makes2 = documentStub.getElementById('panel-root').querySelectorAll('[data-act="craft-make"]');
     const hasTree = [...makes2].some((b) => b.dataset.weapon === 'dream_tree');
-    if (!(makes1.length === 10 && onlyDaggers && makes2.length === 1 && hasTree)) return false;
+    if (!(makesAgain.length === 10 && onlyDaggers && makes2.length === 1 && hasTree)) return false;
     // 가위 계열 탭 = 유물 가위 1종만
-    const scissorsTab = [...root1.querySelectorAll('[data-act="craft-bench-family"]')].find((b) => b.dataset.family === 'scissors');
+    const scissorsTab = [...root2.querySelectorAll('[data-act="craft-bench-family"]')].find((b) => b.dataset.family === 'scissors');
     if (!scissorsTab) return false;
-    root1.dispatch('click', { target: scissorsTab, preventDefault() {}, stopPropagation() {} });
+    root2.dispatch('click', { target: scissorsTab, preventDefault() {}, stopPropagation() {} });
     const makes3 = documentStub.getElementById('panel-root').querySelectorAll('[data-act="craft-make"]');
     return makes3.length === 1 && makes3[0].dataset.weapon === 'time_scissors';
   });
@@ -1831,27 +1855,29 @@ if (pm) {
     const text = body ? body.textContent || '' : '';
     return text.includes('초심자') && text.includes('잠깁니다') && (text.includes('직업 변경') || text.includes('재전직'));
   });
-  attempt('전직 패널 — 직업 카드 7종(계열·패시브·대표 무기)', () => {
+  attempt('전직 패널 — 직업 카드 8종(계열·패시브·대표 무기)', () => {
     const root = documentStub.getElementById('panel-root');
     const cards = root.querySelectorAll('[data-role="class-row"]');
     const families = [...cards].map((c) => c.dataset.family);
-    const needed = ['staff', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow', 'gun'];
+    const needed = ['staff', 'fairywand', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow', 'gun'];
     const card = cards[0];
+    const fairy = [...cards].find((c) => c.dataset.classId === 'fairy');
     const hasDetail = card ? (card.textContent || '').includes('전용') && (card.textContent || '').includes('대표 무기') : false;
-    return cards.length === 7 && needed.every((f) => families.includes(f)) && hasDetail;
+    const fairyDetail = fairy ? (fairy.textContent || '').includes('요정의 지팡이') && (fairy.textContent || '').includes('요정 여왕의 홀') : false;
+    return cards.length === 8 && needed.every((f) => families.includes(f)) && hasDetail && fairyDetail;
   });
   attempt('전직 패널 — 웨이브 3이면 [전직] 활성', () => {
     const root = documentStub.getElementById('panel-root');
     const mage = root.querySelectorAll('[data-act="class-advance"]').find((b) => b.dataset.id === 'mage');
     return Boolean(mage) && mage.disabled === false;
   });
-  attempt('전직 패널 — 웨이브 미달이면 7종 전부 비활성 + 사유', () => {
+  attempt('전직 패널 — 웨이브 미달이면 8종 전부 비활성 + 사유', () => {
     game.waves.wave = 1;
     pm.refresh();
     const root = documentStub.getElementById('panel-root');
     const btns = root.querySelectorAll('[data-act="class-advance"]');
     const blocked = root.querySelectorAll('[data-role="class-blocked"]');
-    return btns.length === 7 && [...btns].every((b) => b.disabled === true) && blocked.length === 7;
+    return btns.length === 8 && [...btns].every((b) => b.disabled === true) && blocked.length === 8;
   });
   attempt('전직 실행 — 마법사 1차 전직', () => {
     game.waves.wave = 5;
@@ -1867,7 +1893,7 @@ if (pm) {
     const cards = root.querySelectorAll('[data-role="class-row"]');
     const cur = [...cards].find((c) => c.dataset.current === '1');
     const reBtns = root.querySelectorAll('[data-act="class-advance"]');
-    return Boolean(cur) && cur.dataset.classId === 'mage' && reBtns.length === 6 && [...reBtns].every((b) => (b.textContent || '').includes('재전직'));
+    return Boolean(cur) && cur.dataset.classId === 'mage' && reBtns.length === 7 && [...reBtns].every((b) => (b.textContent || '').includes('재전직'));
   });
   attempt('전직 패널 — 잠긴 무기 목록(🔒) 표시', () => {
     const root = documentStub.getElementById('panel-root');

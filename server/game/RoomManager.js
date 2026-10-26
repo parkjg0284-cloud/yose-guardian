@@ -84,7 +84,7 @@ export class RoomManager {
   listPublic({ includeFull = true } = {}) {
     const now = Date.now();
     return [...this.rooms.values()]
-      .filter((room) => !room.private && room.phase === 'lobby' && (includeFull || room.players.size < room.maxPlayers))
+      .filter((room) => !room.private && room.phase === 'lobby' && room.players.size > 0 && (includeFull || room.players.size < room.maxPlayers))
       .map((room) => room.summary(now))
       .sort((a, b) => Number(b.joinable) - Number(a.joinable) || b.players - a.players || a.code.localeCompare(b.code));
   }

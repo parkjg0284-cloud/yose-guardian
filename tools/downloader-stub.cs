@@ -190,7 +190,11 @@ internal static class DownloaderStub
             }
             return true;
         }
-        catch { return false; }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine("  [extract] " + ex.GetType().Name + ": " + ex.Message);
+            return false;
+        }
     }
 
     private static string ResolvePowershell()

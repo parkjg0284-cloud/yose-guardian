@@ -30,7 +30,7 @@ if (!existsSync(GAME)) {
 // ── ② 스테이징 — 런처가 실제로 쓰는 파일만
 rmSync(BUILD, { recursive: true, force: true });
 mkdirSync(BUILD, { recursive: true });
-for (const f of ['downloader.ps1', 'downloader.json']) {
+for (const f of ['downloader.ps1', 'downloader.json', 'updates.json']) {
   const src = join(SRC, f);
   if (!existsSync(src)) {
     console.error(`  [실패] downloader/${f} 가 없습니다`);
@@ -55,7 +55,7 @@ try {
   writeFileSync(confPath, JSON.stringify(obj, null, 2) + '\n', 'utf8');
   if (tagOf) log(`  내장 태그: ${tagOf}`);
 }
-log('[2/7] 스테이징 완료 (downloader.ps1 · downloader.json · install.ps1 · game.zip)');
+log('[2/7] 스테이징 완료 (downloader.ps1 · downloader.json · updates.json · install.ps1 · game.zip)');
 
 // ── ③ 무결성 검사 — 런처 문구·설치 스크립트·자체 검사 표식
 const conf = JSON.parse(readFileSync(join(BUILD, 'downloader.json'), 'utf8').replace(/^\uFEFF/, ''));
@@ -64,7 +64,7 @@ if (!conf.url || !/^https?:\/\//.test(conf.url)) {
   process.exit(1);
 }
 const ps1 = readFileSync(join(BUILD, 'downloader.ps1'), 'utf8');
-for (const needle of ['게임 다운로드 & 설치', '게임 시작', 'install.ps1', 'SELFTEST OK', 'Update-InstallButton', '설치 파일 선택', '선택한 파일 설치', 'Test-GameZip']) {
+for (const needle of ['게임 다운로드 & 설치', '게임 시작', 'install.ps1', 'SELFTEST OK', 'Update-InstallButton', '설치 파일 선택', '선택한 파일 설치', 'Test-GameZip', '업데이트 내역']) {
   if (!ps1.includes(needle)) {
     console.error(`  [실패] downloader.ps1 에 '${needle}' 가 없습니다`);
     process.exit(1);
@@ -81,7 +81,7 @@ log('  무결성 확인: url ✓ · 런처 문구 ✓ · install.ps1 --prod ✓ 
 const payload = join(BUILD, 'payload.zip');
 rmSync(payload, { force: true });
 execSync(
-  `powershell -NoProfile -Command "Compress-Archive -Path '${BUILD}\\downloader.ps1','${BUILD}\\downloader.json','${BUILD}\\install.ps1','${BUILD}\\game.zip' -DestinationPath '${payload}' -Force"`,
+  `powershell -NoProfile -Command "Compress-Archive -Path '${BUILD}\\downloader.ps1','${BUILD}\\downloader.json','${BUILD}\\updates.json','${BUILD}\\install.ps1','${BUILD}\\game.zip' -DestinationPath '${payload}' -Force"`,
   { cwd: ROOT, stdio: 'inherit' }
 );
 log(`[3/7] payload.zip ${kb(statSync(payload).size)}`);

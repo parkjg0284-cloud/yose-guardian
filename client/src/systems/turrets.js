@@ -9,7 +9,9 @@ import { regionAt } from '../world/regions.js';
 import { regionColor } from '../travel.js';
 import { beltAccept, beltAdvance, beltCapacity, beltLoad, beltNeighbor, beltReceiver } from './conveyors.js';
 
-export const MAX_TURRETS = 40;
+export const MAX_TURRETS = 50;
+/** 시설(작업대·저장고·채굴기·벨트·소환문 등)만의 상한 — 전체 50개 안에서 40개까지 */
+export const MAX_FACILITIES = 40;
 /** 전선은 포탑 상한과 따로 센다(배선 때문에 건물을 못 세우면 곤란하다) */
 export const MAX_CABLES = 160;
 export const MIN_BASE_DISTANCE = 4;
@@ -964,6 +966,8 @@ export class Turret {
     const target = this.mineral;
     if (!target) {
       if (this.head) this.head.rotation.y += dt * 1.5;
+      // 주변에 광물이 없어도 맨땅을 시추한다 — 설치 위치를 가리지 않는다.
+      this._drillTerrain(dt, this.rate * (1 + num(mods?.miningSpeed)));
       return;
     }
     if (this.head) this.head.rotation.y += dt * 6;
@@ -1174,6 +1178,42 @@ export class Turret {
     return pool.length ? pool : fallback;
   }
 
+  /** 광물 노드가 없을 때 지형 티어에서 직접 시추한다(채굴기·채굴탑 공용). */
+  _drillTerrain(dt, rate) {
+    this._harvestAcc += rate * (1 + this.beltBoost) * dt;
+    const whole = Math.floor(this._harvestAcc);
+    if (whole <= 0) return 0;
+    this._harvestAcc -= whole;
+    const pool = this._drillPool();
+    const region = this.regionInfo();
+    this._drillRegion = region;
+    this._drillPoolNow = pool;
+    const rand = () => {
+      const r = this.system?.rng?.next?.();
+      return Number.isFinite(r) ? r : Math.random();
+    };
+    // 지형 등급(맨땅에서 캘 수 있는 최고 등급)
+    const terrainGrade = Math.max(1, Math.floor(num(MINERAL_BY_ID[pool[0]]?.tier, 1)));
+    const power = drillPower({ drillTier: this.tier, terrainGrade });
+    const grade = drillPickGrade({ power, terrainGrade, roll: rand(), pickRoll: rand() });
+    const subPool = grade === terrainGrade ? pool : mineralsForRegionTier(grade);
+    const usable = subPool.length ? subPool : pool;
+    const idx = Math.min(usable.length - 1, Math.floor(rand() * Math.max(1, usable.length)));
+    const id = usable[idx] ?? pool[0] ?? 'iron';
+    // 고티어 채굴기는 저티어 광물을 더 많이 캔다(소수점은 모아서 한 개로 준다)
+    const bonus = drillYieldBonus(power, num(MINERAL_BY_ID[id]?.tier, terrainGrade));
+    this._drillBonusAcc = (num(this._drillBonusAcc) || 0) + (bonus - 1);
+    let extra = Math.floor(this._drillBonusAcc);
+    if (extra > 0) this._drillBonusAcc -= extra;
+    if (extra > 200) extra = 200;
+    this._drillPhase += 1;
+    this._drillPower = power;
+    this._drillGrade = grade;
+    this._minePulse = 0.35;
+    this._creditMineral(id, whole + extra, true);
+    return whole + extra;
+  }
+
   /** 채굴기 — 주변 광물이 있으면 채굴하고, 없으면 지형 티어 광물을 시추한다. */
   _updateAutoMiner(dt) {
     const system = this.system;
@@ -1205,37 +1245,7 @@ export class Turret {
       return;
     }
     // 광물이 없어도 바닥에서 자원을 뽑아낸다
-    this._harvestAcc += rate * (1 + this.beltBoost) * dt;
-    const whole = Math.floor(this._harvestAcc);
-    if (whole <= 0) return;
-    this._harvestAcc -= whole;
-    const pool = this._drillPool();
-    const region = this.regionInfo();
-    this._drillRegion = region;
-    this._drillPoolNow = pool;
-    const rand = () => {
-      const r = this.system?.rng?.next?.();
-      return Number.isFinite(r) ? r : Math.random();
-    };
-    // 지형 등급(맨땅에서 캘 수 있는 최고 등급)
-    const terrainGrade = Math.max(1, Math.floor(num(MINERAL_BY_ID[pool[0]]?.tier, 1)));
-    const power = drillPower({ drillTier: this.tier, terrainGrade });
-    const grade = drillPickGrade({ power, terrainGrade, roll: rand(), pickRoll: rand() });
-    const subPool = grade === terrainGrade ? pool : mineralsForRegionTier(grade);
-    const usable = subPool.length ? subPool : pool;
-    const idx = Math.min(usable.length - 1, Math.floor(rand() * Math.max(1, usable.length)));
-    const id = usable[idx] ?? pool[0] ?? 'iron';
-    // 고티어 채굴기는 저티어 광물을 더 많이 캔다(소수점은 모아서 한 개로 준다)
-    const bonus = drillYieldBonus(power, num(MINERAL_BY_ID[id]?.tier, terrainGrade));
-    this._drillBonusAcc = (num(this._drillBonusAcc) || 0) + (bonus - 1);
-    let extra = Math.floor(this._drillBonusAcc);
-    if (extra > 0) this._drillBonusAcc -= extra;
-    if (extra > 200) extra = 200;
-    this._drillPhase += 1;
-    this._drillPower = power;
-    this._drillGrade = grade;
-    this._minePulse = 0.35;
-    this._creditMineral(id, whole + extra, true);
+    this._drillTerrain(dt, rate);
   }
 
   /**
@@ -1549,6 +1559,18 @@ export class TurretSystem {
     return n;
   }
 
+  /** 전선을 뺀 전체 건물 수와 그중 시설 수 — 건설 상한(50/40)의 단일 계산. */
+  structureCounts() {
+    let total = 0;
+    let facilities = 0;
+    for (const t of this.turrets) {
+      if (!t || t.destroyed || t.type?.kind === 'cable') continue;
+      total += 1;
+      if (t.type?.category === 'facility') facilities += 1;
+    }
+    return { total, facilities };
+  }
+
   canPlace(typeId, position) {
     const type = TURRET_BY_ID[typeId];
     if (!type) return { ok: false, reason: '알 수 없는 포탑입니다' };
@@ -1559,8 +1581,14 @@ export class TurretSystem {
     if (type.kind === 'cable') {
       // 전선은 따로 센다(배선 때문에 건물을 못 세우면 곤란하다)
       if (cableCount >= MAX_CABLES) return { ok: false, reason: `전선은 최대 ${MAX_CABLES}개까지 깔 수 있습니다` };
-    } else if (this.turrets.filter((t) => !t.destroyed && t.type?.kind !== 'cable').length >= MAX_TURRETS) {
-      return { ok: false, reason: `건물은 최대 ${MAX_TURRETS}개까지 세울 수 있습니다(전선 제외)` };
+    } else {
+      const counts = this.structureCounts();
+      if (counts.total >= MAX_TURRETS) {
+        return { ok: false, reason: `건물은 최대 ${MAX_TURRETS}개까지 세울 수 있습니다(전선 제외)` };
+      }
+      if (type.category === 'facility' && counts.facilities >= MAX_FACILITIES) {
+        return { ok: false, reason: `시설은 최대 ${MAX_FACILITIES}개까지 세울 수 있습니다(전체 ${MAX_TURRETS}개 안)` };
+      }
     }
 
     const x = Number(position.x);
@@ -1683,7 +1711,7 @@ export class TurretSystem {
     else if (type.category === 'mining') st?.track?.('miningTowers', 1);
     else if (type.category === 'lumber') st?.track?.('lumberTowers', 1);
     else if (type.category === 'facility') st?.track?.('facilitiesBuilt', 1);
-    this.maxTurrets = Math.max(this.maxTurrets, this.turrets.length);
+    this.maxTurrets = Math.max(this.maxTurrets, this.structureCounts().total);
     st?.set?.('maxTurrets', this.maxTurrets);
     this.updatePower(true); // 새 건물의 전력 상태를 즉시 반영
     this.audio?.play?.('build');
@@ -1702,7 +1730,13 @@ export class TurretSystem {
     if (existing) return existing;
     const type = TURRET_BY_ID[entry.typeId];
     if (!type) return null;
-    if (this.turrets.length >= MAX_TURRETS) return null;
+    if (type.kind === 'cable') {
+      if (this.turrets.filter((t) => !t.destroyed && t.type?.kind === 'cable').length >= MAX_CABLES) return null;
+    } else {
+      const counts = this.structureCounts();
+      if (counts.total >= MAX_TURRETS) return null;
+      if (type.category === 'facility' && counts.facilities >= MAX_FACILITIES) return null;
+    }
     const y = num(entry.y, num(this.world?.getHeight?.(num(entry.x), num(entry.z)), 0));
     const turret = new Turret({
       id,

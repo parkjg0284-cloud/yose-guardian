@@ -65,12 +65,17 @@ import {
   CLASS_BY_ID,
   CLASS_BY_FAMILY,
   classById,
+  classStarterWeaponId,
   classForFamily,
   classModifiers,
   classStageInfo,
   weaponLock,
   weaponTier,
   POWER,
+  TURRET_DAMAGE_SCALE,
+  TOWER_TIER_DAMAGE_GROWTH,
+  TOWER_TIER_DAMAGE_MULT,
+  TOWER_TIER_SCALE,
   mineralsForRegionTier,
   weaponById,
   ARROW_TIERS,
@@ -117,7 +122,10 @@ import {
   FAMILY_TIER_RECIPES,
   FAMILY_TIER_RECIPE_COUNT
 } from '../client/src/crafting.js';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { parsePort, readEnvPort, writeEnvPort } from '../server/port-config.js';
 import { validateProfileData, sanitizeNickname, isValidNickname, nicknameFor, setNickname, currentNickname, NICKNAME_MAX } from '../client/src/profile.js';
 import { validateKeyData, keyCodes, keyLabel, setKey, resetAllKeys, KEY_ACTIONS } from '../client/src/keys.js';
 import { validateRecipeData, recipeCount, recipeTerrains, recipesFor, RECIPE_KINDS } from '../client/src/recipes.js';
@@ -363,6 +371,61 @@ check('모든 포탑에 유효한 건설 비용 (제작 전용 포탈은 아이�
 const attackNoDamage = turretsByCategory('attack').filter((t) => !(t.damage > 0) || !(t.range > 0) || !(t.fireRate > 0));
 check('모든 공격 포탑에 피해/사거리/연사 존재', attackNoDamage.length === 0, attackNoDamage.map((t) => t.id).join(','));
 
+// ── 티어별 포탑 피해 — 1티어 100% 기준, 티어마다 47% 복리(몬스터 체력 성장 기준)
+check(
+  '티어 피해 성장 — 1티어 100%에서 티어마다 47%',
+  Math.abs(TOWER_TIER_DAMAGE_GROWTH - 1.47) < 1e-9 && Object.values(TOWER_TIER_DAMAGE_MULT).every((m, i) => Math.abs(m - Math.pow(1.47, i)) < 0.0002),
+  JSON.stringify(TOWER_TIER_DAMAGE_MULT)
+);
+check(
+  '티어 피해 배율 — T2 ×1.47 · T7 ×10.0903',
+  TOWER_TIER_SCALE[2].damage === TOWER_TIER_DAMAGE_MULT[2] && TOWER_TIER_SCALE[7].damage === TOWER_TIER_DAMAGE_MULT[7] && TOWER_TIER_DAMAGE_MULT[7] === 10.0903,
+  `T2 ${TOWER_TIER_SCALE[2].damage} · T7 ${TOWER_TIER_SCALE[7].damage}`
+);
+check(
+  '티어 피해 — 1티어 화살탑은 그대로(780), T7 화살탑은 10.09배(7,870)',
+  TURRET_BY_ID.atk_arrow_t1_0.damage === 780 && TURRET_BY_ID.atk_arrow_t7_0.damage === 7870,
+  `${TURRET_BY_ID.atk_arrow_t1_0.damage} → ${TURRET_BY_ID.atk_arrow_t7_0.damage}`
+);
+{
+  // 기준 웨이브 10N 의 표준 몬스터(고블린 hpMult 1) 체력과 티어 평균 피해를 비교한다.
+  const refHp = (wave) => {
+    const w = Math.max(1, Math.round(wave));
+    const eff = w <= WAVE_CONFIG.softenAfter ? w - 1 : WAVE_CONFIG.softenAfter - 1 + (w - WAVE_CONFIG.softenAfter) * WAVE_CONFIG.growthSoftening;
+    return WAVE_CONFIG.baseHp * Math.pow(WAVE_CONFIG.hpGrowth, eff);
+  };
+  const avgDamage = (tier) => {
+    const list = turretsByCategory('attack').filter((t) => t.tier === tier);
+    return list.reduce((sum, t) => sum + t.damage, 0) / list.length;
+  };
+  const ttk = [2, 3, 4, 5, 6, 7].map((tier) => refHp(tier * 10) / avgDamage(tier));
+  check(
+    'T2~T7 평균 피해 — 기준 웨이브 표준 몬스터를 0.5~3발에 처치',
+    ttk.every((n) => n >= 0.5 && n <= 3),
+    ttk.map((n, i) => `T${i + 2} ${n.toFixed(2)}발`).join(' · ')
+  );
+}
+
+// ── 서버 포트 설정 — .env 의 PORT 한 줄만 바꾸고 비밀 값은 보존한다
+check('포트 검사 — 1024~65535 정수만 허용', parsePort(1024) === 1024 && parsePort(65535) === 65535 && parsePort(1023) === null && parsePort(65536) === null && parsePort('abc') === null && parsePort('') === null);
+{
+  const dir = mkdtempSync(join(tmpdir(), 'yose-port-'));
+  const file = join(dir, '.env');
+  try {
+    writeFileSync(file, 'ADMIN_PASSWORD=keep-me\r\nPORT=3001\r\nPORT=3002\r\nJWT_SECRET=secret\r\n', 'utf8');
+    const saved = writeEnvPort(3123, file);
+    const raw = readFileSync(file, 'utf8');
+    const portLines = raw.split(/\r?\n/).filter((line) => /^\s*PORT\s*=/.test(line));
+    check(
+      '포트 저장 — .env 의 PORT 만 3123 으로 바꾸고 나머지 비밀 값 유지',
+      saved === 3123 && readEnvPort(file) === 3123 && portLines.length === 1 && raw.includes('ADMIN_PASSWORD=keep-me') && raw.includes('JWT_SECRET=secret'),
+      JSON.stringify({ saved, portLines, raw: raw.slice(0, 120) })
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
 const supportOk = turretsByCategory('heal').every((t) => t.healPerSec > 0) &&
   turretsByCategory('mining').every((t) => t.rate > 0) &&
   turretsByCategory('lumber').every((t) => t.rate > 0);
@@ -521,14 +584,14 @@ check('보스 주기 10의 배수', WAVE_CONFIG.bossEvery === 10);
 check('완벽 방어 보너스 2배', WAVE_CONFIG.perfectBonus === 2);
 check('준비 시간 30초', WAVE_CONFIG.prepTime === 30);
 
-// ─────────────────────────────────────── 6. 무기 시스템 (7계열 × 7등급 + 비밀 꿈나무)
+// ─────────────────────────────────────── 6. 무기 시스템 (11계열 × 7등급 + 비밀 꿈나무)
 section('무기 시스템');
 {
   const families = WEAPON_FAMILIES.map((f) => f.id);
   const gradeById = Object.fromEntries(WEAPON_GRADES.map((g) => [g.id, g]));
   const counts = Object.fromEntries(families.map((f) => [f, weaponsByFamily(f).length]));
-  check('무기 75종 = 7계열 × 7등급(49) + 제작 전용 24 + 유물 지팡이 1 + 비밀 꿈나무 1', WEAPON_TOTAL_COUNT === 75 && WEAPON_CORE_COUNT === 74, `총 ${WEAPON_TOTAL_COUNT} / 핵심 ${WEAPON_CORE_COUNT}`);
-  check('계열 10종 — 카타나 추가(자동 생성 제외 계열) + 쌍권총', WEAPON_FAMILIES.length === 10 && WEAPON_FAMILIES.some((f) => f.id === 'katana' && f.exclusive === true) && WEAPON_FAMILIES.some((f) => f.id === 'gun' && f.kind === 'gun'), WEAPON_FAMILIES.map((f) => f.id).join(','));
+  check('무기 82종 = 8계열 × 7등급(56) + 제작 전용 24 + 유물 지팡이 1 + 비밀 꿈나무 1', WEAPON_TOTAL_COUNT === 82 && WEAPON_CORE_COUNT === 81, `총 ${WEAPON_TOTAL_COUNT} / 핵심 ${WEAPON_CORE_COUNT}`);
+  check('계열 11종 — 요정의 지팡이 추가 + 카타나(자동 생성 제외) + 쌍권총', WEAPON_FAMILIES.length === 11 && WEAPON_FAMILIES.some((f) => f.id === 'katana' && f.exclusive === true) && WEAPON_FAMILIES.some((f) => f.id === 'gun' && f.kind === 'gun') && WEAPON_FAMILIES.some((f) => f.id === 'fairywand' && f.kind === 'wand'), WEAPON_FAMILIES.map((f) => f.id).join(','));
   check('카타나는 등급 자동 생성 대상이 아니다(계열 무기 1종)', WEAPONS.filter((w) => w.family === 'katana').length === 1);
 
   // ── 유물 카타나 '불멸' (계약 §4.51) ──
@@ -545,7 +608,7 @@ section('무기 시스템');
   check('꿈의 끝은 희망 — 색은 비밀 등급색 그대로', lanternW?.color === WEAPON_GRADES.find((g) => g.id === 'secret').color, lanternW ? '0x' + lanternW.color.toString(16) : '없음');
   check('꿈의 끝은 희망 — 비살상·수치 유지(피해 0 · kind save · 구원 임팩트)', lanternW?.nonLethal === true && lanternW.damage === 0 && lanternW.kind === 'save' && weaponImpact('dream_lantern').nonLethal === true && weaponMotion('dream_lantern').swap.style === 'spin');
 
-  check('계열별 수량 12/10/11/11/10/1/1/2/10/7 (제작 무기 포함)', counts.staff === 12 && counts.sword1h === 10 && counts.sword2h === 11 && counts.scythe === 11 && counts.dagger === 10 && counts.katana === 1 && counts.scissors === 1 && counts.dream === 2 && counts.bow === 10 && counts.gun === 7, JSON.stringify(counts));
+  check('계열별 수량 12/7/10/11/11/10/1/1/2/10/7 (제작 무기 포함)', counts.staff === 12 && counts.fairywand === 7 && counts.sword1h === 10 && counts.sword2h === 11 && counts.scythe === 11 && counts.dagger === 10 && counts.katana === 1 && counts.scissors === 1 && counts.dream === 2 && counts.bow === 10 && counts.gun === 7, JSON.stringify(counts));
   check('무기 id 중복 없음', new Set(WEAPONS.map((w) => w.id)).size === WEAPONS.length);
   check('모든 무기에 이름/등급/계열', WEAPONS.every((w) => w.name && gradeById[w.grade] && families.includes(w.family)));
   check('등급 8종 배율 1.0/1.05/1.1/1.2/1.35/1.5/1.75/2.0',
@@ -564,20 +627,20 @@ section('무기 시스템');
     return !(w.damage > base && w.damage <= base * 1.4);
   });
   check('제작 무기는 같은 등급 기본형보다 강하다(1.0~1.4배)', craftWeak.length === 0, craftWeak.map((w) => w.id).join(',') || '전부 특화형');
-  check('원거리/근접/활/쌍권총/구원 종류 값 유효', WEAPONS.every((w) => ['ranged', 'melee', 'bow', 'gun', 'save'].includes(w.kind)), JSON.stringify([...new Set(WEAPONS.map((w) => w.kind))]));
+  check('원거리/근접/활/쌍권총/요정 지팡이/구원 종류 값 유효', WEAPONS.every((w) => ['ranged', 'melee', 'bow', 'gun', 'wand', 'save'].includes(w.kind)), JSON.stringify([...new Set(WEAPONS.map((w) => w.kind))]));
 
   // ★ 모든 무기에 스왑모션
   const noSwap = WEAPONS.filter((w) => {
     const m = weaponMotion(w.id);
     return !(m?.swap && m.swap.duration > 0 && Array.isArray(m.swap.phases) && m.swap.phases.length >= 2);
   });
-  check('모든 무기에 스왑모션 (75/75)', noSwap.length === 0, `${WEAPONS.length - noSwap.length}/${WEAPONS.length}`);
+  check('모든 무기에 스왑모션 (82/82)', noSwap.length === 0, `${WEAPONS.length - noSwap.length}/${WEAPONS.length}`);
   check('스왑모션 키프레임 0→1 정렬', families.every((f) => {
     const p = WEAPON_MOTIONS[f].swap.phases;
     return p[0].t === 0 && p[p.length - 1].t === 1 && p.every((k, i) => i === 0 || k.t >= p[i - 1].t);
   }));
   check('스왑모션 이징은 전부 지원 목록 안', families.every((f) => WEAPON_MOTIONS[f].swap.phases.every((p) => !p.ease || MOTION_EASINGS.includes(p.ease))), MOTION_EASINGS.join('/'));
-  check('계열별 스왑 스타일 10종 상이(카타나 iai · 쌍권총 cross 포함)', new Set(families.map((f) => WEAPON_MOTIONS[f].swap.style)).size === 10, families.map((f) => `${f}:${WEAPON_MOTIONS[f].swap.style}`).join(' '));
+  check('계열별 스왑 스타일 11종 상이(요정 fairyBloom · 카타나 iai · 쌍권총 cross 포함)', new Set(families.map((f) => WEAPON_MOTIONS[f].swap.style)).size === 11, families.map((f) => `${f}:${WEAPON_MOTIONS[f].swap.style}`).join(' '));
   check('모든 무기에 공격/스킬/반동 모션', WEAPONS.every((w) => {
     const m = weaponMotion(w.id);
     return m.attack?.duration > 0 && m.skill?.duration > 0 && m.recoil?.duration > 0;
@@ -652,6 +715,13 @@ check('채굴기 — 맨땅에서 지형 티어 광물 자동 채굴(drillRegion
     facilities.map((t) => `${t.name} ${t.cost.gold}G`).join(' · ')
   );
   check('계열 합계 = 101 (공격47 + 지원21 + 시설33)', turretsByCategory('attack').length === 47 && turretsByCategory('heal').length + turretsByCategory('mining').length + turretsByCategory('lumber').length === 21 && facilities.length === 33);
+  const t2MineDef = TURRET_BY_ID.mining_t2;
+  check('T2 채굴탑 — 은이 빠지고 골드·목재만', Boolean(t2MineDef) && t2MineDef.cost.minerals.silver === undefined && Object.keys(t2MineDef.cost.minerals).length === 0, JSON.stringify(t2MineDef?.cost));
+  const turretSrcLimits = readFileSync(new URL('../client/src/systems/turrets.js', import.meta.url), 'utf8');
+  check('건설 상한 — 전체 50 · 시설 40 (전선 별도)', turretSrcLimits.includes('export const MAX_TURRETS = 50;') && turretSrcLimits.includes('export const MAX_FACILITIES = 40;') && turretSrcLimits.includes('structureCounts()'));
+  const mineralSrc = readFileSync(new URL('../client/src/world/minerals.js', import.meta.url), 'utf8');
+  const treeSrc = readFileSync(new URL('../client/src/world/trees.js', import.meta.url), 'utf8');
+  check('자원 리스폰 — 광물 6초 · 나무 6초', /const RESPAWN_DELAY = 6;/.test(mineralSrc) && /const RESPAWN_DELAY = 6;/.test(treeSrc));
   const enDef = facilities.find((t) => t.kind === 'enchanter');
   check('마법부여대 — 건설 시설로 등록', Boolean(enDef) && enDef.id === 'facility_enchanter' && TURRET_BY_ID['facility_enchanter']?.category === 'facility', enDef?.name ?? '없음');
   // ── Round C: 전기 시스템 · 저장고 티어 · 지형 채굴 · 티어 재료
@@ -728,7 +798,7 @@ check('채굴기 — 맨땅에서 지형 티어 광물 자동 채굴(drillRegion
 // ─────────────────────────────────────── 7-2. 작업대 = 전체 무기 제작
 section('작업대 (전체 무기 제작)');
 {
-  check('작업대 레시피 74종 = 전체 75 − 1', WORKBENCH_RECIPE_COUNT === 74 && WORKBENCH_RECIPES.length === WEAPONS.length - 1, `${WORKBENCH_RECIPE_COUNT}종`);
+  check('작업대 레시피 81종 = 전체 82 − 1', WORKBENCH_RECIPE_COUNT === 81 && WORKBENCH_RECIPES.length === WEAPONS.length - 1, `${WORKBENCH_RECIPE_COUNT}종`);
   check('작업대에서 꿈의 끝은 희망 제외', WORKBENCH_EXCLUDED.includes('dream_lantern') && !workbenchRecipeFor('dream_lantern') && !isWorkbenchCraftable('dream_lantern'));
   check('작업대는 나머지 전부 포함 (꿈나무·유물 지팡이 포함)', WEAPONS.filter((w) => w.id !== 'dream_lantern').every((w) => isWorkbenchCraftable(w.id)), `${WORKBENCH_RECIPE_COUNT}/${WEAPONS.length - 1}`);
   check('작업대 레시피 비용 = 등급 티어 비용(무기별 서명 비용 우선)', WORKBENCH_RECIPES.every((r) => { const w = WEAPON_BY_ID[r.weaponId]; return r.cost === (w.cost ?? RECIPE_COST_BY_TIER[w.tier]); }), WEAPON_BY_ID.time_scissors.cost.gold + 'G 서명 비용 포함');
@@ -754,7 +824,7 @@ section('제작대 / 무기 제작');
   const tiers = CRAFTING_TABLES.map((t) => t.tier);
   check('제작대 8종 — T1~T8 티어 전부 존재', CRAFTING_TABLES.length === 8 && new Set(tiers).size === 8 && [1, 2, 3, 4, 5, 6, 7, 8].every((n) => tiers.includes(n)), CRAFTING_TABLES.map((t) => `T${t.tier} ${t.name}`).join(' · '));
   check('제작대마다 레시피 보유', CRAFTING_TABLES.every((t) => WEAPON_RECIPES.filter((r) => r.table === t.id).length > 0), CRAFTING_TABLES.map((t) => `${t.name} ${WEAPON_RECIPES.filter((r) => r.table === t.id).length}`).join(' '));
-  check('제작 레시피 41종 (제작 전용 24 + 계열 자동 활 7 + 쌍권총 7 + 유물 지팡이 2 + 꿈나무 1)', WEAPON_RECIPES.length === 41, `${WEAPON_RECIPES.length}종`);
+  check('제작 레시피 48종 (제작 전용 24 + 계열 자동 활 7 + 쌍권총 7 + 요정 지팡이 7 + 유물 지팡이 2 + 꿈나무 1)', WEAPON_RECIPES.length === 48, `${WEAPON_RECIPES.length}종`);
   const craftErr = validateCrafting();
   check('제작 데이터 자체 검증', craftErr.length === 0, craftErr.join(' | ') || '문제 없음');
   const craftOnly = WEAPONS.filter((w) => w.craftOnly);
@@ -1124,19 +1194,28 @@ section('전직 시스템 (직업 · 단계 · 무기 잠금)');
 {
   const jobClasses = CLASSES.filter((c) => c.family);
   const lockedAt = (classId, stage) => WEAPONS.filter((w) => weaponLock(w.id, classId, stage).locked).length;
-  check('직업 7종 + 초심자', CLASSES.length === 8 && jobClasses.length === 7, CLASSES.map((c) => c.name).join(' · '));
+  check('직업 8종 + 초심자', CLASSES.length === 9 && jobClasses.length === 8, CLASSES.map((c) => c.name).join(' · '));
   check('직업 id 중복 없음', new Set(CLASSES.map((c) => c.id)).size === CLASSES.length);
   check('모든 직업이 계열·글리프·설명을 가진다', CLASSES.every((c) => c.glyph && c.desc && (c.family || c.id === 'novice')));
-  check('계열 하나에 직업 하나(7계열)', ['staff', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow', 'gun'].every((f) => Boolean(CLASS_BY_FAMILY[f]) && classForFamily(f) === CLASS_BY_FAMILY[f]));
+  check('계열 하나에 직업 하나(8계열)', ['staff', 'fairywand', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow', 'gun'].every((f) => Boolean(CLASS_BY_FAMILY[f]) && classForFamily(f) === CLASS_BY_FAMILY[f]));
+  check('요정 직업 — 요정의 지팡이 전용 · 대표 무기 · 패시브', CLASS_BY_ID.fairy?.family === 'fairywand' && CLASS_BY_ID.fairy?.signature === 'fairywand_relic' && CLASS_BY_ID.fairy?.passive?.manaRegen > 1 && CLASS_BY_ID.fairy?.passive?.weaponDamage > 1.0, CLASS_BY_ID.fairy ? `${CLASS_BY_ID.fairy.name} ${CLASS_BY_ID.fairy.family}` : '없음');
   check('공용 계열(가위·꿈나무·카타나)은 직업이 없다', !classForFamily('scissors') && !classForFamily('dream') && !classForFamily('katana') && CLASS_RULES.sharedFamilies.join(',') === 'scissors,dream,katana');
   check('단계 4개(0~3차) · 등급 상한 상승', CLASS_STAGES.length === 4 && CLASS_STAGES.map((s) => s.maxTier).join(',') === '2,4,6,8');
   check('단계 패시브 배율 상승', CLASS_STAGES.map((s) => s.bonus).join(',') === '1,1,1.5,2');
   check('전직 조건 — 웨이브·비용이 단계마다 오른다', CLASS_RULES.firstWave === 3 && CLASS_RULES.secondWave === 12 && CLASS_RULES.thirdWave === 22 && CLASS_RULES.secondCost > 0 && CLASS_RULES.thirdCost > CLASS_RULES.secondCost);
   check('재전직 — 200 골드(웨이브 제한 없음)', CLASS_RULES.respecCost === 200 && CLASS_RULES.respecWave === 0, `${CLASS_RULES.respecWave}웨이브 · ${CLASS_RULES.respecCost}골드`);
   check('직업마다 대표 무기가 실제로 존재', jobClasses.every((c) => Boolean(WEAPON_BY_ID[c.signature]) && WEAPON_BY_ID[c.signature].family === c.family), jobClasses.map((c) => (WEAPON_BY_ID[c.signature] || {}).name).join(' · '));
-  check('계열별 직업 무기 — 기존 6계열 10종 이상 + 쌍권총 7티어', ['staff', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow'].every((f) => weaponsByFamily(f).length >= 10) && weaponsByFamily('gun').length === 7, jobClasses.map((c) => c.name + ':' + weaponsByFamily(c.family).length).join(' '));
+  check('계열별 직업 무기 — 기존 6계열 10종 이상 + 쌍권총·요정 지팡이 7티어', ['staff', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow'].every((f) => weaponsByFamily(f).length >= 10) && weaponsByFamily('gun').length === 7 && weaponsByFamily('fairywand').length === 7, jobClasses.map((c) => c.name + ':' + weaponsByFamily(c.family).length).join(' '));
 
-  check('75종 전부 잠금 판정 가능(unknown 없음)', WEAPONS.every((w) => weaponLock(w.id, 'novice', 0).kind !== 'unknown'), WEAPONS.length + '종');
+  // ── 요정의 지팡이 7티어 (v1.17.0) ──
+  const fairyWands = weaponsByFamily('fairywand');
+  check('요정의 지팡이 7티어 — T1~T7 · 1티어 이름 고정', fairyWands.length === 7 && fairyWands.every((w, i) => w.tier === i + 1 && w.kind === 'wand' && w.family === 'fairywand') && fairyWands[0].id === 'fairywand_common' && fairyWands[0].name === '요정의 지팡이', fairyWands.map((w) => `T${w.tier} ${w.name}`).join(' · '));
+  check('요정의 지팡이 — 티어마다 제작 레시피(제작대 T1~T7)', fairyWands.every((w) => recipeForWeapon(w.id)?.table === 'forge_t' + w.tier), fairyWands.map((w) => `${w.id}:${recipeForWeapon(w.id)?.table}`).join(' '));
+  check('요정의 지팡이 — 추적 투사체 데이터·모션·임팩트', fairyWands.every((w) => w.projectile === true && w.behavior === 'homing' && hasSwapMotion(w.id)) && WEAPON_MOTIONS.fairywand.swap.style === 'fairyBloom' && WEAPON_IMPACTS.fairywand.sound === 'impactMagic', `${WEAPON_MOTIONS.fairywand.swap.style} · ${WEAPON_IMPACTS.fairywand.color.toString(16)}`);
+  check('요정의 지팡이 — 요정만 사용, 다른 직업은 잠김', fairyWands.every((w) => !weaponLock(w.id, 'fairy', 3).locked && weaponLock(w.id, 'mage', 3).kind === 'family'), 'fairy OK / mage family-locked');
+  check('요정 전직 T1 지급 — fairywand_common(일반) 고정', classStarterWeaponId('fairy') === 'fairywand_common' && WEAPON_BY_ID.fairywand_common?.tier === 1 && WEAPON_BY_ID.fairywand_common?.grade === 'common', classStarterWeaponId('fairy'));
+
+  check('82종 전부 잠금 판정 가능(unknown 없음)', WEAPONS.every((w) => weaponLock(w.id, 'novice', 0).kind !== 'unknown'), WEAPONS.length + '종');
   check('모르는 무기는 잠김 + unknown', weaponLock('없는무기', 'mage', 1).locked === true && weaponLock('없는무기', 'mage', 1).kind === 'unknown');
   check('등급 조회 — 유물 7 · 꿈나무 8', weaponTier('staff_relic') === 7 && weaponTier('dream_tree') === 8 && weaponTier('staff_common') === 1);
 
@@ -1151,7 +1230,7 @@ section('전직 시스템 (직업 · 단계 · 무기 잠금)');
   check('전직하면 잠기는 무기가 늘어난다', lockedAt(mage, 1) > lockedAt('novice', 0), lockedAt('novice', 0) + '종 → ' + lockedAt(mage, 1) + '종');
   check('공용 계열은 직업과 무관하게 사용(가위·꿈나무)', ['novice', 'mage', 'knight', 'reaper'].every((c) => !weaponLock('time_scissors', c, 3).locked && !weaponLock('dream_tree', c, 3).locked));
   check('공용 계열은 등급 상한 예외(초심자도 가위 사용)', weaponLock('time_scissors', 'novice', 0).locked === false && weaponLock('dream_tree', 'novice', 0).locked === false);
-  check('7직업 × 3차 — 자기 계열은 전부 사용 가능', jobClasses.every((c) => weaponsByFamily(c.family).every((w) => !weaponLock(w.id, c.id, 3).locked)));
+  check('8직업 × 3차 — 자기 계열은 전부 사용 가능', jobClasses.every((c) => weaponsByFamily(c.family).every((w) => !weaponLock(w.id, c.id, 3).locked)));
 
   const noviceMods = classModifiers('novice', 0);
   const mage1 = classModifiers('mage', 1);
@@ -1194,6 +1273,11 @@ section('전직 배선 (main.js · player.js)');
     mainSrc.includes("actionPressed('classes')") && mainSrc.includes("this.togglePanel('classes')")
   );
   check('player.js — damageTakenMult 가 피해에 곱해진다', playerSrc.includes('this.damageTakenMult') && /takeDamage\(amount, source\)[\s\S]{0,400}?this\.damageTakenMult/.test(playerSrc));
+  check(
+    'main.js — 전직할 때 그 직업의 1티어 무기를 지급',
+    mainSrc.includes('_grantClassStarterWeapon') && (mainSrc.includes('classStarterWeaponId') || mainSrc.includes('`${family}_common`')) && /if \(kind === '전직'\) this\._grantClassStarterWeapon/.test(mainSrc)
+  );
+  check('main.js — 1티어 무기 지급은 중복을 건너뛴다', /_grantClassStarterWeapon[\s\S]{0,700}?hasWeapon\(id\)/.test(mainSrc));
 }
 
 // ────────────────────────────────────────── 지역 시스템 (티어 지역 · 히든 지역)
@@ -2647,7 +2731,7 @@ section('마법부여 — 모든 무기 속성 부여 · 맨손 시작');
   check('마법부여 속성 14종 · 최대 5레벨', enchant.ENCHANT_ELEMENT_LIST.length === 14 && enchant.ENCHANT_MAX === 5, `${enchant.ENCHANT_ELEMENT_LIST.length}종 / ${enchant.ENCHANT_MAX}레벨`);
   const enchantErrors = enchant.validateEnchantData();
   check('마법부여 데이터 무결성(모든 속성에 비용·재료·대응 속성)', enchantErrors.length === 0, enchantErrors.join(' · '));
-  check('맨손 — WEAPONS 밖(수집 75종·가챠 계산 유지)', !data.WEAPONS.some((w) => w.id === 'fists') && data.WEAPONS.length === 75 && data.FIST_WEAPON.id === 'fists', `${data.WEAPONS.length}종`);
+  check('맨손 — WEAPONS 밖(수집 82종·가챠 계산 유지)', !data.WEAPONS.some((w) => w.id === 'fists') && data.WEAPONS.length === 82 && data.FIST_WEAPON.id === 'fists', `${data.WEAPONS.length}종`);
   check('맨손 — 근접 무기(피해·사거리·쿨다운)', data.FIST_WEAPON.kind === 'melee' && data.FIST_WEAPON.damage > 0 && data.FIST_WEAPON.range > 0 && data.FIST_WEAPON.cooldown > 0, `피해 ${data.FIST_WEAPON.damage} · ${data.FIST_WEAPON.range}m · ${data.FIST_WEAPON.cooldown}s`);
   check(
     'weaponOrFist — null/맨손/실제 무기',
@@ -2670,7 +2754,7 @@ section('마법부여 — 모든 무기 속성 부여 · 맨손 시작');
   const notOwned = sys.enchant('sword1h_guard', 'fire', { hasWeapon: () => false, hasEnchanter: true });
   check('미보유 무기 부여 불가', notOwned.ok === false, String(notOwned.error));
   const everyone = data.WEAPONS.every((w) => sys.canEnchant(w.id, 'fire', { hasWeapon: () => true, hasEnchanter: true }).ok);
-  check('모든 무기(68종)에 부여 가능', everyone, `${data.WEAPONS.length}종`);
+  check('모든 무기(82종)에 부여 가능', everyone, `${data.WEAPONS.length}종`);
   const levelCost = enchant.enchantCost('fire', 1);
   const nextCost = sys.costFor('sword1h_guard', 'ice').cost;
   check('레벨이 오르면 비용이 비싸진다', nextCost.gold > levelCost.gold, `${levelCost.gold} → ${nextCost.gold}`);
@@ -3221,8 +3305,8 @@ section('메뉴 버튼 → 창 닫고 패널 · 설정에서 로그인/회원가
   const weaponsDoc = readFileSync(new URL('../docs/WEAPONS.md', import.meta.url), 'utf8');
   const tierPart = weaponsDoc.split('## 계열별 요약')[0];
   const docRows = (tierPart.match(/^\| [^|]+ \| [^|]+ \| \*\*/gm) || []).length;
-  check('무기 목록 문서 — 75종 전부', docRows === WEAPONS.length && WEAPONS.length === 75, `${docRows}/${WEAPONS.length}`);
-  check('무기 목록 문서 — T7 유물 13종', (weaponsDoc.match(/^\| [^|]+ \| 유물 \| \*\*/gm) || []).length === 13);
+  check('무기 목록 문서 — 82종 전부', docRows === WEAPONS.length && WEAPONS.length === 82, `${docRows}/${WEAPONS.length}`);
+  check('무기 목록 문서 — T7 유물 14종', (weaponsDoc.match(/^\| [^|]+ \| 유물 \| \*\*/gm) || []).length === 14);
   check('무기 목록 문서 — T8 비밀 2종', (weaponsDoc.match(/^\| [^|]+ \| 비밀 \| \*\*/gm) || []).length === 2);
   const polishCss = readFileSync(new URL('../client/src/ui/ui-polish.css', import.meta.url), 'utf8');
   check('멀티플레이 창 배율 — 카드가 메뉴 안쪽 폭을 넘지 않는다',

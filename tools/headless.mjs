@@ -31,7 +31,7 @@ import { CraftingSystem } from '../client/src/systems/crafting.js';
 import { wingRecipeFor, recipeForWeapon } from '../client/src/crafting.js';
 import { AudioSystem } from '../client/src/audio.js';
 import { ClassSystem } from '../client/src/systems/classes.js';
-import { CLASS_RULES, classModifiers } from '../client/src/data.js';
+import { CLASS_RULES, classModifiers, classStarterWeaponId } from '../client/src/data.js';
 import { MINERAL_TYPES, mineralsForRegionTier } from '../client/src/data.js';
 import { BARE_HAND, canHarvestByHand, harvestNode, pickHarvestNode } from '../client/src/systems/gathering.js';
 import { ADMIN_COMMANDS, runAdminCommand, commandHelp } from '../client/src/systems/admin-commands.js';
@@ -359,6 +359,58 @@ try {
   check('벌목탑 자동 벌목', supStats.get('woodChopped') > woodBefore, `${woodBefore} → ${supStats.get('woodChopped')}`);
   check('채굴 산출물 인벤토리 반영', Object.values(supTurrets.economy?.minerals ?? {}).some((n) => n > 0), JSON.stringify(supTurrets.economy?.minerals ?? {}));
   check('회복탑 기지 수리', world2.base.hp > baseHpBefore, `${baseHpBefore} → ${world2.base.hp}`);
+
+  // ── 맨땅에 세운 채굴탑도 광물을 캔다(주변 광물 없음)
+  let bareSpot = null;
+  for (let r = 180; r <= 420 && !bareSpot; r += 20) {
+    for (let deg = 0; deg < 360; deg += 20) {
+      const x = Math.cos((deg * Math.PI) / 180) * r;
+      const z = Math.sin((deg * Math.PI) / 180) * r;
+      const p = new THREE.Vector3(x, world2.getHeight(x, z), z);
+      if (!world2.nearestMineral(p, 12) && !world2.nearestTree(p, 8)) {
+        bareSpot = p;
+        break;
+      }
+    }
+  }
+  const bareMine = bareSpot ? supTurrets.place(mineDef.id, bareSpot, 'local') : null;
+  check('채굴탑을 맨땅에 건설', Boolean(bareMine), bareSpot ? `(${bareSpot.x.toFixed(1)}, ${bareSpot.z.toFixed(1)})` : '빈 땅 없음');
+  const bareBefore = supStats.get('mineralsMined');
+  if (bareMine) {
+    bareMine.mineral = null;
+    for (let i = 0; i < 30 * 15; i++) {
+      supTurrets.update(1 / 30, { enemies: [], player: playerStub, world: world2, turrets: supTurrets.turrets });
+    }
+  }
+  check('맨땅 채굴탑 — 주변 광물 없이 자동 채굴', Boolean(bareMine) && supStats.get('mineralsMined') > bareBefore, `${bareBefore} → ${supStats.get('mineralsMined')}`);
+
+  // T2 채굴탑(곡괭이탑)은 은을 요구하지 않는다 — 주석으로 대체
+  const t2Mine = TURRETS.find((t) => t.id === 'mining_t2');
+  check('T2 채굴탑 건설 재료에 은이 없다', Boolean(t2Mine) && !Object.prototype.hasOwnProperty.call(t2Mine.cost?.minerals ?? {}, 'silver'), JSON.stringify(t2Mine?.cost));
+  check('T2 채굴탑은 골드·목재만 요구한다', Object.keys(t2Mine?.cost?.minerals ?? {}).length === 0, JSON.stringify(t2Mine?.cost));
+
+  // ── 건설 상한: 전체 50 · 시설 40 (전선 제외)
+  const capSys = new TurretSystem({
+    scene,
+    world: world2,
+    economy: new Economy({ gold: 1, wood: 1 }),
+    projectiles,
+    audio,
+    stats: supStats,
+    rng: rng.fork('cap')
+  });
+  const capFacilityDef = TURRETS.find((t) => t.kind === 'workbench');
+  capSys.turrets.length = 0;
+  for (let i = 0; i < 50; i++) capSys.turrets.push({ destroyed: false, type: { kind: 'attack', category: 'attack' } });
+  check('건물 상한 — 전체 50개 집계', capSys.structureCounts().total === 50, JSON.stringify(capSys.structureCounts()));
+  const overTotal = capSys.canPlace(attackDef.id, { x: 0, z: 0 });
+  check('건물 상한 — 51번째 전체 건물 거부', overTotal.ok === false && /50/.test(String(overTotal.reason)), overTotal.reason || '허용됨');
+  capSys.turrets.length = 0;
+  for (let i = 0; i < 40; i++) capSys.turrets.push({ destroyed: false, type: { kind: 'workbench', category: 'facility' } });
+  for (let i = 0; i < 5; i++) capSys.turrets.push({ destroyed: false, type: { kind: 'attack', category: 'attack' } });
+  check('시설 상한 — 40개 집계', capSys.structureCounts().facilities === 40, JSON.stringify(capSys.structureCounts()));
+  const overFacility = capSys.canPlace(capFacilityDef.id, { x: 0, z: 0 });
+  check('시설 상한 — 41번째 시설 거부', overFacility.ok === false && /40/.test(String(overFacility.reason)), overFacility.reason || '허용됨');
 } catch (err) {
   check('지원 포탑 시퀀스', false, err.message);
   console.error(err);
@@ -473,7 +525,7 @@ try {
   check('dispose', false, err.message);
 }
 
-// ───────────────────────────── 10. 무기 75종 · 스왑모션 · 임팩트
+// ───────────────────────────── 10. 무기 82종 · 스왑모션 · 임팩트
 section('무기 / 스왑모션 / 임팩트');
 {
   const weaponCamera = new THREE.PerspectiveCamera(75, 16 / 9, 0.1, 1000);
@@ -482,7 +534,7 @@ section('무기 / 스왑모션 / 임팩트');
   const advance = (o, seconds) => { const step = 1 / 60; for (let t = 0; t < seconds; t += step) o.update(step); };
   check('초기 무기 장착 상태', rig.id === 'staff_common' && rig.state === 'idle' && rig.family === 'staff', `${rig.id}/${rig.state}`);
 
-  // 75종 전부 스왑모션 재생 → 완주 → rest 복귀
+  // 82종 전부 스왑모션 재생 → 완주 → rest 복귀
   const swapBad = [];
   for (const w of WEAPONS) {
     const res = rig.equip(w.id);
@@ -491,7 +543,7 @@ section('무기 / 스왑모션 / 임팩트');
     const done = rig.state === 'idle' && rig.progress >= 1;
     if (!res.ok || !(res.duration > 0) || !started || !done) swapBad.push(`${w.id}:${res.ok}/${res.duration}/${started}/${done}`);
   }
-  check('모든 무기(75) 스왑모션 재생·완주', swapBad.length === 0, swapBad.join(' ') || `${WEAPONS.length}/${WEAPONS.length} (평균 ${(WEAPONS.reduce((a, w) => a + weaponMotion(w.id).swap.duration, 0) / WEAPONS.length).toFixed(3)}s)`);
+  check('모든 무기(82) 스왑모션 재생·완주', swapBad.length === 0, swapBad.join(' ') || `${WEAPONS.length}/${WEAPONS.length} (평균 ${(WEAPONS.reduce((a, w) => a + weaponMotion(w.id).swap.duration, 0) / WEAPONS.length).toFixed(3)}s)`);
 
   // 계열별 스왑 스타일/포즈 변화/복귀
   const styleByFamily = {};
@@ -499,7 +551,7 @@ section('무기 / 스왑모션 / 임팩트');
     const res = rig.equip(weaponsByFamily(f.id)[0].id);
     styleByFamily[f.id] = res.style;
   }
-  check('계열별 스왑 스타일 10종(카타나 iai · 쌍권총 cross 포함)', new Set(Object.values(styleByFamily)).size === 10, JSON.stringify(styleByFamily));
+  check('계열별 스왑 스타일 11종(요정 fairyBloom · 카타나 iai · 쌍권총 cross 포함)', new Set(Object.values(styleByFamily)).size === 11, JSON.stringify(styleByFamily));
   rig.equip('sword2h_relic', { instant: true });
   advance(rig, 0.2);
   const restPose = rig.debugPose();
@@ -521,6 +573,14 @@ section('무기 / 스왑모션 / 임팩트');
     tris[f.id] = Math.round(n);
   }
   check('계열별 뷰모델 메시 생성', Object.values(tris).every((n) => n > 0), JSON.stringify(tris));
+  const fairyModel = buildWeaponMesh('fairywand_relic');
+  check(
+    '요정의 지팡이 뷰모델 — 꽃잎 6+ · 꽃술 오브 · 빛 고리 · T7 이름',
+    fairyModel?.group?.userData?.fairy === true && fairyModel?.group?.userData?.family === 'fairywand' &&
+      fairyModel?.group?.name === 'fairy_wand_t7' && fairyModel?.group?.userData?.tier === 7 &&
+      fairyModel.animated.shards.length >= 7 && fairyModel.animated.orbs.length >= 1 && fairyModel.animated.rings.length >= 1,
+    `shards=${fairyModel?.animated?.shards?.length ?? 0} orbs=${fairyModel?.animated?.orbs?.length ?? 0} rings=${fairyModel?.animated?.rings?.length ?? 0}`
+  );
   check('유물/비밀 무기는 프리미엄 표시', buildWeaponMesh('staff_relic').group.userData.premium === true && buildWeaponMesh('dream_tree').group.userData.weaponId === DREAM_TREE.id);
 
   // ── 쌍권총 — 두 자루/두 총구 + 은하수 모델 ──
@@ -605,7 +665,7 @@ section('무기 / 스왑모션 / 임팩트');
   for (const w of WEAPONS) fx.hit(new THREE.Vector3(1, 1, 1), { weaponId: w.id, power: 1 });
   const afterHits = fx.activeCount;
   for (const u of WEAPON_ULTIMATES) fx.skill(new THREE.Vector3(0, 0, 0), { ultimateId: u.id });
-  check('75종 타격 임팩트 재생', afterHits > 0, `active=${afterHits}`);
+  check('82종 타격 임팩트 재생', afterHits > 0, `active=${afterHits}`);
   check('10종 궁극기 스킬 임팩트 재생', fx.activeCount >= afterHits, `active=${fx.activeCount}`);
   const bulletHit = fx.hit(new THREE.Vector3(0, 1, 0), { weaponId: 'gun_common', power: 1 });
   const galaxyHit = fx.hit(new THREE.Vector3(0, 1, 0), { weaponId: 'gun_relic', power: 1.2 });
@@ -1534,6 +1594,13 @@ try {
   check('광전사 패시브 — 받는 피해 12% 증가', Math.abs(hit(classModifiers('berserk', 1).damageTaken) - 56) < 0.001, '피해 50 → ' + hit(classModifiers('berserk', 1).damageTaken));
   check('패시브 없으면 그대로 받는다', Math.abs(hit(1) - 50) < 0.001, '피해 50 → ' + hit(1));
   check('3차 기사는 더 단단하다', classModifiers('knight', 3).damageTaken < classModifiers('knight', 1).damageTaken, classModifiers('knight', 3).damageTaken);
+
+  // 전직 보상 — 직업 계열마다 1티어(일반) 무기가 존재해야 지급할 수 있다
+  const classFamilies = ['staff', 'fairywand', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow', 'gun'];
+  const missingStarter = classFamilies.filter((f) => !WEAPONS.some((w) => w.family === f && w.tier === 1 && w.id === `${f}_common`));
+  check('직업별 1티어 무기 8종 존재', missingStarter.length === 0, missingStarter.join(',') || 'staff/fairywand/sword1h/sword2h/scythe/dagger/bow/gun');
+  check('1티어 무기는 일반 등급', classFamilies.every((f) => WEAPONS.find((w) => w.id === `${f}_common`)?.grade === 'common'));
+  check('요정 전직 지급 id = fairywand_common', classStarterWeaponId('fairy') === 'fairywand_common', classStarterWeaponId('fairy'));
   cls.dispose();
   check('dispose 후에도 조회는 안전', cls.canUse('sword1h_common') === true);
 } catch (err) {
@@ -1834,12 +1901,22 @@ section('성능 최적화 (광원 · 청크 컬링)');
   m1.decompose(new THREE.Vector3(), new THREE.Quaternion(), scaleAfter);
   check('복구하면 다시 살아난다', tree.felled === false && scaleAfter.length() > 0);
 
+  // 나무도 6초 뒤 다시 자란다
+  const treeR = worldP.trees.find((t) => !t.felled && t !== tree) ?? worldP.trees[0];
+  worldP.treeField.chop(treeR, treeR.maxHp + 1);
+  worldP.treeField.update(5.9);
+  check('나무 리스폰 — 6초 전에는 아직 없다', treeR.felled === true);
+  worldP.treeField.update(0.2);
+  check('나무 리스폰 — 6초 뒤 다시 자란다', treeR.felled === false);
+
   // 광물 고갈/복구도 청크 메시에서 동작
   const mineral = worldP.minerals.find((m) => !m.depleted && m.mesh);
   const mres = worldP.mineralField.harvest(mineral, mineral.maxHp + 1);
   check('광물 고갈 — 청크 메시에서도 처리', mres.depleted === true && mineral.depleted === true);
-  worldP.mineralField.update(999);
-  check('광물 리스폰', mineral.depleted === false && mineral.hp === mineral.maxHp);
+  worldP.mineralField.update(5.9);
+  check('광물 리스폰 — 6초 전에는 아직 없다', mineral.depleted === true);
+  worldP.mineralField.update(0.2);
+  check('광물 리스폰 — 6초 뒤 다시 생긴다', mineral.depleted === false && mineral.hp === mineral.maxHp);
 
   const perfFrameError = (() => {
     try {
@@ -2602,7 +2679,7 @@ section('마법부여 / 맨손 / 건물 회전');
   const e3 = sys.enchant(other.id, 'ice', { hasWeapon: () => true, hasEnchanter: true });
   check('무기마다 개별 부여(모든 무기 가능)', e3.ok === true && sys.count === 2 && sys.stateFor(other.id)?.element === 'ice', `${sys.count}종`);
   const allOk = WEAPONS.every((w) => sys.canEnchant(w.id, 'fire', { hasWeapon: () => true, hasEnchanter: true }).ok);
-  check('75종 전부 부여 가능', allOk, `${WEAPONS.length}종`);
+  check('82종 전부 부여 가능', allOk, `${WEAPONS.length}종`);
   const bonus = sys.bonusFor('sword1h_guard');
   check('bonusFor — 전투 반영값', bonus.element === 'fire' && bonus.damageMult > 1 && bonus.level === 2, JSON.stringify({ el: bonus.element, mult: bonus.damageMult }));
   const restored = new enc.EnchantSystem({}).fromJSON(JSON.parse(JSON.stringify(sys.toJSON())));

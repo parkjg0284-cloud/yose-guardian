@@ -258,7 +258,13 @@ export class Lobby {
     let res = { ok: false, error: '서버에 연결되지 않았습니다' };
     if (connected) {
       try {
-        res = await net.joinRoom({ code: c, nickname: this._nickname(), character: this._characterPayload() });
+        // 방장이 코드를 만든 직후 친구가 바로 입력하면 아직 서버에 방이 없을 수 있다.
+        //  '방을 찾을 수 없습니다'는 짧게 3번까지 다시 시도한다(입력 오류는 그대로 안내).
+        for (let attempt = 0; attempt < 3; attempt += 1) {
+          res = await net.joinRoom({ code: c, nickname: this._nickname(), character: this._characterPayload() });
+          if (res?.ok || !/찾을 수 없습니다/.test(String(res?.error || ''))) break;
+          if (attempt < 2) await new Promise((r) => setTimeout(r, 350));
+        }
       } catch (err) {
         res = { ok: false, error: err?.message || '참가 실패' };
       }

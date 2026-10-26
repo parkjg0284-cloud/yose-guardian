@@ -8,7 +8,7 @@ const MAX_SLOPE = 0.55;
 const MIN_SPACING = 3;
 const GRID_CELL = MIN_SPACING;
 const GRID_DIM = Math.ceil(MAP.size / GRID_CELL) + 4;
-const RESPAWN_DELAY = 90;
+const RESPAWN_DELAY = 6;
 const MAX_TREES = 1100;
 // 질의용 공간 해시 — nearest() 가 나무 1,100그루를 매번 훑지 않게 한다
 const QUERY_CELL = 16;

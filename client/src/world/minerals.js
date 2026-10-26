@@ -9,7 +9,7 @@ const MAX_SLOPE = 0.75;
 const MIN_SPACING = 5;
 const GRID_CELL = MIN_SPACING;
 const GRID_DIM = Math.ceil(MAP.size / GRID_CELL) + 4;
-const RESPAWN_DELAY = 120;
+const RESPAWN_DELAY = 6;
 const MAX_MINERALS = 400;
 // 질의용 공간 해시 — nearest() 가 광물 400개를 매번 훑지 않게 한다(프리즈·스터터 방지)
 const QUERY_CELL = 16;

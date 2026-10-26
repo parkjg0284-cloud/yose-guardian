@@ -37,7 +37,7 @@ if ($img) {
 Write-Host '  ② 묶을 파일 모으기'
 Remove-Item $work -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force -Path $payload | Out-Null
-foreach ($item in @('server', 'package.json', 'run.cmd', 'docs', '.env')) {
+foreach ($item in @('server', 'package.json', 'run.cmd', 'docs')) {
   $src = Join-Path $repo $item
   if (Test-Path $src) { Copy-Item $src $payload -Recurse -Force }
 }
@@ -53,6 +53,9 @@ Copy-Item (Join-Path $out 'install.ps1') $work -Force
 Copy-Item (Join-Path $out 'launcher.ps1') $work -Force
 Copy-Item (Join-Path $out 'launcher.cmd') $work -Force
 Copy-Item (Join-Path $out 'install.cmd') $work -Force
+Copy-Item (Join-Path $out 'install-gui.ps1') $work -Force
+Copy-Item (Join-Path $out 'install-gui.cmd') $work -Force
+Copy-Item (Join-Path $out 'updates.json') $work -Force
 Write-Host "     game.zip $([Math]::Round((Get-Item (Join-Path $work 'game.zip')).Length / 1MB, 1))MB"
 
 Write-Host '  ③ 설치 exe 만들기(iexpress)'
@@ -87,6 +90,7 @@ FILE3="install-gui.ps1"
 FILE4="install-gui.cmd"
 FILE5="launcher.ps1"
 FILE6="launcher.cmd"
+FILE7="updates.json"
 [SourceFiles]
 SourceFiles0=$work\
 [SourceFiles0]
@@ -97,14 +101,20 @@ SourceFiles0=$work\
 %FILE4%=
 %FILE5%=
 %FILE6%=
+%FILE7%=
 "@
 Set-Content -Path (Join-Path $work 'build.sed') -Value $sed -Encoding ASCII
+$exe = Join-Path $work 'YoseGuardianLauncher.exe'
+Remove-Item $exe -Force -ErrorAction SilentlyContinue
 & "$env:WINDIR\System32\iexpress.exe" /N /Q (Join-Path $work 'build.sed')
 Write-Host ('     iexpress 종료코드: ' + $LASTEXITCODE)
-$exe = Join-Path $work 'YoseGuardianLauncher.exe'
-for ($i = 0; $i -lt 40 -and -not (Test-Path $exe); $i++) { Start-Sleep -Milliseconds 500 }
-if (-not (Test-Path $exe)) { throw 'iexpress 가 exe 를 만들지 못했습니다' }
+for ($i = 0; $i -lt 120; $i++) {
+  if ((Test-Path $exe) -and ((Get-Item $exe).Length -gt 500KB)) { break }
+  Start-Sleep -Milliseconds 500
+}
+if (-not (Test-Path $exe) -or (Get-Item $exe).Length -lt 500KB) { throw 'iexpress 가 exe 를 만들지 못했습니다' }
 $target = Join-Path $out '요세의수호자_설치.exe'
 Copy-Item $exe $target -Force
+Copy-Item $exe (Join-Path $repo 'YoseGuardian-Setup.exe') -Force
 Write-Host ''
 Write-Host "  완료: $target ($([Math]::Round((Get-Item $target).Length / 1MB, 1))MB)" -ForegroundColor Green

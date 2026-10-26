@@ -64,24 +64,31 @@ function shard(size, material) {
 
 // ──────────────────────────────────────────────── staff builder
 /**
- * Builds the staff group. `tier` is 1..6, `element` is a SPELL_ELEMENTS id,
- * `relic` is 'time' | 'genesis' | null (relic staves override the tier look).
+ * Builds the staff group. `tier` is 1..6 for normal staves and 1..7 for fairy wands,
+ * `element` is a SPELL_ELEMENTS id, `relic` is 'time' | 'genesis' | null (relic staves override the tier look).
+ * `fairy` adds a pink blossom halo around the head (요정의 지팡이).
  */
-export function buildStaffMesh({ tier = 1, element = 'arcane', relic = null } = {}) {
-  const t = Math.max(1, Math.min(6, Math.round(tier) || 1));
+export function buildStaffMesh({ tier = 1, element = 'arcane', relic = null, fairy = false } = {}) {
+  const maxTier = fairy ? 7 : 6;
+  const t = Math.max(1, Math.min(maxTier, Math.round(tier) || 1));
+  const visualTier = Math.min(6, t);
   const color = elementColor(element);
   const group = new THREE.Group();
-  group.name = relic ? `staff_relic_${relic}` : `staff_t${t}`;
+  group.name = relic ? `staff_relic_${relic}` : fairy ? `fairy_wand_t${t}` : `staff_t${t}`;
 
-  const info = tierInfo(t);
+  const info = tierInfo(visualTier);
   const animated = { rings: [], particles: [], orbs: [], shards: [], spin: [] };
   group.userData.animated = animated;
   group.userData.tier = t;
   group.userData.element = element;
   group.userData.relic = relic;
+  group.userData.fairy = !!fairy;
 
   if (relic) buildRelic(group, animated, relic, color, info);
-  else buildTier(group, animated, t, color);
+  else {
+    buildTier(group, animated, visualTier, color);
+    if (fairy) buildFairyBloom(group, animated, t);
+  }
 
   // muzzle anchor (also the light position) at the head of the staff
   const muzzle = new THREE.Object3D();
@@ -289,6 +296,75 @@ function buildTier(group, animated, tier, color) {
     }
     group.userData.headLocal = core.position.clone();
   }
+}
+
+function buildFairyBloom(group, animated, tier = 1) {
+  const isCrown = tier >= 7;
+  const head = (group.userData.headLocal || new THREE.Vector3(0, 0.8, 0)).clone();
+  const petalMat = standard(0xffb8d0, {
+    roughness: 0.48, metalness: 0.05, emissive: 0xff6fa8, emissiveIntensity: 0.42
+  });
+  const orbMat = standard(0xfff0b0, {
+    roughness: 0.25, metalness: 0.15, emissive: 0xffe08a, emissiveIntensity: 1.25,
+    transparent: true, opacity: 0.92
+  });
+  const petalGeo = new THREE.SphereGeometry(0.075, 8, 6);
+
+  for (let i = 0; i < 6; i += 1) {
+    const a = (i / 6) * Math.PI * 2;
+    const petal = new THREE.Mesh(petalGeo, petalMat);
+    petal.scale.set(1.45, 0.48, 0.82);
+    petal.position.set(Math.cos(a) * 0.12, head.y + 0.16, Math.sin(a) * 0.12);
+    petal.rotation.set(0.2, a, 0.45);
+    group.add(petal);
+    animated.shards.push({
+      mesh: petal, orbit: 0.125 + (i % 2) * 0.018, speed: 0.42 + i * 0.07,
+      height: head.y + 0.16, phase: a, bob: 0.035
+    });
+  }
+
+  const orb = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10), orbMat);
+  orb.position.copy(head).add(new THREE.Vector3(0, 0.16, 0));
+  group.add(orb);
+  animated.orbs.push({ mesh: orb, base: 0.55, pulse: 0.2 });
+
+  const halo = torus(0.17, 0.006, glow(0xffd9e8, 0.48), 24);
+  halo.rotation.x = Math.PI / 2;
+  halo.position.copy(orb.position);
+  group.add(halo);
+  animated.rings.push({ mesh: halo, speed: 1.15, axis: 'z' });
+
+  // T7 요정 여왕의 홀 — 바깥 꽃잎 왕관과 두 번째 빛 고리
+  if (isCrown) {
+    const crownGeo = new THREE.SphereGeometry(0.085, 8, 6);
+    const crownMat = standard(0xfff0c8, {
+      roughness: 0.3, metalness: 0.2, emissive: 0xffcf5a, emissiveIntensity: 0.85
+    });
+    for (let i = 0; i < 6; i += 1) {
+      const a = (i / 6) * Math.PI * 2 + Math.PI / 6;
+      const petal = new THREE.Mesh(crownGeo, crownMat);
+      petal.scale.set(1.7, 0.4, 0.7);
+      petal.position.set(Math.cos(a) * 0.21, head.y + 0.24, Math.sin(a) * 0.21);
+      petal.rotation.set(0.08, a, 0.3);
+      group.add(petal);
+      animated.shards.push({
+        mesh: petal, orbit: 0.21, speed: 0.28 + i * 0.04,
+        height: head.y + 0.24, phase: a, bob: 0.025
+      });
+    }
+    const crown = torus(0.25, 0.008, glow(0xffd9a0, 0.8), 32);
+    crown.rotation.x = Math.PI / 2;
+    crown.position.copy(orb.position).add(new THREE.Vector3(0, 0.04, 0));
+    group.add(crown);
+    animated.rings.push({ mesh: crown, speed: 0.7, axis: 'y' });
+  }
+
+  const mote = new THREE.Mesh(new THREE.SphereGeometry(0.018, 6, 5), glow(0xfff0b0, 0.9));
+  mote.position.copy(head).add(new THREE.Vector3(0.2, 0.3, 0.04));
+  group.add(mote);
+  animated.shards.push({ mesh: mote, orbit: 0.2, speed: 0.9, height: head.y + 0.3, phase: 1.3, bob: 0.05 });
+
+  group.userData.headLocal = orb.position.clone();
 }
 
 function buildRelic(group, animated, relic, elementColorHex, info) {

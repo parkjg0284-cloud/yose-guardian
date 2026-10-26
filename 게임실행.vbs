@@ -3,12 +3,13 @@
 '  · Chrome/Edge 가 있으면 주소창 없는 앱 모드로 1920x1080 창을 연다
 '  · 서버는 숨김 상태로 계속 돌아간다 (게임 안의 [게임종료] 로 끈다)
 Option Explicit
-Dim sh, fso, here, url, nodeExe, q, i
+Dim sh, fso, here, url, nodeExe, q, i, port
 Set sh = CreateObject("WScript.Shell")
 Set fso = CreateObject("Scripting.FileSystemObject")
 here = fso.GetParentFolderName(WScript.ScriptFullName)
 sh.CurrentDirectory = here
-url = "http://127.0.0.1:3001"
+port = ReadPort()
+url = "http://127.0.0.1:" & port
 q = Chr(34)
 
 If ServerUp(url) Then
@@ -30,6 +31,26 @@ For i = 1 To 75
 Next
 
 OpenGame url
+
+' .env 의 PORT 한 줄을 읽는다 — 설정 화면에서 바꾼 포트로 앱 창을 연다.
+Function ReadPort()
+  Dim envFile, f, line, v, n
+  ReadPort = 3001
+  envFile = here & "\.env"
+  If Not fso.FileExists(envFile) Then Exit Function
+  Set f = fso.OpenTextFile(envFile, 1)
+  Do Until f.AtEndOfStream
+    line = Replace(Trim(f.ReadLine), " ", "")
+    If InStr(UCase(line), "PORT=") = 1 Then
+      v = Trim(Mid(line, 6))
+      If IsNumeric(v) Then
+        n = CLng(v)
+        If n >= 1024 And n <= 65535 Then ReadPort = n
+      End If
+    End If
+  Loop
+  f.Close
+End Function
 
 ' 게임 창 — 크롬/엣지가 있으면 1920x1080 앱 창, 없으면 기본 브라우저
 Sub OpenGame(u)

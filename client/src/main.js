@@ -20,6 +20,7 @@ import {
   WEAPON_MOTIONS,
   DREAM_TREE,
   weaponById,
+  classStarterWeaponId,
   ultimateById,
   ultimateImpact,
   WAVE_CONFIG,
@@ -1786,6 +1787,28 @@ class Game {
     return this.equipWeapon(best.id, { silent, instant: true });
   }
 
+  /** 전직한 직업 계열의 1티어(일반) 무기 id — 예: mage → staff_common · fairy → fairywand_common */
+  _classStarterWeaponId(cls = this.classes) {
+    return classStarterWeaponId(cls?.classId ?? cls?.def?.id ?? 'novice');
+  }
+
+  /** 전직 보상 — 각 직업의 1티어 무기를 지급하고, 아직 쓸 무기가 없으면 바로 장착한다. */
+  _grantClassStarterWeapon(cls = this.classes) {
+    const id = this._classStarterWeaponId(cls);
+    const weapon = id ? WEAPON_BY_ID[id] : null;
+    if (!weapon) return null;
+    const already = this.hasWeapon(id);
+    const added = this.ownWeapon(id, { silent: true }) !== false;
+    if (added) {
+      this.notify(`전직 지급 — ${weapon.name} (${weapon.gradeName || '일반'} · 1티어)`, 'success');
+      if (!this.weaponId || !cls.canUse(this.weaponId)) {
+        this.equipWeapon(id, { silent: true, instant: true });
+      }
+      this._refreshPanels();
+    }
+    return { id, added, already };
+  }
+
   /** 전직 결과 알림 + 패시브 재적용 + 잠긴 무기 교체 */
   _onClassChange(payload, kind = '전직') {
     const cls = this.classes;
@@ -1795,6 +1818,7 @@ class Game {
       this.notify(`${kind} — ${cls.label} · 무기 피해 ×${cls.weaponDamageMult.toFixed(2)}`, 'gacha');
     }
     this.audio?.play?.('levelup');
+    if (kind === '전직') this._grantClassStarterWeapon(cls);
     this._applyClassModifiers();
     if (this.weaponId && !cls.canUse(this.weaponId)) this._equipBestUsable();
     this.ui?.panels?.refresh?.();
@@ -2679,6 +2703,11 @@ class Game {
       this._gunAttack(weapon);
       return true;
     }
+    if (weapon.kind === 'wand') {
+      // 요정의 지팡이 — 티어 피해가 그대로 박히는 추적 꽃가루.
+      this._wandAttack(weapon);
+      return true;
+    }
     if (weapon.kind === 'bow') {
       // 활 — 화살 1발 소모, 쿨다운마다 즉시 발사(모션은 연출)
       this._bowAttack(weapon);
@@ -2821,6 +2850,57 @@ class Game {
     this.staff?.triggerAttack?.({ silent: true });
     this.audio?.play?.(weapon.id === 'gun_relic' ? 'gunshotGalaxy' : 'gunshot', { family: 'gun' });
     this._shake = Math.min(0.35, (this._shake ?? 0) + 0.03);
+    return true;
+  }
+
+  /**
+   * 요정의 지팡이 — 꽃가루 마법을 날린다.
+   * 다른 지팡이(마법 습득식)와 달리 무기 티어 피해가 그대로 들어가고,
+   * 투사체가 가장 가까운 적을 부드럽게 추적한다.
+   */
+  _wandAttack(weapon) {
+    const now = Number(this.clock?.elapsedTime) || 0;
+    if (now < (this._wandReadyAt ?? 0)) return false;
+    const origin = this.staff?.muzzlePosition ?? this.player?.eyePosition;
+    const dir = this.player?.aimDirection;
+    if (!origin || !dir || !this.projectiles?.spawn) return false;
+
+    const gearDamage = 1 + (Number(this._mergedGearBonus()?.damagePct) || 0);
+    const ench = this.enchant?.bonusFor?.(weapon.id) ?? null;
+    const enchantMult = Number(ench?.damageMult) || 1;
+    const arcanaMult = Number(this.arcana?.mult?.('playerDamage')) || 1;
+    const power = Math.max(
+      1,
+      Math.round((Number(weapon.damage) || 1) * (this.classes?.weaponDamageMult ?? 1) * gearDamage * enchantMult * arcanaMult)
+    );
+    const spawnOrigin = origin.clone ? origin.clone() : origin;
+    const res = this.projectiles.spawn({
+      origin: spawnOrigin,
+      direction: dir,
+      speed: 54,
+      damage: power,
+      element: ench?.element ?? weapon.element ?? 'nature',
+      behavior: 'homing',
+      radius: 0.62,
+      range: Math.max(16, Number(weapon.range) || 64),
+      color: weapon.color ?? 0xff9fd2,
+      owner: 'player',
+      pierce: 0,
+      aoe: 0,
+      scale: 0.72,
+      onHit: (enemy) => {
+        this.impacts?.hit?.(enemy?.position ?? spawnOrigin, { weaponId: weapon.id, power: 0.9 });
+        this.staff?.triggerRecoil?.(0.45);
+        this.ui?.hud?.hitMarker?.();
+      }
+    });
+    if (!res) return false;
+
+    this._wandReadyAt = now + Math.max(0.12, Number(weapon.cooldown) || 0.62);
+    this.staff?.triggerAttack?.({ silent: true });
+    this.staff?.playCast?.();
+    this.audio?.play?.('fire', { family: 'fairywand' });
+    this._shake = Math.min(0.3, (this._shake ?? 0) + 0.018);
     return true;
   }
 

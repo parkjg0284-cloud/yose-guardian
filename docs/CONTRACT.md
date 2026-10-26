@@ -76,11 +76,11 @@ export function closeDb()
 - 비밀번호는 bcryptjs 해시(round 10), 최소 4자. username 3~20자 `[a-zA-Z0-9_]`, 중복 시 `409`.
 - JWT payload `{id, username, role}`, 만료 `.env JWT_EXPIRES`(기본 30d). 인가 판단은 토큰이 아니라 `requireAuth` 가 DB 에서 읽은 `row.role` 을 신뢰한다.
 - `user` 객체 = `{id, username, nickname, role, isAdmin}` (role 은 `'user'|'admin'`).
-- 제작: `client/src/crafting.js`(제작대 8종 `CRAFTING_TABLES` · 무기 레시피 41종 `WEAPON_RECIPES` · **화살 레시피 7종 `ARROW_RECIPES`** · **요정의 날개 레시피 8종 `WING_RECIPES`** · `validateCrafting()`)와
+- 제작: `client/src/crafting.js`(제작대 8종 `CRAFTING_TABLES` · 무기 레시피 48종 `WEAPON_RECIPES` · **화살 레시피 7종 `ARROW_RECIPES`** · **요정의 날개 레시피 8종 `WING_RECIPES`** · `validateCrafting()`)와
   `client/src/systems/crafting.js`(`CraftingSystem` — `isBuilt/isUnlocked/build/canCraft/craft/toJSON/fromJSON` + **`canCraftWing/craftWing`**).
   제작대 티어 = 무기 등급 티어이고, 제작 전용 무기(`craftOnly: true`, 24종)는 `_defaultOwned()` 에서 제외된다.
 무기별 서명 비용(`WEAPONS[].cost`)이 있으면 레시피 비용이 티어 표준(`RECIPE_COST_BY_TIER`) 대신 그 값을 쓴다(예: `time_scissors` 36,000 G).
-- 작업대: `WORKBENCH_RECIPES`(전체 75종 − `WORKBENCH_EXCLUDED`(꿈의 끝은 희망) = 74종). `CraftingSystem.canCraft/craft` 는
+- 작업대: `WORKBENCH_RECIPES`(전체 82종 − `WORKBENCH_EXCLUDED`(꿈의 끝은 희망) = 81종). `CraftingSystem.canCraft/craft` 는
   ctx 의 `hasWorkbench` 가 true 면 작업대 경로(`via: 'workbench'`)를 먼저 쓰고, 없으면 티어 제작대 경로로 떨어진다.
 - 패널 id 는 **15종**(`craft`·`classes`·`enchant` 포함), 단축키는 **24행**(`C` 제작대 · `V` 요정의 날개 · `Ctrl` 앉기 · `R` 홀드 회전)이다. 관리자 계정은 서버 시작 시 `ensureAdminAccount()` 가 보장한다(`.env ADMIN_USERNAME`·`ADMIN_PASSWORD`·`ADMIN_NICKNAME`, 기본 `admin`/`(비밀번호는 .env 참조)`/`관리자`).
 - `requireAdmin` 미들웨어 = `requireAuth` + `req.user.isAdmin` 검사(아니면 `403`).
@@ -670,7 +670,7 @@ export function runAdminCommand(text, { game, user, isAdmin } = {})
 |---|---|---|---|
 | `/도움말` | 도움말 · ? · h · 명령어 | — | 명령 14종 목록 |
 | `/무기 <id\|이름>` | 무기 · w · 무기소환 | — | `game.ownWeapon` + `game.equipWeapon` |
-| `/무기전부` | 무기전부 · 모든무기 · allweapons | — | 75종 전부 |
+| `/무기전부` | 무기전부 · 모든무기 · allweapons | — | 82종 전부 |
 | `/돈 [수량]` | 돈 · 골드 · money · g · 돈소환 | 100,000 | `game.addGold` |
 | `/목재 [수량]` | 목재 · 나무 | 10,000 | `game.addWood` |
 | `/광물 <id\|이름> [수량]` | 광물 · 자원 · ore · minerals | 99 | `game.addMineral` |
@@ -1147,7 +1147,7 @@ HUD 조준선은 `game.ui.panels.hasOpen()` 이 참이면 숨는다(`hud.js`).
 ### 4.32 맨손 시작 (`data.js` `FIST_WEAPON` · `player/weaponRig.js` · `main.js`)
 
 - `data.js`: `FIST_WEAPON`(id `'fists'`, name 맨손, kind melee, damage 6, range 2.5, cooldown 0.7, `fist: true`) · `FIST_WEAPON_ID` · `weaponOrFist(id)`(null/'fists' → 맨손, 미지 id → null).
-  **맨손은 `WEAPONS`/`WEAPON_BY_ID`/`WEAPON_MOTIONS` 에 넣지 않는다** — 수집 75종·가챠·제작·업적 계산이 흔들리지 않게 하기 위함(스모크가 검증).
+  **맨손은 `WEAPONS`/`WEAPON_BY_ID`/`WEAPON_MOTIONS` 에 넣지 않는다** — 수집 82종·가챠·제작·업적 계산이 흔들리지 않게 하기 위함(스모크가 검증).
 - `WeaponRig.equip(id)` 는 `weaponOrFist(id)` 를 쓰고, 맨손이면 **메시 없음 + 모션 없음**(이전 무기의 애니메이션 핸들을 `emptyAnimated()` 로 비운다). `constructor({ weaponId = null })` 기본값도 맨손.
 - `main.js`: `_defaultOwned()` → **빈 Set**(보유 0종) · `this.weapons = { owned, equipped: FIST_WEAPON_ID }` · `weaponList()` 는 **보유 + 쓸 수 있는 무기만**(WEAPONS 폴백 금지) · `equipWeapon(null|'fists')` 는 보유·전직 잠금 검사를 건너뛴다 · `_attack()` 은 `weapon.fist` 면 `cooldown`(0.7s)마다 `_meleeStrike(FIST_WEAPON)` 을 직접 호출(공격 모션이 없으므로) · `onCrafted` 는 `equipWeapon(id, { silent: true, instant: true })` 로 **자동 장착**.
 - 시작 자원은 `gold 1200 · wood 400`(첫 작업대 650 G·160 목재 + 첫 제작 450 G·150 목재를 바로 할 수 있게).
@@ -1232,7 +1232,7 @@ export function validateEnchantData()        // 데이터 무결성(스모크가
 - `status()` → `{ nodes, networks(count), supply, demand, short, shortfall, coverage, unpowered }`. `grid.networks` 는 **망 배열**(`{ id, supply, demand, members, sources, consumers, cables, ok, shortfall, coverage }`). `networkOf(id)` → `{ netId, supply, demand, powered, role }`.
 - `TurretSystem` 통합: `this.power = new PowerGrid({...POWER})`, `_powerNodes()` 로 살아 있는 건물만 노드화, `updatePower(force=false)`(`_powerAcc = POWER.interval` 스로틀) → `powerStatus()`(`supply/demand/networks/generators/cables/consumers/short/shortfall/netList/unpowered`) · `isPowered(id)` · `facilityPower(kind)` · `storageStatus()` · `nearestStorage()` · `collectStorageNear(position, radius)` → `{ gained, gold, wood, storages }`.
 - 배선: `place()` 와 `_remove()` 가 `_powerAcc` 를 리셋하고 `updatePower(true)` 를 호출, `fromJSON`/`dispose` 는 `power.reset()`. `Turret.powered`/`Turret.powerNet` 이 UI·게이트의 단일 출처다.
-- **상한 분리**: `MAX_TURRETS = 40` 은 **전선을 제외**하고 세고(`canPlace` 메시지 "건물은 최대 40개까지 세울 수 있습니다(전선 제외)"), 전선은 `MAX_CABLES = 160` 으로 따로 센다.
+- **상한 분리**: `MAX_TURRETS = 50`(v1.14.0에서 40→50, §4.78)은 **전선을 제외**하고 세고(`canPlace` 메시지 "건물은 최대 50개까지 세울 수 있습니다(전선 제외)"), 그중 시설은 `MAX_FACILITIES = 40`, 전선은 `MAX_CABLES = 160` 으로 따로 센다.
 
 ### 4.39 저장고 티어 — 버퍼 · 수거 · 용량 (`data.js` · `systems/turrets.js` `_updateStorage`)
 
@@ -1585,7 +1585,7 @@ if (this.state === 'menu' || this.state === 'paused') this._prewarmStep(); // �
 | `systems/summon-queue.js` | 순수 지연 큐(`push` · `step(warm, equip)` · `summary` · `validateSummonQueue`) |
 | `systems/admin-commands.js` | `/무기` 가 `game.summonWeapon` 을 쓰고, 안내에 "예열 후 장착(잠시)" 표시 |
 
-- 무기 75종 예열은 게임 시작 후 **75프레임(약 1.2초)** 에 걸쳐 끝난다. 프레임당 1종이라 한 프레임이 크게 튀지 않는다.
+- 무기 82종 예열은 게임 시작 후 **82프레임(약 1.4초)** 에 걸쳐 끝난다. 프레임당 1종이라 한 프레임이 크게 튀지 않는다.
 - `renderer.compile` 이 없는 환경(헤드리스)에서는 예열을 건너뛰고 **즉시 장착**한다(검사가 그대로 돈다).
 - 예열한 무기는 `_warmedWeapons` 에 기록해 두 번 컴파일하지 않는다.
 - 소환 큐는 순수 로직이라 `tools/smoke.mjs` 에서 순서(예열 → 장착) · 중복 · 예열 실패 · 상한을 직접 검증한다.
@@ -1756,8 +1756,8 @@ if (this.state === 'menu' || this.state === 'paused') this._prewarmStep(); // �
   `WEAPON_IMPACT_OVERRIDES.gun_relic` = `galaxy`(보라 별가루 28 · 이중 고리 · impactGalaxy).
 - `WEAPON_ULTIMATES.galaxyNight` — 무기 `gun_relic` · 반경 42m · 쿨다운 150초 · 별 120개 나선 · 고리 4겹.
 - `CLASSES.gunmaster` — 건마스터 · `family: 'gun'` · 대표 무기 `gun_relic` · 패시브 무기 피해 ×1.12 · 이동 ×1.04.
-- 수량은 **무기 75종(코어 74)** = 7계열 × 7등급(49) + 제작 전용 24 + 유물 지팡이 1 + 꿈나무 1.
-  제작 레시피 **41종**(계열 자동 활 7 + 쌍권총 7 포함) · 작업대 **74종** · 계열 탭 **11개**.
+- 수량은 **무기 82종(코어 81)** · 계열 11개(요정의 지팡이 포함) · 직업 9개(초심자 포함).
+  제작 레시피 **48종**(계열 자동 활 7 + 쌍권총 7 + 요정 지팡이 7 포함) · 작업대 **81종** · 계열 탭 **12개**.
 
 **뷰모델 (`client/src/player/weaponRig.js`)**
 - `buildDualPistols()` — 좌우 두 자루(슬라이드·배럴·그립·방아쇠울·가늠쇠). 3티어 이상 룬 고리, 5티어 이상 장식.
@@ -1786,9 +1786,9 @@ if (this.state === 'menu' || this.state === 'paused') this._prewarmStep(); // �
 - 장착 알림에도 `· R 무기 스킬 은하수의 밤` 을 덧붙인다.
 
 **검사**
-- `tools/smoke.mjs` 936/936 — 75종·10계열·7직업·쌍권총 7티어·은하수 임팩트·레시피·배선 문자열.
-- `tools/headless.mjs` 578/578 — 뷰모델 두 총구·좌우 간격·bullet/galaxy 임팩트·은하수 궁극기.
-- `tools/ui-dom-smoke.mjs` 339/339 — HUD 무기 스킬(키/이름/쿨다운/은하수 강조/숨김)·74종/11탭·7직업 카드.
+- `tools/smoke.mjs` 971/971 — 82종·11계열·8직업·쌍권총/요정 지팡이 7티어·임팩트·레시피·배선 문자열.
+- `tools/headless.mjs` 594/594 — 뷰모델 두 총구·요정 꽃잎 뷰모델·추적 꽃가루·bullet/galaxy 임팩트·은하수 궁극기.
+- `tools/ui-dom-smoke.mjs` 349/349 — HUD 무기 스킬·81종/12탭·8직업 카드.
 - `tools/base-bugtest.mjs` 80/80 — 활·쌍권총 T1~T7 제단 레시피 분리.
 - 실전 브라우저 `.tmp/gun-live.mjs` 20/20 — 은하수의 밤 장착·두 총구 dx 0.404·2발 사격·실제 명중 2회·쿨다운·HUD R/이름/150초·
   건마스터 카드·페이지 예외 0.
@@ -1826,9 +1826,9 @@ if (this.state === 'menu' || this.state === 'paused') this._prewarmStep(); // �
   카드 오른쪽이 메뉴 프레임 안(`right <= menu.right`)이고 `scrollWidth == clientWidth`, 가로 스크롤 0.
 
 **무기 목록 (`docs/WEAPONS.md`)**
-- `client/src/data.js` 의 실제 데이터에서 생성 — **75종** · 10계열 · T1~T7 + 비밀(T8).
+- `client/src/data.js` 의 실제 데이터에서 생성 — **82종** · 11계열 · T1~T7 + 비밀(T8).
   티어별 표(계열·등급·이름·원소·피해·쿨다운·사거리·궁극기), 계열 요약, 직업별 시그니처.
-- T7 유물 13종(계열 최종 유물 + 창세의 지팡이·창세의 대검·창세의 낫·이 사랑, 영원히 등 제작 전용·특수 포함), T8 비밀 2종(꿈나무 계열).
+- T7 유물 14종(계열 최종 유물 + 요정 여왕의 홀·창세의 지팡이·창세의 대검·창세의 낫·이 사랑, 영원히 등 제작 전용·특수 포함), T8 비밀 2종(꿈나무 계열).
 
 **관리자 계정 · `/api/net` 환경**
 - `server/api/auth.js` — `.env` 의 `ADMIN_PASSWORD` 가 있으면 그 값을 쓴다.
@@ -1898,3 +1898,180 @@ GitHub 에 이미 올라가 있으면 다시 올리지 않는다.
 - `tools/mp-check.mjs` 37/37 — 실제 소켓 2~3개: 설치·회전·철거 중계, 남의 건물 철거 거부, 재접속·방장 위임.
 - 실전 브라우저 `.tmp/demolish-live.mjs` 17/17 — 시드 줄 버튼·load(solo), Z 토글, 조준선 대상(작업대),
   HUD 이름/25%, 작업대 환불 162g·40w·철 1·구리 1, 포탑 환불 15g·3w, 조준선 적색/원복, 건설 패널 버튼, 페이지 예외 0.
+
+## §4.78 건설 50/40 · 맨땅 채굴 · 전직 1티어 무기 · T2 재료 · 초대코드 · 6초 리스폰 (v1.14.0)
+
+**요청** — 건물은 최대 50개, 작업대 같은 시설은 40개로 제한한다. 채굴기를 맨땅에 설치해도 광물을 캐게 한다.
+전직할 때 직업별 1티어 무기를 지급한다. T2 채굴탑 건설 재료에서 은을 뺀다.
+초대코드 멀티에서 "방을 찾을 수 없습니다"를 고치고, 관리자 계정 로그인을 확인한다.
+나무·광물 리스폰 시간을 6초로 줄인다.
+
+**건설 한도 (`client/src/systems/turrets.js` · `client/src/ui/panels.js`)**
+- `MAX_TURRETS = 50`(전선 제외 전체) · `MAX_FACILITIES = 40`(그중 `category === 'facility'`).
+- `structureCounts()` 하나로 전체/시설 수를 센다. `canPlace`·`place`·`placeRemote` 가 같은 계산을 쓴다.
+  전선은 기존처럼 `MAX_CABLES = 160` 으로 따로 세고, 전체 50개에 포함하지 않는다.
+- 거부 문구 — 전체 `건물은 최대 50개까지...`, 시설 `시설은 최대 40개까지...(전체 50개 안)`.
+- 건설 패널 상단에 `전체 n/50 · 시설 n/40 (전선 별도)` 현황을 표시한다.
+
+**맨땅 채굴 (`client/src/systems/turrets.js`)**
+- 기존 `_updateAutoMiner` 의 지형 시추 부분을 `_drillTerrain(dt, rate)` 로 분리했다.
+- `mineral` 이 없는 **채굴 카테고리 탑**도 `_drillTerrain` 을 호출해 주변 광물 없이 지형 티어 광물을 캔다.
+  `채굴탑 자동 채굴` 검사는 광물 위에 놓았을 때, 새 `맨땅 채굴탑` 검사는 주변 12m 안에 광물이 없는 위치에서
+  15초 동안 산출물이 늘어나는지 확인한다.
+- 채굴기(시설)의 맨땅 시추는 기존과 같다 — 3kW 전력이 필요하고, 전기가 없으면 멈춘다(계약 §4.63).
+
+**전직 보상 (`client/src/main.js` · `client/src/ui/panels.js`)**
+- `advance`(전직) 이벤트에서 `family_common`(1티어 일반 무기)을 지급한다.
+  마법사 `staff_common` · 기사 `sword1h_common` · 광전사 `sword2h_common` · 사신 `scythe_common` ·
+  그림자 `dagger_common` · 아처 `bow_common` · 건마스터 `gun_common`.
+- 이미 보유한 무기는 중복 지급하지 않는다. 전직 직후 현재 무기를 쓸 수 없으면 지급한 1티어를 바로 장착한다.
+- 승급(`promote`)은 1티어 지급 대상이 아니다. 전직 패널에 `전직 보상` 안내 줄을 추가했다.
+
+**T2 채굴탑 재료 (`client/src/data.js`)**
+- `mining_t2`(곡괭이탑)의 건설 재료에서 `silver` 를 제거했다. 남는 광물 재료가 없으므로 **골드 190 · 목재 53** 만 든다.
+  T1·T3 이상 채굴탑과 다른 시설의 재료는 그대로다.
+
+**초대코드 참가 (`client/src/ui/lobby.js` · `server/game/Room.js` · `server/game/RoomManager.js`)**
+- 원인 후보 1 — 방장이 코드를 만든 직후 친구가 바로 입력하면 서버에 방이 아직 없을 수 있다.
+  로비 `join` 이 `방을 찾을 수 없습니다` 에 한해 350ms 간격으로 최대 3회 재시도한다.
+- 원인 후보 2 — 로비에서 방장이 새로고침·와이파이 순단으로 끊기면 방을 즉시 지웠다.
+  `handleDisconnect` 는 `keepEmpty` 로 20초 유예를 두고, 그 안에 같은 코드로 참가하면 새 방장이 된다.
+  명시적 `room:leave` 는 기존처럼 즉시 삭제한다(빈 방 코드 만료 검사 유지).
+- 유예 중 빈 방은 공개 방 목록에서 숨긴다(`players.size > 0`).
+- 실전 검증 — 노드 소켓이 만든 코드로 브라우저 로비가 참가해 2명·`view === 'room'` 확인.
+  `mp-check` 는 방장 소켓을 끊은 뒤 250ms 후 같은 코드 참가가 성공하는지 확인한다.
+
+**관리자 로그인 (`server/api/auth.js`)**
+- 로그인 아이디 조회를 정확한 철자 우선, 없을 때만 `COLLATE NOCASE` 로 한 번 더 찾는다.
+  `Admin`·`ADMIN` 처럼 대소문자를 잘못 입력해도 `.env` 의 관리자 계정으로 로그인된다.
+- 관리자 계정 자체는 기존처럼 서버 시작 시 `.env` 의 `ADMIN_USERNAME`/`ADMIN_PASSWORD` 로 보장·재설정된다.
+  실제 자격 증명은 저장소에 적지 않는다(설치 폴더 `.env`).
+
+**6초 리스폰 (`client/src/world/minerals.js` · `client/src/world/trees.js`)**
+- `RESPAWN_DELAY` 를 광물 120→6, 나무 90→6 으로 바꿨다. 고갈 시 `respawnAt = _time + 6`.
+- 검사 — 5.9초에는 아직 없고 6.1초에 광물 HP·나무 상태가 복구되는지 실제 필드에서 확인한다.
+
+**검사**
+- `tools/smoke.mjs` 959/959 — 기존 계약 전부 + 전직 1티어 배선·T2 재료·건설 상한·6초 리스폰.
+- `tools/headless.mjs` 592/592 — 전체 50·시설 40 거부, 맨땅 채굴탑 산출, T2 은 제거, 직업별 1티어 무기,
+  광물·나무 6초 리스폰.
+- `tools/ui-dom-smoke.mjs` 348/348 — 건설 패널·전직 패널·로비 기존 경로.
+- `tools/mp-check.mjs` 38/38 — 방장 접속 끊김 뒤 20초 초대코드 유지 포함.
+- `tools/e2e-net.mjs` 95/95 — 관리자 로그인(대소문자 무시 포함)·관리자 API·`/api/net`(포트 3151).
+- 실전 브라우저 `.tmp/feature-live.mjs` 19/19 — 7직업 전직 1티어 지급·즉시 장착, 건설 한도 UI,
+  T2 재료, 6초 설정, 노드 호스트 코드 → 브라우저 로비 참가(2명), 페이지 예외 0.
+- `npm run verify` — 2,258개 통과(빌드 포함).
+
+## §4.79 티어별 포탑 피해 — 1티어 100% · 47% 복리 (v1.15.0)
+
+**요청** — 포탑 피해를 티어별로 다시 잡는다. 1티어를 100% 기준으로 두고 티어마다 47%씩 올리며,
+몬스터 체력을 기준으로 밸런스를 맞춘다.
+
+**변경 (`client/src/data.js`)**
+- `TOWER_TIER_DAMAGE_GROWTH = 1.47` · `TOWER_TIER_DAMAGE_MULT` 를 새로 두고
+  `TOWER_TIER_SCALE[tier].damage` 가 이 표를 쓰게 했다.
+  `T1 1.0000 → T2 1.4700 → T3 2.1609 → T4 3.1765 → T5 4.6695 → T6 6.8641 → T7 10.0903`.
+- 실제 피해식은 그대로 `fam.damage × tier.damage × TURRET_DAMAGE_SCALE(60)` 이다.
+  1티어 계열 기본 피해는 바꾸지 않아 초반 난이도가 유지된다.
+  화살탑 기준 `780 → 1,147 → 1,686 → 2,478 → 3,642 → 5,354 → 7,870`.
+- 이전 배율(1 / 1.75 / 3.1 / 5.4 / 9.5 / 17 / 31)은 7티어가 1티어의 31배였다.
+  새 표는 10.09배로, 상위 티어가 몬스터 체력 성장보다 지나치게 폭주하지 않게 낮춘 값이다.
+
+**몬스터 체력 기준**
+- 표준 고블린(`hpMult 1`) 체력은 `60 × 1.16^(웨이브-1)`(30웨이브 이후 성장 완만화)이다.
+  30웨이브 이후 10웨이브당 성장은 `1.16^(10 × 0.28) ≈ ×1.515` 이므로 47% 성장은 그보다 조금 낮다.
+- 기준 웨이브 `10 × 티어`의 표준 몬스터에 대해 티어 평균 피해의 처치 발수는
+  T2 0.65발 · T3 1.97발 · T4 2.03발 · T5 2.09발 · T6 2.12발 · T7 2.19발이다.
+  (1티어는 초반용으로 일부러 여유 있게 강하다 — 기존 780 피해 유지.)
+- 즉 상위 티어일수록 한 발 피해가 무한정 커지는 대신, 기준 웨이브 몬스터를 1~3발에 정리하는 대역에 맞췄다.
+
+**검사**
+- `tools/smoke.mjs` 963/963 — 성장률 1.47·배율 표·T1 780/T7 7,870·T2~T7 기준 웨이브 0.5~3발 처치.
+- `tools/headless.mjs` 592/592 — 기존 전투·건설·자원 시뮬레이션 전부.
+- `tools/ui-dom-smoke.mjs` 348/348 · `tools/mp-check.mjs` 38/38 · `tools/e2e-net.mjs` 95/95.
+- 실전 브라우저 `.tmp/feature-live.mjs` 20/20 — 건설 카드가 실제로 화살탑 T1 780 · T2 1,147 · T7 7,870을 표시.
+- `npm run verify` — 2,262개 통과(빌드 포함).
+
+## §4.80 서버 포트 변경 — 설정 · .env · 자동 재시작 (v1.16.0)
+
+**요청** — 서버 포트를 바꾸는 기능.
+
+**설정 위치 (`client/src/ui/panels.js`)**
+- **설정 → 서버 · 포트**에 현재 포트와 `1024~65535` 입력칸을 둔다.
+- 관리자만 **[포트 변경 · 재시작]** 을 누를 수 있다. 게스트에게는 "관리자 계정으로 로그인하면 바꿀 수 있습니다"만 보인다.
+- `GET /api/server/port` 는 현재 포트/허용 범위/재시작 가능 여부를 공개한다.
+- `POST /api/server/port` 는 `requireAdmin` 을 통과해야 하며 `{port, restart}` 를 받는다.
+  - 정수가 아니거나 `1024` 미만/`65535` 초과 → 400
+  - 현재 포트와 같음 → 400
+  - 이미 사용 중 → 409
+  - 다른 요청이 변경 중 → 409
+
+**저장 (`server/port-config.js`)**
+- `.env` 의 `PORT` 줄만 바꾼다. `ADMIN_PASSWORD`·`JWT_SECRET` 등 다른 줄은 보존하고,
+  기존 `PORT` 줄이 여러 개면 하나로 합친다. 임시 파일에 쓴 뒤 rename 해 중간 깨짐을 막는다.
+- `YOSE_ENV_FILE` 로 다른 env 파일을 지정할 수 있다(테스트/운영 분리).
+- 서버·`app.js`·`tools/dev.mjs`·`게임실행.vbs`·`run.cmd` 가 모두 같은 `.env` 의 `PORT` 를 읽는다.
+
+**자동 재시작**
+1. 새 포트가 비어 있는지 `net` 으로 먼저 검사한다.
+2. 새 포트에 `node server/index.js` 를 detached 로 띄우고 `/api/health` 가 200 이 될 때까지 기다린다.
+3. 성공하면 응답을 보낸 뒤 0.7초 후 기존 서버를 정상 종료한다. 브라우저는 새 포트의 health 를 폴링한 뒤 새 주소로 이동한다.
+4. 새 서버가 뜨지 못하면 `.env` 를 원래 포트로 되돌리고 기존 서버를 계속 쓴다.
+- `YOSE_NO_PORT_RESTART=1` 이면 저장만 하고 재시작하지 않는다.
+- 멀티 방은 서버 프로세스가 바뀌므로 종료된다. 주소(origin)가 바뀌므로 로그인 토큰·닉네임(localStorage)도 새 주소에서 다시 설정해야 할 수 있다(설정 화면에 경고).
+
+**런처**
+- `app.js` 는 `.env` 의 PORT 를 읽어 그 포트로 서버를 띄우고 앱 창을 연다.
+- `게임실행.vbs` 는 `.env` 를 읽어 URL 을 만든다(설치 프로그램이 만드는 VBS 템플릿도 동일).
+- `run.cmd` 는 `.env` 의 PORT 로 게임 주소·방화벽 규칙을 만든다.
+- `tools/dev.mjs` 는 dotenv 로 `.env` 를 먼저 읽는다.
+- `installer/install.ps1`·`launcher/install.ps1` 가 만드는 VBS 와 `installer/install-gui.ps1`·`installer/launcher.ps1` 도 `.env` 의 PORT 를 읽는다.
+
+**검사**
+- `tools/smoke.mjs` 965/965 — 포트 범위 검사 · `.env` PORT만 수정/비밀 값 보존.
+- `tools/ui-dom-smoke.mjs` 349/349 — 설정 패널의 **서버 · 포트** 구역/권한 안내.
+- `tools/headless.mjs` 592/592 · 보스 21/21 · 날개 88/88 · 캐릭터 71/71 · 기지 80/80 · 미니게임 61/61 · mp 38/38.
+- 실전 브라우저 관리자 로그인 `.tmp/admin-ui-live.mjs` 5/5 — 실제 설정 화면에 현재 포트 3151·입력·버튼 표시.
+- 실전 브라우저 포트 변경 `.tmp/port-ui-flow.mjs` 6/6 — 설정에서 3171→3172 입력·클릭 → 새 포트 3172 로 실제 이동·게임 재로딩.
+- 실서버 API 실측 — 401(토큰 없음)/400(범위 밖·현재 포트와 동일)/3161→3162→3161 자동 재시작, 이전 포트 DOWN/새 포트 OK, `.env`의 관리자 값 보존.
+- `npm run verify` — 2,273개 통과(빌드 포함). `tools/cmd-lint.mjs` 13/13.
+
+---
+
+## §4.81 요정 직업과 요정의 지팡이 (v1.17.0)
+
+**직업**
+- `CLASSES` 에 `fairy`(요정, 🧚)를 추가한다. 계열은 `fairywand` 하나이며, 다른 직업은 이 계열을 쓸 수 없다.
+- 패시브: `manaRegen ×1.3` · `moveSpeed ×1.08` · `weaponDamage ×1.08`. 전직 단계 배율은 기존 `classModifiers()` 규칙을 그대로 따른다.
+- 대표 무기는 T7 `fairywand_relic`(요정 여왕의 홀)이다.
+
+**무기 7티어**
+- `fairywand_common`(T1) ~ `fairywand_relic`(T7), 총 7종. `WEAPONS`/`WEAPON_BY_ID`/`WEAPON_TOTAL_COUNT` 에 포함된다.
+- 이름: 요정의 지팡이 → 꽃망울 → 이슬빛 → 달빛 → 여왕의 → 세계수의 → 요정 여왕의 홀.
+- 수치는 계열 기본 피해 20 × 등급 배율로 자동 생성한다. `kind:'wand'`, `behavior:'homing'`, 사거리 64, 쿨다운 0.62초부터 등급마다 소폭 감소.
+- 공격은 `main.js _wandAttack()` 이 담당한다. 다른 지팡이(마법 습득식 `kind:'ranged'`)와 달리 **무기 티어 피해 × 직업/장비/마법부여 배율**이 그대로 들어가고, 투사체가 가장 가까운 적을 추적한다. 명중 시 `fairywand` 임팩트(꽃가루/꽃잎)가 터진다.
+- 뷰모델은 `staff.js buildStaffMesh({ fairy:true })` 가 만든다. 기존 지팡이 실루엣에 꽃잎 6장·꽃술 오브·빛 고리를 더하고, T7은 바깥 꽃잎 왕관과 두 번째 고리를 더한다. `weaponRig.js` 가 `fairywand` 형태를 이 빌더로 연결하며 T7 이름은 `fairy_wand_t7`.
+- 스왑모션 `fairywand`(`fairyBloom`), 임팩트 `fairywand` 를 추가한다. 모든 무기에 스왑모션·공격/스킬/반동 모션·임팩트가 있어야 한다.
+
+**전직 지급**
+- `classStarterWeaponId(classId)` 가 `${family}_common` 을 반환한다. 요정은 `fairywand_common`.
+- 기존 `_onClassChange(payload,'전직') → _grantClassStarterWeapon()` 경로가 T1을 `ownWeapon()` 으로 지급하고, 필요하면 즉시 장착한다. 이미 보유하면 중복 지급하지 않는다.
+- T2~T7은 `crafting.js FAMILY_FORGE_FAMILIES` 에 `fairywand` 를 넣어 `forge_t2`~`forge_t7` 레시피로 만든다. T1도 같은 방식으로 제작할 수 있지만, 요정 전직 시 무료 지급이 우선이다.
+
+**수량·문서**
+- 무기 82종 = 기존 75 + 요정의 지팡이 7. 계열 11개, 직업 9개(초심자 포함)/8개 계열.
+- `docs/WEAPONS.md` 82행, `README.md` 무기 목록·직업 설명, `docs/index.html` v1.17.0·업데이트 내역을 갱신한다.
+
+**런처 업데이트 내역**
+- `launcher/updates.json` · `installer/updates.json` · `downloader/updates.json` 에 버전별 제목/날짜/변경 항목을 둔다.
+- 실제 배포 exe(`YoseGuardian-Launcher.exe`)는 `downloader/downloader.ps1` 을 쓰므로 이 파일에도 **[업데이트 내역]** 버튼과 읽기 전용 내역 창을 추가하고, `tools/build-launcher.mjs` payload 에 `updates.json` 을 넣는다.
+- `launcher/launcher.ps1` · `installer/launcher.ps1` 에도 같은 버튼을 둔다. 시작 로그에 최신 버전 한 줄을 표시한다.
+- `launcher.json` 의 `game.zip` 주소는 그대로 GitHub Releases 의 `latest/download/game.zip` 을 쓴다.
+
+**검사**
+- `tools/smoke.mjs` 971/971 — 요정 직업/7티어/전직 지급 id/레시피/잠금/문서 82행.
+- `tools/headless.mjs` 594/594 — `fairy_wand_t7` 뷰모델(꽃잎·꽃술·고리)과 `fairywand` 스왑·임팩트.
+- `tools/ui-dom-smoke.mjs` 349/349 — 요정 카드·T7 대표 무기·작업대 81종/12탭·요정 제작 탭 7종.
+- 실전 브라우저 `.tmp/fairy-live.mjs` 13/13 — UI로 요정 전직 → T1 자동 지급·즉시 장착·중복 없음, T7 장착/뷰모델 `fairy_wand_t7`, 실제 `_attack()` 추적 꽃가루 1발·쿨다운.
+- 런처 `-SelfTest` — launcher/installer 각각 업데이트 내역 3개 버전, downloader `-DumpControls` 에 **[업데이트 내역]** 버튼.
+- `npm run verify` — 2,273개 통과(빌드 포함). `tools/cmd-lint.mjs` 13/13.
