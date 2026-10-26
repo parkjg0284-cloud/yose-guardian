@@ -2,12 +2,13 @@
 // 사용: 서버를 띄운 뒤 (npm run start) -> node tools/e2e-net.mjs
 import { io } from 'socket.io-client';
 import { readFileSync, existsSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
 /** .env 에서 값을 읽는다 (없으면 환경변수) — 비밀번호를 코드에 적지 않기 위해서. */
 function envValue(key) {
   if (process.env[key]) return process.env[key];
   try {
-    const path = new URL('../.env', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1');
+    const path = fileURLToPath(new URL('../.env', import.meta.url));
     if (!existsSync(path)) return '';
     const line = readFileSync(path, 'utf8')
       .split(/\r?\n/)
@@ -19,6 +20,21 @@ function envValue(key) {
 }
 
 const BASE = (process.env.E2E_BASE || 'http://127.0.0.1:3001').replace(/\/+$/, '');
+const BASE_URL = new URL(BASE);
+const EXPECTED_PORT = Number(BASE_URL.port || (BASE_URL.protocol === 'https:' ? 443 : 80));
+
+/** 관리자 비밀번호 — .env 우선, 없으면 서버가 data/admin-password.txt 에 보관한 값. */
+function adminPasswordValue() {
+  const fromEnv = envValue('ADMIN_PASSWORD');
+  if (fromEnv) return fromEnv;
+  try {
+    const file = fileURLToPath(new URL('../server/data/admin-password.txt', import.meta.url));
+    if (!existsSync(file)) return '';
+    return readFileSync(file, 'utf8').trim();
+  } catch {
+    return '';
+  }
+}
 let pass = 0;
 let fail = 0;
 const failures = [];
@@ -115,7 +131,7 @@ check(
 );
 check(
   '/api/net — port·protocol·urls 계약',
-  Number(netInfoRes.json?.port) === 3001 && netInfoRes.json?.protocol === 'http' && Array.isArray(netInfoRes.json?.urls),
+  Number(netInfoRes.json?.port) === EXPECTED_PORT && netInfoRes.json?.protocol === 'http' && Array.isArray(netInfoRes.json?.urls),
   `port=${netInfoRes.json?.port} urls=${shareUrls.join(' ') || '없음'}`
 );
 check(
@@ -166,7 +182,7 @@ const noTok = await req('GET', '/api/auth/me');
 check('토큰 없음 401', noTok.status === 401, `status=${noTok.status}`);
 
 // ── 관리자 계정 (server/api/auth.js 의 ensureAdminAccount + /api/admin) ──
-const adminCred = { username: envValue('ADMIN_USERNAME') || 'admin', password: envValue('ADMIN_PASSWORD') };
+const adminCred = { username: envValue('ADMIN_USERNAME') || 'admin', password: adminPasswordValue() };
 const adminLogin = await req('POST', '/api/auth/login', { body: adminCred });
 check('관리자 로그인 200 + 토큰', adminLogin.status === 200 && typeof adminLogin.json?.token === 'string', `status=${adminLogin.status}`);
 check('관리자 role=admin/isAdmin', adminLogin.json?.user?.role === 'admin' && adminLogin.json?.user?.isAdmin === true, JSON.stringify(adminLogin.json?.user));

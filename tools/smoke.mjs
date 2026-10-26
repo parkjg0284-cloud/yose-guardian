@@ -209,6 +209,18 @@ import { RegionSpawner, roamerRoster, isRoamer, countRoamers, roamerSpawnPoint, 
 import { BARE_HAND, canHarvestByHand, harvestHint, harvestNode, nodeTier, pickHarvestNode } from '../client/src/systems/gathering.js';
 import { ADAPTIVE, AdaptiveResolution, formatScale, nextPixelScale, suggestPreset, stepDownId, stepUpId, ladderIndex, PRESET_LADDER, MemoryGuard, formatMb } from '../client/src/ui/adaptive.js';
 import {
+  CROSSHAIR_KEY,
+  CROSSHAIR_STYLES,
+  CROSSHAIR_COLORS,
+  DEFAULT_CROSSHAIR,
+  clampCrosshairSize,
+  normalizeCrosshair,
+  loadCrosshair,
+  saveCrosshair,
+  applyCrosshair
+} from '../client/src/ui/crosshair.js';
+import { FPSMonitor } from '../client/src/ui/fps.js';
+import {
   ADMIN_COMMANDS,
   ADMIN_DEFAULTS,
   commandHelp,
@@ -1314,13 +1326,13 @@ section('성능 최적화 (광원 · 청크 컬링 · 해상도)');
     worldSrcP.includes('this.treeField.invalidateCull?.()') && worldSrcP.includes('this.mineralField.invalidateCull?.()'));
   check('그림자 맵 — autoUpdate off + 주기 갱신(0.05s)',
     mainSrcP.includes('shadowMap.autoUpdate = false') && mainSrcP.includes('const SHADOW_INTERVAL = 0.05;'));
-  check('적응형 해상도 — main 배선', mainSrcP.includes('new AdaptiveResolution(') && mainSrcP.includes('this.adaptive.update(dt, avg)'));
+  check('적응형 해상도 — main 배선', mainSrcP.includes('new AdaptiveResolution(') && mainSrcP.includes('this.adaptive.update(perfDt, avg)'));
   check('자동 품질 — 지속 적응(하향+되올리기, 사용자 단계가 상한)',
     mainSrcP.includes('suggestPreset(avg, FRAME_PRESETS, this.quality)') &&
     mainSrcP.includes('stepUpId(FRAME_PRESETS, this.quality, this._userQuality)') &&
     mainSrcP.includes('this.autoQuality') && mainSrcP.includes('_userQuality'));
   check('메모리 감시 — 오래 켠 세션 경고 배선',
-    mainSrcP.includes('new MemoryGuard(') && mainSrcP.includes('this.memory?.sample(dt)'));
+    mainSrcP.includes('new MemoryGuard(') && mainSrcP.includes('this.memory?.sample(perfDt)'));
   check('설정 — 자동 화질 토글/저장 후 새로고침 배선',
     panelsSrcP.includes("'auto-quality:toggle'") && mainSrcP.includes('saveAndReload()') && panelsSrcP.includes("'game-reload'"));
   check('FPS 오버레이 — 해상도 배율 표시', mainSrcP.includes('scale: this.adaptive?.scale ?? 1') && fpsSrcP.includes('해상도 '));
@@ -1373,6 +1385,19 @@ section('적응형 해상도 · 자동 품질');
   check('렌더러가 없어도 안전', new AdaptiveResolution({ renderer: null }).update(0.6, 20).changed === false);
   const warm = new AdaptiveResolution({ renderer, preset: FRAME_PRESETS[1] });
   check('웜업(3초) 동안은 건드리지 않는다', warm.update(1, 10).changed === false && warm.scale === 1);
+  const savedWindow = globalThis.window;
+  try {
+    globalThis.window = { devicePixelRatio: 1 };
+    const dpr1 = new AdaptiveResolution({ renderer: { setPixelRatio() {} }, preset: { pixelRatio: 1.5 } });
+    dpr1.scale = 0.68;
+    check('적응형 해상도 — dpr 1 화면에서 1.0 을 넘지 않는다', dpr1.baseRatio === 1 && Math.abs(dpr1.pixelRatio - 0.68) < 1e-9, `base=${dpr1.baseRatio} pr=${dpr1.pixelRatio}`);
+    globalThis.window = { devicePixelRatio: 2 };
+    const dpr2 = new AdaptiveResolution({ renderer: { setPixelRatio() {} }, preset: { pixelRatio: 1.5 } });
+    check('적응형 해상도 — dpr 2 화면은 preset 1.5 유지', dpr2.baseRatio === 1.5, `base=${dpr2.baseRatio}`);
+  } finally {
+    if (savedWindow === undefined) delete globalThis.window;
+    else globalThis.window = savedWindow;
+  }
 }
 
 // ─────────────────────────────────────── 16. 맨손 채집
@@ -3167,6 +3192,46 @@ section('메뉴 버튼 → 창 닫고 패널 · 설정에서 로그인/회원가
   check('몬스터 모델 — 보스는 뿔이 더 많다', v(buildMonsterModel('imp', { boss: true }).body) > v(buildMonsterModel('imp').body));
   check('몬스터 모델 — 캐시 공유', buildMonsterModel('wolf') === buildMonsterModel('wolf'));
   check('몬스터 모델 — 처치 시 해제 후 재생성', (disposeMonsterAssets(), v(buildMonsterModel('imp').body) > 0));
+}
+
+// ── 조준선 설정 (v1.12.0) ─────────────────────────────────────────
+{
+  check('조준선 모양 6종 · 중복 없음', CROSSHAIR_STYLES.length === 6 && new Set(CROSSHAIR_STYLES.map((s) => s.id)).size === 6);
+  check('조준선 색 6종 · hex 형식', CROSSHAIR_COLORS.length === 6 && CROSSHAIR_COLORS.every((c) => /^#[0-9a-f]{6}$/i.test(c.hex) && c.glow.startsWith('rgba(')));
+  check('조준선 기본값 = 십자 · 금빛 · 100%', DEFAULT_CROSSHAIR.style === 'classic' && DEFAULT_CROSSHAIR.color === 'gold' && DEFAULT_CROSSHAIR.size === 1);
+  check('조준선 크기 제한 70~180%', clampCrosshairSize(0.1) === 0.7 && clampCrosshairSize(9) === 1.8 && clampCrosshairSize('1.37') === 1.35);
+  check('조준선 잘못된 값 → 기본값', normalizeCrosshair(null).style === 'classic' && normalizeCrosshair({ style: 'nope', color: 'nope', size: 'x' }).color === 'gold');
+  const crossStore = new Map();
+  const fakeStorage = { getItem: (k) => crossStore.get(k) ?? null, setItem: (k, v) => crossStore.set(k, String(v)) };
+  check('조준선 저장 → 다시 읽기', (() => {
+    const saved = saveCrosshair({ style: 'x', color: 'green', size: 1.4 }, fakeStorage);
+    const loaded = loadCrosshair(fakeStorage);
+    return saved.style === 'x' && loaded.style === 'x' && loaded.color === 'green' && loaded.size === 1.4 && crossStore.has(CROSSHAIR_KEY);
+  })());
+  const fakeCross = { dataset: {}, style: { props: {}, setProperty(k, v) { this.props[k] = v; } }, setAttribute() {} };
+  applyCrosshair(fakeCross, { style: 'circle', color: 'cyan', size: 1.25 });
+  check('조준선 HUD 적용 — data 속성·CSS 변수', fakeCross.dataset.crosshair === 'circle' && fakeCross.style.props['--ch-color'] === '#7fe6ff' && fakeCross.style.props['--ch-size'] === '1.25');
+}
+
+// ── v1.12.0 문서·레이아웃 계약 ───────────────────────────────────
+{
+  const weaponsDoc = readFileSync(new URL('../docs/WEAPONS.md', import.meta.url), 'utf8');
+  const tierPart = weaponsDoc.split('## 계열별 요약')[0];
+  const docRows = (tierPart.match(/^\| [^|]+ \| [^|]+ \| \*\*/gm) || []).length;
+  check('무기 목록 문서 — 75종 전부', docRows === WEAPONS.length && WEAPONS.length === 75, `${docRows}/${WEAPONS.length}`);
+  check('무기 목록 문서 — T7 유물 13종', (weaponsDoc.match(/^\| [^|]+ \| 유물 \| \*\*/gm) || []).length === 13);
+  check('무기 목록 문서 — T8 비밀 2종', (weaponsDoc.match(/^\| [^|]+ \| 비밀 \| \*\*/gm) || []).length === 2);
+  const polishCss = readFileSync(new URL('../client/src/ui/ui-polish.css', import.meta.url), 'utf8');
+  check('멀티플레이 창 배율 — 카드가 메뉴 안쪽 폭을 넘지 않는다',
+    /\.menu-card\.menu-multi\s*\{[^}]*width:\s*min\(880px,\s*100%\)/s.test(polishCss) &&
+    /#menu-root\[data-view="multi"\] \.menu-body[^{]*\{[^}]*width:\s*100%/s.test(polishCss) &&
+    /#menu-root\[data-view="multi"\] \.menu-shell[^{]*\{[^}]*width:\s*100%/s.test(polishCss));
+  const fpsMon = new FPSMonitor();
+  fpsMon.update(0.25);
+  check('FPS — 20fps 아래에서도 실제 프레임 시간', Math.round(fpsMon.averageFps) === 4 && Math.round(fpsMon.frameMs) === 250, `${fpsMon.averageFps.toFixed(1)}fps ${fpsMon.frameMs.toFixed(0)}ms`);
+  fpsMon.dispose();
+  const mainPerfSrc = readFileSync(new URL('../client/src/main.js', import.meta.url), 'utf8');
+  check('FPS·적응형 — 시뮬레이션 dt 대신 실제 프레임 시간', mainPerfSrc.includes('this._frameDt = rawDt;') && mainPerfSrc.includes('this._update(dt, rawDt);') && mainPerfSrc.includes('fps.update?.(frameDt)') && mainPerfSrc.includes('adaptive.update(perfDt, avg)') && mainPerfSrc.includes('this._qualityAcc = (this._qualityAcc ?? 0) + perfDt;'));
 }
 
 console.log(`스모크 테스트 결과: ${pass}개 통과 / ${fail}개 실패 (총 ${pass + fail}개)`);

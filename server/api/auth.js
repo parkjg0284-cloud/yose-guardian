@@ -2,9 +2,11 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { db } from '../db.js';
+import { db, resolveDbPath } from '../db.js';
 import { sanitizeText } from '../game/protocol.js';
 import { randomBytes } from 'node:crypto';
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import path from 'node:path';
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 const BCRYPT_ROUNDS = 10;
@@ -88,6 +90,33 @@ function randomPassword(len = 16) {
 }
 export const ADMIN_DEFAULT = { username: 'admin', password: null, nickname: '관리자' };
 
+/** 생성된 관리자 비밀번호를 보관하는 파일(DB 와 같은 data 폴더). */
+export function adminPasswordFile() {
+  if (process.env.ADMIN_PASSWORD_FILE) return path.resolve(process.env.ADMIN_PASSWORD_FILE);
+  return path.join(path.dirname(resolveDbPath()), 'admin-password.txt');
+}
+
+function readAdminPasswordFile() {
+  try {
+    const raw = readFileSync(adminPasswordFile(), 'utf8').trim();
+    return raw.length >= 4 && raw.length <= 72 ? raw : '';
+  } catch {
+    return '';
+  }
+}
+
+function writeAdminPasswordFile(password) {
+  const file = adminPasswordFile();
+  try {
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, `${password}\n`, { encoding: 'utf8', mode: 0o600 });
+    return file;
+  } catch (err) {
+    console.warn('[보안] 관리자 비밀번호 파일 저장 실패:', err?.message || err);
+    return '';
+  }
+}
+
 /** .env 의 ADMIN_* 값을 검증해 확정한다(잘못된 값은 기본값으로 되돌린다). */
 export function adminCredentials() {
   const rawName = String(process.env.ADMIN_USERNAME ?? "").trim();
@@ -97,11 +126,19 @@ export function adminCredentials() {
     username: USERNAME_RE.test(rawName) ? rawName : ADMIN_DEFAULT.username,
     password: (() => {
       if (rawPass.length >= 4 && rawPass.length <= 72) return rawPass;
-      // .env 에 비밀번호가 없으면 무작위 생성 — 코드에 박힌 기본값을 쓰지 않는다.
+      // .env 에 비밀번호가 없으면 data/admin-password.txt 를 먼저 읽는다.
+      // 예전에는 매 시작마다 무작위로 새로 만들어 **관리자 계정에 영영 로그인할 수 없었다**.
+      const persisted = readAdminPasswordFile();
+      if (persisted) {
+        ADMIN_DEFAULT.password = persisted;
+        return persisted;
+      }
+      // 코드에 박힌 기본값을 쓰지 않고, 한 번만 생성해 파일에 남긴다.
       if (!ADMIN_DEFAULT.password) {
         ADMIN_DEFAULT.password = randomPassword();
-        console.warn(`[보안] ADMIN_PASSWORD 가 없어 임시 비밀번호를 생성했습니다: ${ADMIN_DEFAULT.password}`);
-        console.warn('[보안] .env 에 ADMIN_PASSWORD 를 설정하면 이 값이 유지됩니다.');
+        const file = writeAdminPasswordFile(ADMIN_DEFAULT.password);
+        console.warn(`[보안] ADMIN_PASSWORD 가 없어 임시 비밀번호를 생성해 ${file || '저장 실패'} 에 보관했습니다.`);
+        console.warn('[보안] 위 파일을 열어 비밀번호를 확인하거나, .env ADMIN_PASSWORD 로 직접 지정하세요.');
       }
       return ADMIN_DEFAULT.password;
     })(),

@@ -557,6 +557,7 @@ class Game {
     this.ui.panels.on('resume', () => this.resume());
     this.ui.panels.on('save:load', ({ id } = {}) => this.loadSaveSlot(id));
     this.ui.panels.on('save:del', ({ id } = {}) => this.removeSave(id));
+    this.ui.panels.on('crosshair:change', (prefs) => this.ui?.hud?.setCrosshair?.(prefs));
     this.ui.panels.on('perf:reset', () => { this.resetPerf(); this._refreshPanels(); });
     this.ui.panels.on('auto-quality:toggle', () => { this.toggleAutoQuality(); this._refreshPanels(); });
     this.ui.panels.on('game:reload', () => this.saveAndReload());
@@ -3574,24 +3575,27 @@ class Game {
   _updatePerformance(dt) {
     const fps = this.ui?.fps ?? null;
     const avg = Number(fps?.averageFps) || 0;
-    this._perfElapsed = (this._perfElapsed ?? 0) + dt;
+    // 시뮬레이션 dt 는 0.05 로 잘리므로, 성능 판단은 실제 프레임 시간을 써야
+    // 20 FPS 아래에서도 해상도/품질이 제때 내려간다.
+    const perfDt = Math.min(1, Number(this._frameDt) || dt || 0);
+    this._perfElapsed = (this._perfElapsed ?? 0) + perfDt;
 
     if (this.adaptive) {
-      const res = this.adaptive.update(dt, avg);
+      const res = this.adaptive.update(perfDt, avg);
       if (res.changed) {
         this._notifyPerf('해상도 ' + formatScale(res.scale) + ' 로 조정 (' + res.pixelRatio.toFixed(2) + 'x · 평균 ' + Math.round(avg) + ' FPS)');
       }
     }
 
     // 메모리 감시 — 오래 켜 두면 느려질 때 알려 준다(강제 GC 는 브라우저가 막는다).
-    const mem = this.memory?.sample(dt) ?? null;
+    const mem = this.memory?.sample(perfDt) ?? null;
     if (mem?.warn) {
       this.notify(`메모리가 ${formatMb(mem.mb * 1048576)} 쌓였습니다 — 설정에서 [저장하고 새로고침] 을 권합니다`, 'warn');
     }
 
     // 자동 화질(지속 적응) — 한 번만 내리는 게 아니라 계속 지켜보고, 여유가 생기면 되올린다.
     if (this.autoQuality !== false && this.state === 'playing' && this._perfElapsed >= ADAPTIVE.downgradeAt && avg > 0) {
-      this._qualityAcc = (this._qualityAcc ?? 0) + dt;
+      this._qualityAcc = (this._qualityAcc ?? 0) + perfDt;
       const interval = Number(ADAPTIVE.qualityInterval) || 12;
       if (this._qualityAcc >= interval) {
         this._qualityAcc = 0;
@@ -3825,11 +3829,13 @@ class Game {
   // ── 루프
   _loop() {
     requestAnimationFrame(() => this._loop());
-    const dt = Math.min(0.05, this.clock.getDelta() || 0.016);
+    const rawDt = this.clock.getDelta() || 0.016;
+    const dt = Math.min(0.05, rawDt);
     this._dt = dt;
+    this._frameDt = rawDt;
     const t0 = perfNow();
     try {
-      this._update(dt);
+      this._update(dt, rawDt);
       this._updateErrors = 0;
     } catch (err) {
       // 한 프레임 예외는 넘기고 계속 돌린다. 다만 **계속** 실패하면 진행이 멈춘 것이므로 알려 준다.
@@ -3970,7 +3976,7 @@ class Game {
     return true;
   }
 
-  _update(dt) {
+  _update(dt, frameDt = dt) {
     this._updateCoreAttack(dt);
     // 대량 지급·패널 갱신을 프레임 예산 안에서 소화한다(계약 §4.47).
     this._grants?.step?.();
@@ -3990,7 +3996,7 @@ class Game {
       this._summonStep();
     }
     this.input.update?.(dt);
-    this.ui.fps.update?.(dt);
+    this.ui.fps.update?.(frameDt);
     this.ui.menu.update?.(dt);
     this.ui.lobby.update?.(dt);
     this.ui.panels.update?.(dt);

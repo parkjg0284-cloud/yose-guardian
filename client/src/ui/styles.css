@@ -210,12 +210,15 @@ body {
 
 /* ---------------------------------------------------------- 4) 크로스헤어 */
 .crosshair {
+  --ch-color: #f0c469;
+  --ch-glow: rgba(240, 196, 105, 0.55);
+  --ch-size: 1;
   position: absolute;
   top: 50%;
   left: 50%;
   z-index: var(--z-crosshair);
-  width: 34px;
-  height: 34px;
+  width: calc(34px * var(--ch-size));
+  height: calc(34px * var(--ch-size));
   transform: translate(-50%, -50%) scale(1);
   pointer-events: none;
   transition: transform 120ms ease-out, opacity 160ms linear;
@@ -226,25 +229,26 @@ body {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 2px;
-  height: 2px;
-  margin: -1px 0 0 -1px;
+  width: calc(2px * var(--ch-size));
+  height: calc(2px * var(--ch-size));
+  margin: calc(-1px * var(--ch-size)) 0 0 calc(-1px * var(--ch-size));
   border-radius: 50%;
-  background: rgba(233, 238, 251, 0.95);
+  background: var(--ch-color);
+  box-shadow: 0 0 4px var(--ch-glow);
 }
 
 .crosshair-line {
   position: absolute;
-  background: linear-gradient(to bottom, rgba(240, 196, 105, 0.95), rgba(240, 196, 105, 0.55));
-  box-shadow: 0 0 4px rgba(240, 196, 105, 0.5);
+  background: var(--ch-color);
+  box-shadow: 0 0 4px var(--ch-glow);
 }
 
 .crosshair-line-up,
 .crosshair-line-down {
   left: 50%;
-  width: 1.5px;
-  height: 8px;
-  margin-left: -0.75px;
+  width: calc(1.5px * var(--ch-size));
+  height: calc(8px * var(--ch-size));
+  margin-left: calc(-0.75px * var(--ch-size));
 }
 
 .crosshair-line-up {
@@ -258,9 +262,9 @@ body {
 .crosshair-line-left,
 .crosshair-line-right {
   top: 50%;
-  width: 8px;
-  height: 1.5px;
-  margin-top: -0.75px;
+  width: calc(8px * var(--ch-size));
+  height: calc(1.5px * var(--ch-size));
+  margin-top: calc(-0.75px * var(--ch-size));
 }
 
 .crosshair-line-left {
@@ -273,10 +277,223 @@ body {
 
 .crosshair-ring {
   position: absolute;
-  inset: 5px;
+  inset: calc(5px * var(--ch-size));
   border: 1px solid rgba(168, 128, 255, 0);
   border-radius: 50%;
   transition: border-color 140ms linear, transform 140ms ease-out;
+}
+
+/* ── 조준선 모양 프리셋 (설정 → 조준선) ─────────────────────────────
+   data-crosshair 로 선택하고, 색·크기는 HUD 가 CSS 변수로 넣는다. */
+.crosshair[data-crosshair="dot"] .crosshair-line,
+.crosshair[data-crosshair="dot"] .crosshair-ring {
+  display: none;
+}
+.crosshair[data-crosshair="dot"] .crosshair-dot {
+  width: calc(4px * var(--ch-size));
+  height: calc(4px * var(--ch-size));
+  margin: calc(-2px * var(--ch-size)) 0 0 calc(-2px * var(--ch-size));
+}
+
+.crosshair[data-crosshair="circle"] .crosshair-line,
+.crosshair[data-crosshair="circle"] .crosshair-dot {
+  display: none;
+}
+.crosshair[data-crosshair="circle"] .crosshair-ring {
+  inset: calc(3px * var(--ch-size));
+  border-color: var(--ch-color);
+  box-shadow: 0 0 5px var(--ch-glow), inset 0 0 5px var(--ch-glow);
+  opacity: 0.85;
+}
+.crosshair[data-crosshair="circle"].is-aiming .crosshair-ring {
+  opacity: 1;
+  border-color: var(--ch-color);
+}
+
+.crosshair[data-crosshair="x"] .crosshair-line-left,
+.crosshair[data-crosshair="x"] .crosshair-line-right {
+  display: none;
+}
+.crosshair[data-crosshair="x"] .crosshair-line-up,
+.crosshair[data-crosshair="x"] .crosshair-line-down {
+  top: 50%;
+  left: 50%;
+  width: calc(2px * var(--ch-size));
+  height: calc(22px * var(--ch-size));
+  margin: calc(-11px * var(--ch-size)) 0 0 calc(-1px * var(--ch-size));
+}
+.crosshair[data-crosshair="x"] .crosshair-line-up {
+  transform: rotate(45deg);
+}
+.crosshair[data-crosshair="x"] .crosshair-line-down {
+  transform: rotate(-45deg);
+}
+.crosshair[data-crosshair="x"] .crosshair-ring {
+  display: none;
+}
+
+.crosshair[data-crosshair="t"] .crosshair-line-left,
+.crosshair[data-crosshair="t"] .crosshair-line-right {
+  display: none;
+}
+.crosshair[data-crosshair="t"] .crosshair-line-up {
+  top: calc(5px * var(--ch-size));
+  left: 50%;
+  width: calc(14px * var(--ch-size));
+  height: calc(2px * var(--ch-size));
+  margin-left: calc(-7px * var(--ch-size));
+}
+.crosshair[data-crosshair="t"] .crosshair-line-down {
+  top: calc(5px * var(--ch-size));
+  bottom: auto;
+  left: 50%;
+  width: calc(2px * var(--ch-size));
+  height: calc(10px * var(--ch-size));
+  margin-left: calc(-1px * var(--ch-size));
+}
+.crosshair[data-crosshair="t"] .crosshair-ring {
+  display: none;
+}
+
+.crosshair[data-crosshair="twin"] .crosshair-line-up,
+.crosshair[data-crosshair="twin"] .crosshair-line-down,
+.crosshair[data-crosshair="twin"] .crosshair-dot,
+.crosshair[data-crosshair="twin"] .crosshair-ring {
+  display: none;
+}
+.crosshair[data-crosshair="twin"] .crosshair-line-left,
+.crosshair[data-crosshair="twin"] .crosshair-line-right {
+  top: 50%;
+  width: calc(2px * var(--ch-size));
+  height: calc(15px * var(--ch-size));
+  margin-top: calc(-7.5px * var(--ch-size));
+}
+.crosshair[data-crosshair="twin"] .crosshair-line-left {
+  left: calc(5px * var(--ch-size));
+}
+.crosshair[data-crosshair="twin"] .crosshair-line-right {
+  right: calc(5px * var(--ch-size));
+}
+
+/* ── 설정 → 조준선 ─────────────────────────────────────────────── */
+.crosshair-options {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  gap: 12px 14px;
+  align-items: center;
+  width: 100%;
+}
+.crosshair-preview-box {
+  grid-row: span 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 112px;
+  height: 112px;
+  border: 1px solid var(--line-soft, rgba(255, 255, 255, 0.12));
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 50% 50%, rgba(240, 196, 105, 0.1), transparent 65%),
+    repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.025) 0 1px, transparent 1px 8px),
+    rgba(4, 7, 15, 0.8);
+}
+.crosshair.is-preview {
+  position: relative;
+  top: auto;
+  left: auto;
+  transform: none;
+  flex: 0 0 auto;
+}
+.crosshair-styles {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 6px;
+}
+.crosshair-side {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-width: 0;
+}
+.crosshair-style-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  min-height: 50px;
+  padding: 6px 4px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.035);
+  color: var(--c-ink-dim);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.crosshair-style-btn .crosshair-style-glyph {
+  font-size: 19px;
+  line-height: 1;
+  color: var(--c-gold);
+}
+.crosshair-style-btn:hover {
+  border-color: rgba(240, 196, 105, 0.55);
+  background: rgba(240, 196, 105, 0.08);
+}
+.crosshair-style-btn.is-active {
+  border-color: var(--c-gold);
+  background: rgba(240, 196, 105, 0.16);
+  color: #fff5d8;
+  box-shadow: 0 0 0 1px rgba(240, 196, 105, 0.25) inset;
+}
+.crosshair-colors {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+}
+.crosshair-color-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 2px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  background: var(--swatch, #fff);
+  cursor: pointer;
+}
+.crosshair-color-btn:hover {
+  border-color: #fff;
+  transform: scale(1.08);
+}
+.crosshair-color-btn.is-active {
+  border-color: #fff;
+  box-shadow: 0 0 0 3px rgba(240, 196, 105, 0.45), 0 0 10px var(--swatch, #fff);
+}
+.crosshair-size-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+.crosshair-size-row input[type="range"] {
+  flex: 1 1 150px;
+  min-width: 120px;
+  accent-color: var(--c-gold);
+}
+.crosshair-size-val {
+  min-width: 46px;
+  text-align: right;
+  color: var(--c-gold);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+.crosshair-reset {
+  justify-self: start;
+}
+@media (max-width: 760px) {
+  .crosshair-options { grid-template-columns: 1fr; }
+  .crosshair-preview-box { display: none; }
+  .crosshair-styles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 
 /* 조준(우클릭) 시 벌어지고 링이 드러난다 */
@@ -290,8 +507,15 @@ body {
 
 /* 시전 중에는 보라색으로 물든다 */
 .crosshair.is-casting .crosshair-line {
-  background: linear-gradient(to bottom, rgba(168, 128, 255, 1), rgba(168, 128, 255, 0.5));
+  background: #a880ff;
   box-shadow: 0 0 6px rgba(168, 128, 255, 0.7);
+}
+.crosshair.is-casting .crosshair-dot {
+  background: #a880ff;
+  box-shadow: 0 0 6px rgba(168, 128, 255, 0.7);
+}
+.crosshair.is-casting .crosshair-ring {
+  border-color: rgba(168, 128, 255, 0.85);
 }
 
 .crosshair.is-casting {
@@ -299,8 +523,14 @@ body {
 }
 
 .crosshair.is-low-hp .crosshair-line {
-  background: linear-gradient(to bottom, rgba(255, 95, 109, 1), rgba(255, 95, 109, 0.5));
+  background: #ff5f6d;
   box-shadow: 0 0 6px rgba(255, 95, 109, 0.7);
+}
+.crosshair.is-low-hp .crosshair-dot {
+  background: #ff5f6d;
+}
+.crosshair.is-low-hp .crosshair-ring {
+  border-color: rgba(255, 95, 109, 0.75);
 }
 
 /* 명중 표시(히트마커) */

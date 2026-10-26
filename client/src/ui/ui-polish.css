@@ -539,7 +539,7 @@
 
 /* ══ 싱글 플레이 — 금빛 카드 · 중간 크기(760px) ═══════════════════════ */
 .menu-card.menu-solo {
-  width: min(760px, 94vw);
+  width: min(760px, 100%);
   margin: 0 auto;
   padding: 22px 24px 24px;
   border-radius: 18px;
@@ -613,7 +613,7 @@
 
 /* ══ 멀티플레이 — 보랏빛 카드 · 중간 크기(880px) · 2단 ════════════════ */
 .menu-card.menu-multi {
-  width: min(880px, 96vw);
+  width: min(880px, 100%);
   margin: 0 auto;
   padding: 22px 24px 24px;
   border-radius: 10px;
@@ -698,10 +698,13 @@
 /* 내용이 길어도 위가 잘리지 않도록 — 메뉴를 위에서부터 채운다 */
 #menu-root[data-view="solo"] .menu,
 #menu-root[data-view="multi"] .menu { align-items: center; }
+/* 카드 폭(760/880) + 메뉴 좌우 padding 20px — 카드가 프레임 밖으로 넘치지 않게. */
+#menu-root[data-view="solo"] .menu { width: min(800px, 96vw); }
+#menu-root[data-view="multi"] .menu { width: min(920px, 96vw); }
 #menu-root[data-view="solo"] .menu-shell,
-#menu-root[data-view="multi"] .menu-shell { margin: 0 auto; width: auto; }
+#menu-root[data-view="multi"] .menu-shell { margin: 0 auto; width: 100%; }
 #menu-root[data-view="solo"] .menu-body,
-#menu-root[data-view="multi"] .menu-body { align-items: center; }
+#menu-root[data-view="multi"] .menu-body { align-items: center; width: 100%; }
 
 /* 카드 안 바로가기 링크 */
 .solo-links, .multi-links {
@@ -723,11 +726,11 @@
 .solo-link:hover { border-color: rgba(240, 196, 105, 0.6); color: #ffe6b0; background: rgba(240, 196, 105, 0.1); }
 .multi-link-btn:hover { border-color: rgba(168, 128, 255, 0.6); color: #dad6ff; background: rgba(168, 128, 255, 0.12); }
 
-#menu-root[data-view="multi"] .menu-rooms { width: min(880px, 96vw); }
+#menu-root[data-view="multi"] .menu-rooms { width: 100%; }
 
 /* ══ 탭 화면 (캐릭터 · 시드 갤러리 · 도움말) — 중간 크기 카드 ══════════ */
 .menu-card.menu-tab {
-  width: min(880px, 96vw);
+  width: min(880px, 100%);
   margin: 0 auto;
   padding: 22px 24px 24px;
   border-radius: 16px;

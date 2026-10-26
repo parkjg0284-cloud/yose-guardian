@@ -103,6 +103,14 @@ import {
   resetKey as boundResetKey,
   setKey as boundSetKey
 } from '../keys.js';
+import {
+  CROSSHAIR_COLORS,
+  CROSSHAIR_STYLES,
+  applyCrosshair,
+  crosshairColorById,
+  loadCrosshair,
+  saveCrosshair
+} from './crosshair.js';
 
 export const PANEL_IDS = [
   'arcana',
@@ -346,6 +354,7 @@ export class PanelManager {
     this._roomState = null;
     this._netOffs = [];
     this._vol = Object.assign({ master: 0.8, sfx: 0.8, bgm: 0.5 }, safe(() => this.game?.audio?.volume, null) || readJson(VOLUME_KEY, null) || {});
+    this._crosshair = loadCrosshair();
     this.state = {
       build: { category: 'attack', tier: 0, selected: null },
       weapons: { family: 'all', equipped: '', preview: '' },
@@ -697,6 +706,22 @@ export class PanelManager {
         safe(() => this.game?.ui?.minimap?.toggle?.());
         this._render('settings');
         break;
+      case 'crosshair-style':
+        this._crosshair = saveCrosshair({ ...this._crosshair, style: d.id });
+        this.emit('crosshair:change', this._crosshair);
+        this._render('settings');
+        break;
+      case 'crosshair-color':
+        this._crosshair = saveCrosshair({ ...this._crosshair, color: d.id });
+        this.emit('crosshair:change', this._crosshair);
+        this._render('settings');
+        break;
+      case 'crosshair-reset':
+        this._crosshair = saveCrosshair({ style: 'classic', color: 'gold', size: 1 });
+        this.emit('crosshair:change', this._crosshair);
+        this._toast('조준선을 기본값으로 되돌렸습니다', 'info');
+        this._render('settings');
+        break;
       case 'save':
         this.emit('save', {});
         break;
@@ -1004,6 +1029,12 @@ export class PanelManager {
       this._vol[t.dataset.ch] = Number(t.value);
       writeJson(VOLUME_KEY, this._vol);
       safe(() => this.game?.audio?.setVolume?.({ master: this._vol.master, sfx: this._vol.sfx, bgm: this._vol.bgm }));
+    }
+    if (t?.dataset?.act === 'crosshair-size') {
+      this._crosshair = saveCrosshair({ ...this._crosshair, size: Number(t.value) });
+      this.emit('crosshair:change', this._crosshair);
+      const out = this._bodies.settings?.querySelector?.('[data-role="crosshair-size-val"]');
+      if (out) out.textContent = `${Math.round(this._crosshair.size * 100)}%`;
     }
   }
 
@@ -3253,6 +3284,87 @@ export class PanelManager {
     this._render('weapons');
   }
 
+  // ── 설정 — 조준선 미리보기/선택 ───────────────────
+  _crosshairPreview(prefs) {
+    const box = h('div', 'crosshair-preview-box');
+    const ch = h('div', 'crosshair is-preview');
+    for (const cls of [
+      'crosshair-line crosshair-line-up',
+      'crosshair-line crosshair-line-down',
+      'crosshair-line crosshair-line-left',
+      'crosshair-line crosshair-line-right',
+      'crosshair-dot',
+      'crosshair-ring'
+    ]) {
+      ch.appendChild(h('span', cls));
+    }
+    applyCrosshair(ch, prefs);
+    box.appendChild(ch);
+    return box;
+  }
+
+  _renderCrosshair(body) {
+    const prefs = this._crosshair;
+    body.appendChild(sectionTitle('조준선'));
+    const wrap = h('div', 'crosshair-options');
+    wrap.appendChild(this._crosshairPreview(prefs));
+    const side = h('div', 'crosshair-side');
+
+    const styles = h('div', 'crosshair-styles');
+    for (const s of CROSSHAIR_STYLES) {
+      const b = h('button', `crosshair-style-btn${prefs.style === s.id ? ' is-active' : ''}`);
+      b.type = 'button';
+      b.dataset.act = 'crosshair-style';
+      b.dataset.id = s.id;
+      b.title = s.desc;
+      b.setAttribute('aria-label', `조준선 모양 — ${s.name}`);
+      b.setAttribute('aria-pressed', prefs.style === s.id ? 'true' : 'false');
+      b.appendChild(h('span', 'crosshair-style-glyph', s.glyph));
+      b.appendChild(h('span', '', s.name));
+      styles.appendChild(b);
+    }
+    side.appendChild(styles);
+
+    const colors = h('div', 'crosshair-colors');
+    for (const c of CROSSHAIR_COLORS) {
+      const b = h('button', `crosshair-color-btn${prefs.color === c.id ? ' is-active' : ''}`);
+      b.type = 'button';
+      b.dataset.act = 'crosshair-color';
+      b.dataset.id = c.id;
+      b.title = c.name;
+      b.setAttribute('aria-label', `조준선 색 — ${c.name}`);
+      b.setAttribute('aria-pressed', prefs.color === c.id ? 'true' : 'false');
+      b.style.setProperty('--swatch', c.hex);
+      colors.appendChild(b);
+    }
+    side.appendChild(colors);
+
+    const sizeRow = h('div', 'crosshair-size-row');
+    sizeRow.appendChild(h('span', 'row-label', '크기'));
+    const range = h('input', 'input');
+    range.type = 'range';
+    range.min = '0.7';
+    range.max = '1.8';
+    range.step = '0.05';
+    range.value = String(prefs.size);
+    range.dataset.act = 'crosshair-size';
+    range.setAttribute('aria-label', '조준선 크기');
+    sizeRow.appendChild(range);
+    const out = h('span', 'crosshair-size-val', `${Math.round(prefs.size * 100)}%`);
+    out.dataset.role = 'crosshair-size-val';
+    sizeRow.appendChild(out);
+    side.appendChild(sizeRow);
+
+    const reset = h('button', 'btn ghost btn-ghost crosshair-reset', '기본값으로');
+    reset.type = 'button';
+    reset.dataset.act = 'crosshair-reset';
+    side.appendChild(reset);
+
+    wrap.appendChild(side);
+    body.appendChild(wrap);
+    body.appendChild(row('안내', '조준선은 즉시 적용되고 브라우저에 저장됩니다 · 금빛/보라 등 색과 크기를 함께 조절하세요'));
+  }
+
   // ── 설정 ────────────────────────────────────────
   _renderSettings(body) {
     const g = this.game;
@@ -3339,6 +3451,10 @@ export class PanelManager {
     body.appendChild(camRow);
     body.appendChild(row('현재 시점', camMode === 'third' ? '3인칭 — 캐릭터 어깨 너머' : '1인칭 — 눈높이'));
     body.appendChild(row('단축키', 'H — 1인칭 ↔ 3인칭 (아래 [단축키] 에서 다른 키로 바꿀 수 있습니다)'));
+
+    // ── 조준선 (사용자 요청) — 모양·색·크기를 바로 바꾸고 미리 본다.
+    this._renderCrosshair(body);
+
     body.appendChild(sectionTitle('프레임 프리셋'));
     const cards = grid();
     const activePreset = String(g?.quality ?? g?.preset?.id ?? '');

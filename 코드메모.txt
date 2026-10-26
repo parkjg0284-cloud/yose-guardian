@@ -765,3 +765,24 @@ npm install 이 실패한다
   [검증] smoke 936/936 · headless 578/578 · ui-dom 339/339 · base 80/80
          실전 브라우저 .tmp/gun-live.mjs 20/20 — 두 총구 dx 0.404 · 2발 명중 · HUD R · 쿨다운 150초 · 건마스터 카드
   끝.
+[48] 조준선 설정 · 세이브 불러오기 · 멀티 창 배율 · 관리자/네트워크 (v1.12.0)
+  [요청] 조준선 바꾸는 기능(설정) · 멀티플레이 창 배율 · 티어별 무기/유물 목록 · 관리자 계정·/api/net 환경 문제 ·
+         최적화/버그/멀티 테스트 · 싱글 세이브 불러오기 버튼
+  · 조준선 client/src/ui/crosshair.js — 6모양(십자·점·원·엑스·T·쌍점) · 6색 · 크기 70~180%
+    localStorage fortress.crosshair.v1 · #crosshair data-crosshair + --ch-color/--ch-glow/--ch-size
+    설정 패널에 미리보기·슬라이더·[기본값으로], 변경 즉시 HUD 반영
+    main.js 가 this.ui.hud.setCrosshair() 로 전달(이전 this.hud 오타 수정)
+  · 세이브 — 메인 싱글/멀티 옆 [📂 불러오기] 실제 렌더(world/multi) · 클릭 load → main.load()
+    설정의 슬롯 목록 불러오기/삭제는 기존 유지
+  · 멀티 창 배율 — .menu 880+padding 20 안에 카드 96vw 라 21~40px 넘침/모바일 잘림
+    멀티 .menu 920 · shell/body 100% · card min(880px,100%) · 방 목록 100% · 싱글도 800/760
+    실측 1920~390 폭에서 카드가 프레임 안, 가로 스크롤 0
+  · 관리자 — .env 비밀번호 → data/admin-password.txt 순서, 파일도 없으면 1회 생성·저장
+    재시작마다 무작위로 바뀌어 로그인 불가하던 문제 수정 · 생성 비밀번호 로그 출력 제거
+    e2e-net — .env 를 fileURLToPath 로 읽어 한글 경로 문제 해결 · /api/net 포트는 E2E_BASE 포트
+  · 최적화 — FPS/적응형/자동화질/메모리 감시가 시뮬레이션 dt(0.05 클램프) 대신 실제 rawDt 사용
+    AdaptiveResolution.baseRatio 를 devicePixelRatio 이하로 제한(dpr1에서 1.02로 올라가던 역효과)
+  · 문서 — docs/WEAPONS.md 75종(T1~T7 + T8 비밀 2) · README 조준선/세이브/관리자 · docs 배지 v1.12.0
+  [검증] smoke 951/951 · headless 578/578 · ui-dom 342/342 · mp 37/37 · e2e 94/94 · pages 12/0
+         실전 브라우저 조준선 12/12 · 세이브 9/9 · 최적화 13/13(적 120기 · 드로콜 603 · 삼각형 212,740 · 자동 60%)
+  끝.

@@ -1049,8 +1049,8 @@ export class MainMenu {
     const loggedIn = Boolean(safe(() => auth.loggedIn, false));
     const user = safe(() => auth.user, null);
     // 로그인/회원가입은 설정 안으로 옮겼다(사용자 요청) — 메인 화면에는 계정 버튼을 두지 않는다.
-    item('world', '🎮', '싱글 플레이', 'is-primary');
-    item('multi', '🧙', '멀티플레이', 'is-violet');
+    item('world', '🎮', '싱글 플레이', 'is-primary', true);
+    item('multi', '🧙', '멀티플레이', 'is-violet', true);
     item('options', '⚙️', '설정', 'is-ghost');
     item('leave', '🚪', '게임종료', 'is-danger');
     // body 는 _renderMain 이 지웠다 다시 채우므로 스택은 **메뉴 루트**에 붙여 살아남게 한다(H-88b).

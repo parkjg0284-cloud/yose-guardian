@@ -359,6 +359,37 @@ attempt('설정 패널 — 내 세이브 목록에서 불러오기/삭제 위임
   }
 });
 
+attempt('설정 패널 — 조준선 6종·미리보기·모양/색/크기 변경(사용자 요청)', () => {
+  const fake = new Map();
+  const savedLS = globalThis.localStorage;
+  globalThis.localStorage = { getItem: (k) => (fake.has(k) ? fake.get(k) : null), setItem: (k, v) => fake.set(k, String(v)), removeItem: (k) => fake.delete(k) };
+  const events = [];
+  const off = pm.on('crosshair:change', (p) => events.push(p));
+  try {
+    pm._crosshair = { style: 'classic', color: 'gold', size: 1 };
+    pm.open('settings');
+    const root = documentStub.getElementById('panel-root');
+    if (root.querySelectorAll('[data-act="crosshair-style"]').length !== 6) return false;
+    if (root.querySelectorAll('[data-act="crosshair-color"]').length !== 6) return false;
+    if (!root.querySelector('.crosshair')) return false;
+    const styleBtn = root.querySelectorAll('[data-act="crosshair-style"]').find((e) => e.dataset.id === 'x');
+    const colorBtn = root.querySelectorAll('[data-act="crosshair-color"]').find((e) => e.dataset.id === 'green');
+    const range = root.querySelector('[data-act="crosshair-size"]');
+    if (!styleBtn || !colorBtn || !range) return false;
+    root.dispatch('click', { target: styleBtn, preventDefault() {}, stopPropagation() {} });
+    root.dispatch('click', { target: colorBtn, preventDefault() {}, stopPropagation() {} });
+    const liveRange = root.querySelector('[data-act="crosshair-size"]');
+    liveRange.value = '1.35';
+    root.dispatch('input', { target: liveRange, preventDefault() {}, stopPropagation() {} });
+    const last = events[events.length - 1] || {};
+    return events.length >= 3 && pm._crosshair.style === 'x' && pm._crosshair.color === 'green' && Number(pm._crosshair.size) === 1.35 && last.style === 'x';
+  } finally {
+    off?.();
+    globalThis.localStorage = savedLS;
+    pm.close();
+  }
+});
+
 attempt('설정 패널 — 자동 화질 토글과 저장 후 새로고침(계약 §4.50)', () => {
   const prevAuto = game.autoQuality;
   const prevUser = game._userQuality;
@@ -1069,6 +1100,13 @@ const menu = attempt('MainMenu constructs (builds #menu-root)', () => new menuMo
   ok('메인화면 — 오른쪽 아래 4단 버튼', acts.every((a) => documentStub.body.querySelectorAll('[data-act="' + a + '"]').length >= 1), acts.join(','));
   const cta = mroot.querySelector('[data-act="world"]');
   ok('메인화면 — 버튼이 화면 최상위(body)에 붙는다', !!documentStub.body.querySelector('[data-act="world"]'));
+  const heroLoads = [...(menu._heroStack?.querySelectorAll('[data-act="load"]') || [])];
+  ok('메인화면 — 싱글·멀티 옆 [불러오기] 2개', heroLoads.length === 2 && heroLoads.some((b) => b.dataset.mode === 'world') && heroLoads.some((b) => b.dataset.mode === 'multi'), heroLoads.map((b) => b.dataset.mode).join(','));
+  let loadPayload = null;
+  const offHeroLoad = menu.on('load', (p) => { loadPayload = p; });
+  if (heroLoads[0]) heroLoads[0].dispatch('click', { target: heroLoads[0], preventDefault() {}, stopPropagation() {} });
+  offHeroLoad?.();
+  ok('메인화면 — [불러오기] 클릭이 load 를 보낸다', loadPayload?.mode === 'world', JSON.stringify(loadPayload));
   let started = false;
   menu.on('start', () => { started = true; });
   // H-94: 싱글 플레이 버튼은 화면만 열고, 게임 시작은 [게임 시작] 버튼이 한다.

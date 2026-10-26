@@ -1792,3 +1792,68 @@ if (this.state === 'menu' || this.state === 'paused') this._prewarmStep(); // �
 - `tools/base-bugtest.mjs` 80/80 — 활·쌍권총 T1~T7 제단 레시피 분리.
 - 실전 브라우저 `.tmp/gun-live.mjs` 20/20 — 은하수의 밤 장착·두 총구 dx 0.404·2발 사격·실제 명중 2회·쿨다운·HUD R/이름/150초·
   건마스터 카드·페이지 예외 0.
+
+## §4.76 조준선 설정 · 세이브 불러오기 · 멀티 창 배율 · 관리자/네트워크 환경 (v1.12.0)
+
+**요청** — 설정에서 조준선을 바꾸고, 멀티플레이 창 배율을 바로잡고, 티어별 무기(유물 포함) 목록을 뽑고,
+이전부터 실패하던 관리자 계정·`/api/net` 환경 문제를 고치고, 최적화·버그·멀티플레이를 검증하고,
+싱글 세이브를 불러오는 버튼을 만든다.
+
+**조준선 (`client/src/ui/crosshair.js` · `client/src/ui/panels.js` · `client/src/ui/hud.js`)**
+- 새 모듈 `crosshair.js` — `CROSSHAIR_KEY = 'fortress.crosshair.v1'`.
+  `CROSSHAIR_STYLES` 6종(`classic` 십자 · `dot` 점 · `circle` 원 · `x` 엑스 · `t` T자 · `twin` 쌍점),
+  `CROSSHAIR_COLORS` 6종(금빛 · 흰색 · 보라 · 초록 · 빨강 · 하늘), `DEFAULT_CROSSHAIR = { style:'classic', color:'gold', size:1 }`.
+- 크기 0.7~1.8(70~180%)로 제한하고 0.05 단위로 반올림. 잘못된 저장값은 기본값으로 복구한다.
+- `applyCrosshair(el, prefs)` 가 `#crosshair[data-crosshair]` 와 CSS 변수 `--ch-color` · `--ch-glow` · `--ch-size` 를 설정한다.
+  HUD 는 생성 시 저장값을 읽고, `setCrosshair(prefs)` 로 게임 중 즉시 바꾼다.
+- 설정 패널 — 6개 모양 버튼 · 6개 색 버튼 · 크기 슬라이더 · 실시간 미리보기 · [기본값으로].
+  변경은 `crosshair:change` 이벤트 → `main.js` 가 `this.ui.hud.setCrosshair()` 로 전달하고 localStorage 에 저장한다.
+- CSS — 기존 십자 HUD 를 변수 기반으로 바꾸고 `[data-crosshair="dot|circle|x|t|twin"]` 프리셋을 추가했다.
+  발사 중(`is-firing`)·저체력 색상도 유지된다.
+
+**세이브 불러오기 (`client/src/ui/menu.js`)**
+- 메인 화면의 [싱글 플레이]·[멀티플레이] 옆에 `[📂 불러오기]` 를 실제로 렌더한다(이전에는 버튼 정의만 있고 `visible` 이 꺼져 있었다).
+  `data-act="load"` · `data-mode="world|multi"` 이고, 싱글 카드 안에도 `data-act="menu-load"` 버튼이 있다.
+- 클릭 → `_heroAct('load')` → `menu` 의 `load` 이벤트 → `main.load()` → `loadSaveSlot(id)`/`_restore`.
+- 설정 패널의 기존 세이브 슬롯 목록([불러오기]/[삭제])도 그대로 동작한다.
+
+**멀티플레이 창 배율 (`client/src/ui/ui-polish.css`)**
+- 원인 — `.menu` 는 `width:min(880px,96vw)` + `padding:20px` 인데, 그 안의 `.menu-card.menu-multi` 가 다시 `96vw`/880px 이라
+  카드가 메뉴 프레임보다 21~40px 넓었다. 390px 창에서는 오른쪽이 잘렸고, 1366px 이하에서도 프레임을 넘었다.
+- 수정 — 멀티 화면 `.menu` 를 `min(920px,96vw)`, `.menu-shell`/`.menu-body` 를 `width:100%`, 카드를 `min(880px,100%)` 로 맞췄다.
+  싱글 화면도 `.menu` 800px · 카드 `min(760px,100%)` 로 같은 규칙을 적용했다. 방 목록은 `width:100%`.
+- 실측(Chrome headless, `Emulation.setDeviceMetricsOverride`) — 1920/1600/1440/1366/1280/1024/390 폭에서
+  카드 오른쪽이 메뉴 프레임 안(`right <= menu.right`)이고 `scrollWidth == clientWidth`, 가로 스크롤 0.
+
+**무기 목록 (`docs/WEAPONS.md`)**
+- `client/src/data.js` 의 실제 데이터에서 생성 — **75종** · 10계열 · T1~T7 + 비밀(T8).
+  티어별 표(계열·등급·이름·원소·피해·쿨다운·사거리·궁극기), 계열 요약, 직업별 시그니처.
+- T7 유물 13종(계열 최종 유물 + 창세의 지팡이·창세의 대검·창세의 낫·이 사랑, 영원히 등 제작 전용·특수 포함), T8 비밀 2종(꿈나무 계열).
+
+**관리자 계정 · `/api/net` 환경**
+- `server/api/auth.js` — `.env` 의 `ADMIN_PASSWORD` 가 있으면 그 값을 쓴다.
+  없으면 `data/admin-password.txt`(또는 `ADMIN_PASSWORD_FILE`)를 읽고, 파일도 없을 때만 한 번 생성해 저장한다.
+  이전에는 매 시작마다 무작위 비밀번호를 만들어 **재시작 후 관리자 로그인이 불가능**했다. 생성한 비밀번호는 로그에 찍지 않는다.
+- `tools/e2e-net.mjs` — `.env` 를 `fileURLToPath(new URL('../.env', import.meta.url))` 로 읽는다.
+  한글 경로에서 `new URL(...).pathname` 이 퍼센트 인코딩되어 `.env` 를 못 읽던 문제를 고쳤다.
+  `/api/net` 의 포트 검사는 하드코딩 3001 대신 `E2E_BASE` 의 포트를 쓴다(예: 3151 테스트 서버).
+- `server/index.js` 의 `/api/net` 은 실제 `PORT` 로 `localShareUrls()` 를 만든다. 서버 코드는 포트를 3001 로 고정하지 않는다.
+
+**최적화 — 실제 프레임 시간 (`client/src/main.js` · `client/src/ui/adaptive.js`)**
+- 게임 시뮬레이션은 dt 를 0.05초로 자르지만, FPS 모니터에는 **원본 프레임 시간(rawDt)** 을 넘긴다.
+  이전에는 20 FPS 아래에서도 20 FPS 로 표시되어 렉을 숨겼다.
+- 적응형 해상도·자동 화질·메모리 감시의 누적 시간도 `_frameDt`(실제 시간)를 쓴다.
+  이전에는 저FPS에서 3초 웜업이 실제로는 수십 초 걸려 해상도가 제때 내려가지 않았다.
+- `AdaptiveResolution.baseRatio` 를 `devicePixelRatio` 이하로 제한한다.
+  이전에는 dpr=1 화면에서 preset 1.5 × scale 0.68 = 1.02 로 **오히려 해상도가 올라가** 더 느려질 수 있었다.
+
+**검사**
+- `tools/smoke.mjs` 951/951 — 조준선 6종·저장·HUD 변수, 무기 문서 75/T7 13/T8 2, 멀티 배율 CSS, FPS 실제 시간, dpr 상한.
+- `tools/headless.mjs` 578/578 — 기존 통합 시뮬레이션 전부.
+- `tools/ui-dom-smoke.mjs` 342/342 — 조준선 설정 6+6·미리보기·모양/색/크기 이벤트, 메인 [불러오기] 2개·load 이벤트.
+- `tools/mp-check.mjs` 37/37 — 실제 서버 + 소켓 2~3개: 방 생성/참가/시작/중계/회전/철거/재접속/방장 위임/비공개.
+- `node tools/e2e-net.mjs` 94/94 — 관리자 로그인·관리자 API·`/api/net`(포트 3151) 포함.
+- `npm run pages` 12/0 — 배지 v1.12.0, 특징 카드 6, 설치 3단계, 가로 넘침 없음.
+- 실전 브라우저 — 조준선 12/12(모양 x·초록·140% 즉시 반영, 새로고침 유지, 게임 중 표시),
+  세이브 9/9(저장 → 새로고침 → [불러오기] → 같은 시드 복원), 최적화 13/13(적 120기, 드로콜 603, 삼각형 212,740,
+  적응형 60%, 지오메트리 41, 예외 0). 헤드리스 SwiftShader 는 3 FPS 수준이라 FPS 절대값은 실제 GPU 성능이 아니다.

@@ -188,7 +188,11 @@ export class AdaptiveResolution {
   }
 
   get baseRatio() {
-    return Math.max(0.5, Number(this.preset?.pixelRatio) || 1);
+    const presetRatio = Math.max(0.5, Number(this.preset?.pixelRatio) || 1);
+    // 초기 렌더러와 같은 규칙 — devicePixelRatio 를 넘겨 그리지 않는다(계약 §4.62).
+    //  이 clamp 가 없으면 dpr=1 화면에서 preset 1.5 × scale 0.68 = 1.02 로 오히려 해상도가 올라간다.
+    const dpr = (typeof window !== 'undefined' && Number(window.devicePixelRatio)) || 1;
+    return Math.max(0.5, Math.min(presetRatio, dpr));
   }
 
   /** 실제 적용될 픽셀 비율 */

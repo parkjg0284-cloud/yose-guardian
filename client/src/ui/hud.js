@@ -6,6 +6,7 @@
 //  - 게임 컨텍스트(game)의 모든 접근은 옵셔널 체이닝 + 숫자 방어로 처리해
 //    시스템이 아직 없거나 일부만 조립된 상태에서도 절대 throw 하지 않는다.
 import { FRAME_PRESETS, TURRET_BY_ID, TURRET_CATEGORIES, WAVE_CONFIG } from '../data.js';
+import { applyCrosshair, loadCrosshair } from './crosshair.js';
 
 const PHASE_LABEL = {
   idle: '대기',
@@ -129,6 +130,7 @@ export class HUD {
     this.root = null;
     this.toastRoot = null;
     this.crosshair = null;
+    this._crosshairPrefs = loadCrosshair();
     this._refs = Object.create(null);
     this._toasts = [];
     this._time = 0;
@@ -361,6 +363,13 @@ export class HUD {
     if (!ch.querySelector('.crosshair-dot')) {
       ch.appendChild(el('span', 'crosshair-dot'));
     }
+    applyCrosshair(ch, this._crosshairPrefs);
+  }
+
+  /** 설정 패널에서 바뀐 조준선 설정을 즉시 반영한다. */
+  setCrosshair(prefs) {
+    this._crosshairPrefs = applyCrosshair(this.crosshair, prefs) ?? this._crosshairPrefs;
+    return this._crosshairPrefs;
   }
 
   /* --------------------------------------------------------------- 공개 API */
