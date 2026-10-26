@@ -99,6 +99,7 @@ import {
   costText,
   WING_RECIPES,
   WING_RECIPE_COUNT,
+  PORTAL_RECIPE_COUNT,
   WING_RECIPE_BY_WING,
   WING_RECIPES_BY_TABLE,
   WING_TABLE_BY_TIER,
@@ -343,8 +344,8 @@ const tierCounts = {};
 for (const t of TURRETS) tierCounts[t.tier] = (tierCounts[t.tier] || 0) + 1;
 check('포탑 티어 1~7만 사용 (포탈은 예외 — 지형 등급 없음)', TURRETS.filter((t) => t.category !== 'portal').every((t) => Number(t.tier) >= 1 && Number(t.tier) <= 7), JSON.stringify(tierCounts));
 
-const badCost = TURRETS.filter((t) => !t.cost || typeof t.cost.gold !== 'number' || t.cost.gold <= 0);
-check('모든 포탑에 유효한 건설 비용', badCost.length === 0, badCost.map((t) => t.id).join(','));
+const badCost = TURRETS.filter((t) => !t.cost || typeof t.cost.gold !== 'number' || (!t.craftOnly && t.cost.gold <= 0));
+check('모든 포탑에 유효한 건설 비용 (제작 전용 포탈은 아이템)', badCost.length === 0, badCost.map((t) => t.id).join(','));
 
 const attackNoDamage = turretsByCategory('attack').filter((t) => !(t.damage > 0) || !(t.range > 0) || !(t.fireRate > 0));
 check('모든 공격 포탑에 피해/사거리/연사 존재', attackNoDamage.length === 0, attackNoDamage.map((t) => t.id).join(','));
@@ -2838,7 +2839,7 @@ section('웨이브 100 · 셀레스티얼 · 무한 모드 (계약 §4.58)');
   const panelSrc9 = readFileSync(new URL('../client/src/ui/panels.js', import.meta.url), 'utf8');
   check('설정 — 500 FPS 예산 행(현재 프레임/2.0ms)', panelSrc9.includes("perfRow('프레임 예산 (500 FPS)', 'budget')") && panelSrc9.includes('const budgetMs = 2.0;') && panelSrc9.includes('FPS 여력'));
   const turretSrc9 = readFileSync(new URL('../client/src/systems/turrets.js', import.meta.url), 'utf8');
-  check('지형 이동 — 색점에 지형 색 데이터 훅', panelSrc9.includes("dot.dataset.role = 'travel-dot'") && panelSrc9.includes('dot.dataset.color'));
+  check('포탈 — 제작 카드/설치 버튼 훅', panelSrc9.includes("dataset.role = 'craft-portal-row'") && panelSrc9.includes("dataset.act = 'portal-install'") && panelSrc9.includes('_portalSection(body)'));
   check('채굴기 — 티끌이 지형 색으로 물든다', turretSrc9.includes('accent.clone()') && turretSrc9.includes('dustMat.color.set(tint)') && turretSrc9.includes("from '../travel.js'"));
   const enemiesSrc = readFileSync(new URL('../client/src/systems/enemies.js', import.meta.url), 'utf8');
   check('적 — 고정 스탯 보스는 편성표 배율 제외(정확히 5,000,000)', enemiesSrc.includes('const fixedStats = fixedHp > 0;') && enemiesSrc.includes('if (this.mods && !fixedStats)'));
@@ -2861,9 +2862,14 @@ section('지형별 텔레포트 포탈 (계약 §4.59)');
   check('이동 지형 — 숨은 지형(벚꽃의 정원 · 시간의 지평선) 포함', ['cherry_garden', 'time_horizon'].every((id) => dests.some((d) => d.id === id && d.hidden === true)));
   check('이동 지형 — 도착 좌표가 맵 안(반지름 2600 이하)', dests.every((d) => { const p = arrivalPoint(d); return Math.hypot(p.x, p.z) <= 2600; }));
   const mainSrcT = readFileSync(new URL('../client/src/main.js', import.meta.url), 'utf8');
-  check('포탈 — main.js 에 생성 · 갱신 · N 키 연결', mainSrcT.includes('new TeleportField({') && mainSrcT.includes('this.teleports?.update?.(dt') && mainSrcT.includes("actionPressed('travel')"));
+  check('포탈 — 월드 포탈 제거 · 설치 포탈 N 이동', !mainSrcT.includes('TeleportField') && mainSrcT.includes('travelToRegion(built.dest)') && mainSrcT.includes("actionPressed('travel')"));
+  check('포탈 — 제작 아이템 API(제작·보유·설치)', mainSrcT.includes('craftPortal(dest)') && mainSrcT.includes('portalCount(dest)') && mainSrcT.includes('beginPortalPlacement(dest)'));
   const panelsSrcT = readFileSync(new URL('../client/src/ui/panels.js', import.meta.url), 'utf8');
-  check('포탈 — 패널(travel) 등록과 이동 버튼', panelsSrcT.includes("travel: '지형 이동'") && panelsSrcT.includes('_renderTravel(body)') && panelsSrcT.includes("case 'travel-go'") && panelsSrcT.includes('destinationsByTerrain'));
+  check('포탈 — 패널(travel) 안내 + 제작/설치 카드', panelsSrcT.includes("travel: '포탈'") && panelsSrcT.includes('_renderTravel(body)') && panelsSrcT.includes("case 'craft-portal'") && panelsSrcT.includes("case 'portal-install'"));
+  const craftSrcT = readFileSync(new URL('../client/src/crafting.js', import.meta.url), 'utf8');
+  check('포탈 — 제작법 8종 · 제작대 연결', PORTAL_RECIPE_COUNT === 8 && craftSrcT.includes('PORTAL_RECIPES = PORTAL_DESTS.map') && craftSrcT.includes("tier7: 'forge_t7'"));
+  const turretSrcT = readFileSync(new URL('../client/src/systems/turrets.js', import.meta.url), 'utf8');
+  check('포탈 — 설치 시 아이템 소모(골드 아님)', turretSrcT.includes('check.portalItem') && turretSrcT.includes('_takeItem') && !TURRETS.filter((x) => x.category === 'portal').some((x) => Number(x.cost?.gold) > 0));
 }
 // ───────────────────────── H-62 닉네임 중복 허용
 section('닉네임 중복 허용 (계약 §4.54)');

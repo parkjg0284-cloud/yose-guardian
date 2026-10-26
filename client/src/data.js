@@ -367,8 +367,7 @@ export const TURRET_CATEGORIES = {
   heal: { id: 'heal', name: '회복탑', icon: '✚', desc: '주변 구조물·기지·아군을 회복시킨다.' },
   mining: { id: 'mining', name: '채굴탑', icon: '⛏', desc: '반경 내 광물을 자동으로 채굴한다.' },
   lumber: { id: 'lumber', name: '벌목탑', icon: '🪓', desc: '반경 내 나무를 자동으로 벌목한다.' },
-  facility: { id: 'facility', name: '시설', icon: '🏗', desc: '작업대·저장고·채굴기·컨베이어벨트·몬스터 소환문을 세운다.' },
-  portal: { id: 'portal', name: '포탈', icon: '🌀', desc: '지형 이동 포탈 — 세워 두면 가까이에서 N 키로 그 지형으로 이동한다.' }
+  facility: { id: 'facility', name: '시설', icon: '🏗', desc: '작업대·저장고·채굴기·컨베이어벨트·몬스터 소환문을 세운다.' }
 };
 
 // 공격 계열 7종 — 계열별 이펙트/속성/색
@@ -758,9 +757,10 @@ const facilityTurrets = [
 ];
 
 
-// ── 포탈 건물 (계약 §4.59 확장) ──────────────────────────────────────────
-//  지형 이동을 '아이템'처럼 짓는 건물로 만든다 — 세워 둔 포탈로 언제든 그 지형에 간다.
-const PORTAL_DESTS = [
+// ── 포탈 아이템 (계약 §4.59 확장 → §4.74 제작 아이템화) ─────────────────
+//  게임에 서 있던 월드 포탈은 없앴다. 이제 제작대에서 '포탈 아이템'을 만들어 설치한다.
+//  아이템 1개 = 포탈 1개. 설치하면 그 지형으로 통하는 지속 포탈이 된다.
+export const PORTAL_DESTS = [
   { id: 'base', name: '기지 광장', color: 0xe8d9a8, gold: 600 },
   { id: 'tier1', name: 'T1 초원', color: 0x7ee081, gold: 1200 },
   { id: 'tier2', name: 'T2 숲', color: 0x3fbf7f, gold: 2400 },
@@ -793,9 +793,13 @@ const portalTurrets = PORTAL_DESTS.map((d) => ({
   draw: 0,
   drillPool: null,
   drillRegion: false,
-  cost: { gold: d.gold, wood: Math.round(d.gold / 20), minerals: {} },
-  desc: `${d.name}(으)로 통하는 포탈을 세운다. 다 세운 뒤 가까이에서 N 키를 누르면 이동한다. (반경 8m)`
+  craftOnly: true,
+  cost: { gold: 0, wood: 0, minerals: {} },
+  desc: `제작(C)에서 만든 ${d.name} 포탈 아이템을 설치한다. 가까이에서 N 키를 누르면 이동한다. (반경 8m)`
 }));
+
+// 건설 목록에는 넣지 않는다 — 포탈은 제작 아이템으로만 얻는다.
+export const PORTAL_TURRETS = portalTurrets;
 
 export const TURRETS = [...attackTurrets, ...supportTurrets, ...facilityTurrets, ...portalTurrets];
 export const TURRET_BY_ID = Object.fromEntries(TURRETS.map((t) => [t.id, t]));

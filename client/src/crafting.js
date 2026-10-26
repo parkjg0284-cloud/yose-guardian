@@ -14,7 +14,8 @@ import {
   FAIRY_WINGS,
   FAIRY_WING_BY_ID,
   LEATHER_BY_ID,
-  wingGradeInfo
+  wingGradeInfo,
+  PORTAL_DESTS
 } from './data.js';
 
 // ── 제작대 8종 ────────────────────────────────────────────────
@@ -70,6 +71,61 @@ export const CRAFTING_TABLES = [
 export const CRAFTING_TABLE_BY_ID = {};
 for (const t of CRAFTING_TABLES) CRAFTING_TABLE_BY_ID[t.id] = t;
 export const CRAFTING_TABLE_COUNT = CRAFTING_TABLES.length;
+
+// ── 포탈 아이템 레시피 (계약 §4.74) ──────────────────────────────────────
+//  포탈은 건설(골드)이 아니라 제작대로 만드는 소모성 아이템이다.
+//  아이템 1개 = 포탈 1개. 설치하면 그 지형으로 통하는 지속 포탈이 남는다.
+const PORTAL_TABLE_BY_DEST = {
+  base: 'forge_t1',
+  tier1: 'forge_t1',
+  tier2: 'forge_t2',
+  tier3: 'forge_t3',
+  tier4: 'forge_t4',
+  tier5: 'forge_t5',
+  tier6: 'forge_t6',
+  tier7: 'forge_t7'
+};
+
+const PORTAL_COST_BY_DEST = {
+  base: { gold: 600, wood: 30, minerals: { iron: 4 } },
+  tier1: { gold: 1200, wood: 60, minerals: { iron: 6, copper: 3 } },
+  tier2: { gold: 2400, wood: 120, minerals: { copper: 6, coal: 6 } },
+  tier3: { gold: 4200, wood: 210, minerals: { silver: 5, quartz: 4 } },
+  tier4: { gold: 6800, wood: 340, minerals: { mithril: 4, ruby: 3 } },
+  tier5: { gold: 10000, wood: 500, minerals: { adamantite: 4, orichalcum: 2 } },
+  tier6: { gold: 15000, wood: 750, minerals: { abyss: 4, arcanite: 3 } },
+  tier7: { gold: 22000, wood: 1100, minerals: { starshard: 6, timesand: 4, genesis: 2 } }
+};
+
+export const PORTAL_RECIPES = PORTAL_DESTS.map((d) => {
+  const table = PORTAL_TABLE_BY_DEST[d.id] || 'forge_t1';
+  return {
+    id: `portal_item_${d.id}`,
+    kind: 'portal',
+    portalDest: d.id,
+    name: `${d.name} 포탈`,
+    icon: '🌀',
+    color: d.color,
+    table,
+    tier: CRAFTING_TABLE_BY_ID[table]?.tier || 1,
+    cost: PORTAL_COST_BY_DEST[d.id] || { gold: 600, wood: 30, minerals: {} },
+    desc: `설치하면 ${d.name}(으)로 통하는 지속 포탈이 된다. 가까이에서 N 키로 이동.`
+  };
+});
+
+export const PORTAL_RECIPE_BY_DEST = {};
+for (const r of PORTAL_RECIPES) PORTAL_RECIPE_BY_DEST[r.portalDest] = r;
+export const PORTAL_RECIPE_COUNT = PORTAL_RECIPES.length;
+
+/** 그 지형으로 통하는 포탈 레시피 */
+export function portalRecipeFor(dest) {
+  return PORTAL_RECIPE_BY_DEST[dest] || null;
+}
+
+/** 그 제작대에서 만들 수 있는 포탈 */
+export function portalRecipesForTable(tableId) {
+  return PORTAL_RECIPES.filter((r) => r.table === tableId);
+}
 
 // ── 티어별 제작 비용(재료는 실제 광물 id) ─────────────────────
 export const RECIPE_COST_BY_TIER = {
@@ -443,6 +499,25 @@ export function validateCrafting() {
   for (const w of craftOnly) {
     if (!WEAPON_RECIPE_BY_WEAPON[w.id]) errors.push(`${w.id}: 레시피가 없다`);
     if (CRAFTING_TABLE_BY_ID[w.table]?.tier !== w.tier) errors.push(`${w.id}: 제작대 티어(${CRAFTING_TABLE_BY_ID[w.table]?.tier})와 무기 티어(${w.tier})가 다르다`);
+  }
+
+  // 포탈 아이템 레시피 — 목적지 1:1 · 제작대 존재 · 비용(광물) 확인
+  if (PORTAL_RECIPES.length !== PORTAL_DESTS.length) {
+    errors.push(`포탈 레시피가 ${PORTAL_DESTS.length}종이 아니다(${PORTAL_RECIPES.length})`);
+  }
+  const destSeen = new Set();
+  for (const r of PORTAL_RECIPES) {
+    if (destSeen.has(r.portalDest)) errors.push(`포탈 레시피 ${r.id}: 목적지 중복(${r.portalDest})`);
+    destSeen.add(r.portalDest);
+    if (!CRAFTING_TABLE_BY_ID[r.table]) errors.push(`포탈 레시피 ${r.id}: 제작대 ${r.table} 가 없다`);
+    if (!(r.cost?.gold > 0)) errors.push(`포탈 레시피 ${r.id}: 골드 비용이 잘못됐다`);
+    for (const id of Object.keys(r.cost?.minerals || {})) {
+      if (!mineralIds.has(id)) errors.push(`포탈 레시피 ${r.id}: 없는 광물 ${id}`);
+      if (!(r.cost.minerals[id] > 0)) errors.push(`포탈 레시피 ${r.id}: 광물 수량이 0 이하(${id})`);
+    }
+  }
+  for (const d of PORTAL_DESTS) {
+    if (!PORTAL_RECIPE_BY_DEST[d.id]) errors.push(`${d.id}: 포탈 레시피가 없다`);
   }
   return errors;
 }

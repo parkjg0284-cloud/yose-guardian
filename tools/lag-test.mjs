@@ -15,7 +15,6 @@ import { ProjectileSystem } from '../client/src/player/projectiles.js';
 import { Economy } from '../client/src/systems/economy.js';
 import { AchievementSystem } from '../client/src/systems/achievements.js';
 import { spawnEnemy } from '../client/src/systems/enemies.js';
-import { TeleportField } from '../client/src/world/teleports.js';
 import { MAP, TURRETS } from '../client/src/data.js';
 
 const argv = Object.fromEntries(
@@ -57,7 +56,6 @@ const world = createWorld({ scene, seed: 'lag-777', quality: QUALITY, rng: rng.f
 const economy = new Economy({ gold: 999999, wood: 99999 });
 const stats = new AchievementSystem({});
 const projectiles = new ProjectileSystem({ scene, audio: silentAudio, groundHeight: (x, z) => world.getHeight(x, z) });
-const teleports = new TeleportField({ scene, world });
 
 // 입력 스텁(플레이어가 키를 읽어도 안전)
 const inputStub = {
@@ -172,7 +170,7 @@ function sceneCost() {
 // ── 프레임 비용 측정 ─────────────────────────────────────────────
 const dt = 1 / 60;
 const samples = [];
-const parts = { waves: 0, player: 0, turrets: 0, teleports: 0, world: 0, enemies: 0, matrix: 0, instrument: 0 };
+const parts = { waves: 0, player: 0, turrets: 0, world: 0, enemies: 0, matrix: 0, instrument: 0 };
 let time = 0;
 const cost = sceneCost();
 for (let i = 0; i < FRAMES; i++) {
@@ -188,9 +186,7 @@ for (let i = 0; i < FRAMES; i++) {
   turrets.update?.(dt, { player, enemies: waves.enemies, projectiles });
   tB = now();
   parts.turrets += tB - tA;
-  teleports.update?.(dt, { player });
   tA = now();
-  parts.teleports += tA - tB;
   world.update?.(dt, { player, enemies: waves.enemies, time, camera });
   world.frustumCull?.(camera);
   tB = now();
@@ -227,7 +223,7 @@ const worst = samples.length ? Math.max(...samples) : 0;
 const fpsOf = (ms) => (ms > 0 ? 1000 / ms : Infinity);
 
 // ── 보고 ─────────────────────────────────────────────────────────
-console.log(`\n═══ 렉테스트 — 품질 ${QUALITY} · 적 ${spawned.length}마리 + 포탈 ${teleports.portals.length}개 · ${samples.length}프레임 ═══`);
+console.log(`\n═══ 렉테스트 — 품질 ${QUALITY} · 적 ${spawned.length}마리 · ${samples.length}프레임 ═══`);
 console.log(`  장면: 개체 ${cost.objects} · 메시 ${cost.meshes} · 화면 안 ${cost.visible} · 그리기 호출 ${cost.calls} · 삼각형 ${cost.tris.toLocaleString()} · 광원 ${cost.lights}`);
 console.log('  CPU 프레임 비용(ms):');
 console.log(`    평균 ${fmt(avg)} · 중앙값 ${fmt(p50)} · p95 ${fmt(p95)} · 최악 ${fmt(worst)}`);
@@ -241,7 +237,6 @@ for (const [k, label] of [
   ['waves', '웨이브'],
   ['turrets', '포탑'],
   ['player', '플레이어'],
-  ['teleports', '포탈'],
   ['matrix', '행렬 갱신'],
   ['instrument', '측정 도구(그리기 호출 집계)']
 ]) {

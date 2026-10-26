@@ -1717,3 +1717,28 @@ if (this.state === 'menu' || this.state === 'paused') this._prewarmStep(); // �
 - 결과: 멈춰 있는 동안 프레임 비용이 사실상 사라지고, 백드롭 블러는 정지한 배경을 그대로 쓴다.
 
 검사: `tools/smoke.mjs` 의 "일시정지·메뉴에서는 3D 렌더를 멈춘다" · "풀릴 때·멈출 때 화면을 한 번 다시 그린다".
+
+## §4.74 포탈 아이템화 — 월드 포탈 삭제 · 제작 · 설치
+
+**요청** — 게임 안에 서 있던 포탈을 없애고, 포탈을 아이템으로 만들어 제작법을 붙인다.
+
+**바뀐 것**
+- `client/src/world/teleports.js`(`TeleportField`)를 **삭제**했다. 지형마다 서 있던 무료 월드 포탈과
+  `world.teleports`/장면 그룹 `teleports` 가 사라졌다.
+- 포탈 8종(`portal_base`, `portal_tier1`~`portal_tier7`)은 **제작 아이템**으로만 얻는다:
+  `PORTAL_RECIPES`(`client/src/crafting.js`) — 모루(T1)·대장간(T2)…창세의 제단(T7)에서
+  골드·목재·광물로 제작한다. **아이템 1개 = 포탈 1개**.
+- 포탈 건물의 `cost` 는 `{ gold: 0, wood: 0, minerals: {} }` + `craftOnly: true` 로 두고,
+  `TurretSystem.canPlace`/`place` 가 `getItem`/`takeItem` 콜백으로 **보유 아이템을 확인·소모**한다.
+  아이템이 없으면 `'포탈 아이템이 없습니다 — 제작(C)에서 만드세요'` 로 거부한다.
+- 건설( B ) 목록·카테고리에서 `portal` 을 뺐다(`TURRET_CATEGORIES`, `build.list`). 설치는
+  제작(C) 패널의 **[설치]** 버튼 → `beginPortalPlacement(dest)` → 기존 건설 모드(좌클릭)로 이어진다.
+- `N` 은 설치한 포탈 9m 안에서만 그 목적지로 이동하고(`travelToRegion`), 근처에 없으면
+  포탈 안내 패널(설치 목록·만들 수 있는 포탈 8종·제작 패널 열기)을 연다.
+- 보유 아이템은 `CraftingSystem.portalItems` 에 저장·복원된다(`toJSON`/`fromJSON`). 인벤토리(I)에 표시된다.
+
+**검사**
+- `tools/smoke.mjs` 927/927 — 월드 포탈 제거·제작법 8종·아이템 소모 배선.
+- `tools/headless.mjs` 574/574 — 제작대 없음/아이템 없음 거부 · 제작 비용 · 설치 소모 · 저장/복원.
+- `tools/ui-dom-smoke.mjs` 333/333 — 포탈 안내 패널(이동 버튼 0 · 제작 안내 8종).
+- 실전 브라우저(`.tmp/portal-live.mjs`) 21/21 — 제작 → 설치 → 아이템 소모 → N 이동(161m) → 패널 UI.

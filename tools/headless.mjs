@@ -808,6 +808,46 @@ section('제작 시스템 (제작대 → 무기 제작)');
   check('제작대 저장/복원', restored.isBuilt('forge_t1') && restored.isBuilt('forge_t7') && restored.craftedCount >= 1, JSON.stringify(dump.tables));
 }
 
+// ───────────────────────────── 10.9 포탈 아이템 제작·설치 (계약 §4.74)
+section('포탈 아이템 제작 · 설치');
+{
+  const portalEco = new Economy({ gold: 5000000, wood: 500000, minerals: Object.fromEntries(MINERAL_TYPES.map((m) => [m.id, 999])) });
+  const pctx = { wave: 120, cleared: 119, fairies: 10, achievements: 80, hasWeapon: () => true };
+  const pcs = new CraftingSystem({ getEconomy: () => portalEco, getContext: () => pctx });
+  const noTable = new CraftingSystem({ getEconomy: () => portalEco, getContext: () => pctx });
+  const portalType = TURRETS.find((t) => t.id === 'portal_tier1');
+  check('포탈 — 건설 비용 0(아이템으로만 설치)', Boolean(portalType) && Number(portalType.cost?.gold) === 0 && portalType.craftOnly === true, JSON.stringify(portalType?.cost));
+  check('포탈 — 제작대 없으면 제작 불가', noTable.craftPortal('tier1', pctx).ok === false, noTable.craftPortal('tier1', pctx).error);
+  pcs.build('forge_t1', pctx);
+  check('포탈 — T1 모루 건설', pcs.isBuilt('forge_t1'));
+  const pSys = new TurretSystem({
+    scene: new THREE.Scene(),
+    world: world2,
+    economy: portalEco,
+    projectiles,
+    audio,
+    stats: new AchievementSystem({}),
+    rng: rng.fork('portal-item'),
+    getItem: (dest) => pcs.portalCount(dest),
+    takeItem: (dest) => pcs.takePortal(dest)
+  });
+  const blocked = pSys.canPlace(portalType.id, placeAt(0, 34));
+  check('포탈 — 아이템 없으면 설치 거부', blocked.ok === false && String(blocked.reason).includes('포탈 아이템'), blocked.reason);
+  const goldBeforePortal = portalEco.gold;
+  const made = pcs.craftPortal('tier1', pctx);
+  check('포탈 — 제작 성공(보유 1)', made.ok === true && pcs.portalCount('tier1') === 1, made.error || '');
+  check('포탈 — 제작 비용 차감(골드 1200)', goldBeforePortal - portalEco.gold === 1200, `${goldBeforePortal} → ${portalEco.gold}`);
+  check('포탈 — 아이템이 있으면 설치 허용', pSys.canPlace(portalType.id, placeAt(0, 34)).ok === true);
+  const placed = pSys.place(portalType.id, placeAt(0, 34), 'local', {});
+  check('포탈 — 설치 성공 + 아이템 소모', Boolean(placed) && pcs.portalCount('tier1') === 0, `남은 ${pcs.portalCount('tier1')}개`);
+  check('포탈 — 설치된 포탈 목적지(tier1)', placed?.type?.portalDest === 'tier1' && placed?.type?.kind === 'portal');
+  check('포탈 — 아이템이 없으면 재설치 거부', pSys.canPlace(portalType.id, placeAt(90, 34)).ok === false);
+  pcs.craftPortal('base', pctx);
+  const pdump = JSON.parse(JSON.stringify(pcs.toJSON()));
+  const prestored = new CraftingSystem({ getEconomy: () => portalEco, getContext: () => pctx }).fromJSON(pdump);
+  check('포탈 — 보유 아이템 저장/복원', prestored.portalCount('base') === 1, JSON.stringify(pdump.portalItems));
+}
+
 // ───────────────────────────── 11.5 요정의 날개 제작 (제작대)
 section('요정의 날개 제작 (제작대)');
 {

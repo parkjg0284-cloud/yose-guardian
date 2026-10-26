@@ -1486,7 +1486,7 @@ export class Turret {
 
 // ── TurretSystem ─────────────────────────────────────────────────────────
 export class TurretSystem {
-  constructor({ scene, world, economy, projectiles, audio, stats, rng, modifiers } = {}) {
+  constructor({ scene, world, economy, projectiles, audio, stats, rng, modifiers, getItem = null, takeItem = null } = {}) {
     this.scene = scene ?? null;
     this.world = world ?? null;
     this.economy = economy ?? null;
@@ -1495,6 +1495,9 @@ export class TurretSystem {
     this.stats = stats ?? null;
     this.rng = rng ?? null;
     this.modifiers = modifiers ?? null;
+    /** 포탈 아이템 보유 수 조회/소모 — 없으면(null) 예전처럼 자유 설치(테스트·관리자) */
+    this._getItem = typeof getItem === 'function' ? getItem : null;
+    this._takeItem = typeof takeItem === 'function' ? takeItem : null;
     /** @type {Turret[]} */ this.turrets = [];
     this.maxTurrets = 0;
     this.builtByCategory = { attack: 0, heal: 0, mining: 0, lumber: 0, facility: 0 };
@@ -1601,6 +1604,16 @@ export class TurretSystem {
       return { ok: false, reason: '광물이 있어 세울 수 없습니다' };
     }
 
+    // 포탈은 골드 건설이 아니라 '포탈 아이템'을 소비해 설치한다.
+    if (type.kind === 'portal' && type.portalDest) {
+      const zero = { gold: 0, wood: 0, minerals: {} };
+      const have = this._getItem ? Number(this._getItem(type.portalDest)) || 0 : 1;
+      if (have <= 0) {
+        return { ok: false, reason: '포탈 아이템이 없습니다 — 제작(C)에서 만드세요', needPortal: type.portalDest, cost: zero };
+      }
+      return { ok: true, reason: null, cost: zero, portalItem: type.portalDest };
+    }
+
     const cost = normalizeCost(type.cost);
     if (this.economy && typeof this.economy.canAfford === 'function' && !this.economy.canAfford(cost)) {
       return { ok: false, reason: '자원이 부족합니다', cost };
@@ -1639,7 +1652,13 @@ export class TurretSystem {
     }
     const type = TURRET_BY_ID[typeId];
     const cost = check.cost ?? normalizeCost(type.cost);
-    if (this.economy && typeof this.economy.spend === 'function' && !this.economy.spend(cost)) return null;
+    if (check.portalItem) {
+      // 아이템이 없으면 설치 실패 — 아이템 소모가 곧 건설 비용이다.
+      if (this._takeItem && !this._takeItem(check.portalItem)) {
+        this.audio?.play?.('error');
+        return null;
+      }
+    } else if (this.economy && typeof this.economy.spend === 'function' && !this.economy.spend(cost)) return null;
 
     const y = num(position.y, num(this.world?.getHeight?.(Number(position.x), Number(position.z)), 0));
     const turret = new Turret({

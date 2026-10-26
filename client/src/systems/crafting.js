@@ -13,7 +13,9 @@ import {
   wingRecipeFor,
   wingRecipesForTable,
   ARROW_RECIPE_BY_ARROW,
-  arrowRecipesForTable
+  arrowRecipesForTable,
+  PORTAL_RECIPES,
+  PORTAL_RECIPE_BY_DEST
 } from '../crafting.js';
 import { ARROW_BY_ID, FAIRY_WING_BY_ID, WEAPON_BY_ID } from '../data.js';
 
@@ -35,6 +37,8 @@ export class CraftingSystem {
     this.craftedWings = new Set();
     /** @type {Record<string, number>} 화살 묶음 제작 횟수 (arrowId -> 묶음 수) */
     this.arrowBatches = {};
+    /** @type {Record<string, number>} 보유 포탈 아이템 (목적지 id -> 개수) */
+    this.portalItems = {};
   }
 
   get economy() {
@@ -255,6 +259,51 @@ export class CraftingSystem {
     return { ok: true, recipe, via: 'table' };
   }
 
+  /** 포탈 레시피 — 제작 패널이 그대로 쓴다 */
+  get portalRecipes() {
+    return PORTAL_RECIPES;
+  }
+
+  /** 그 지형 포탈 아이템을 몇 개 가지고 있는가 */
+  portalCount(dest) {
+    return Math.max(0, Math.floor(Number(this.portalItems?.[dest]) || 0));
+  }
+
+  /** 보유 포탈 아이템 합계 */
+  get portalCountTotal() {
+    let n = 0;
+    for (const dest of Object.keys(this.portalItems || {})) n += this.portalCount(dest);
+    return n;
+  }
+
+  /** 포탈 아이템 제작 — 같은 제작대를 먼저 건설해야 한다 */
+  craftPortal(dest, ctx = null) {
+    const recipe = PORTAL_RECIPE_BY_DEST[dest];
+    if (!recipe) return { ok: false, error: '알 수 없는 포탈입니다.' };
+    const table = CRAFTING_TABLE_BY_ID[recipe.table];
+    const tableName = table ? table.name : '제작대';
+    if (!this.isBuilt(recipe.table)) {
+      return { ok: false, error: tableName + objectParticle(tableName) + ' 먼저 건설해야 합니다.' };
+    }
+    const eco = this.economy;
+    if (!eco || typeof eco.canAfford !== 'function') return { ok: false, error: '경제 시스템이 없습니다.' };
+    if (!eco.canAfford(recipe.cost)) return { ok: false, error: '제작 재료가 부족합니다.' };
+    if (!eco.spend(recipe.cost)) return { ok: false, error: '제작 재료가 부족합니다.' };
+    this.portalItems[dest] = this.portalCount(dest) + 1;
+    const c = ctx || this.context;
+    if (typeof c.onPortalCrafted === 'function') c.onPortalCrafted(dest);
+    return { ok: true, recipe, count: this.portalItems[dest] };
+  }
+
+  /** 설치할 때 아이템 1개를 소비한다 */
+  takePortal(dest) {
+    const n = this.portalCount(dest);
+    if (n <= 0) return false;
+    if (n === 1) delete this.portalItems[dest];
+    else this.portalItems[dest] = n - 1;
+    return true;
+  }
+
   /** 화살 제작 — 재료를 소비하고 economy 원장에 묶음을 넣는다 */
   craftArrow(arrowId, ctx = null) {
     const res = this.canCraftArrow(arrowId, ctx);
@@ -275,7 +324,8 @@ export class CraftingSystem {
       tables: [...this.tables],
       crafted: [...this.crafted],
       craftedWings: [...this.craftedWings],
-      arrowBatches: { ...this.arrowBatches }
+      arrowBatches: { ...this.arrowBatches },
+      portalItems: { ...this.portalItems }
     };
   }
 
@@ -284,6 +334,7 @@ export class CraftingSystem {
     this.crafted = new Set();
     this.craftedWings = new Set();
     this.arrowBatches = {};
+    this.portalItems = {};
     if (o && Array.isArray(o.tables)) {
       for (const id of o.tables) if (CRAFTING_TABLE_BY_ID[id]) this.tables.add(id);
     }
@@ -298,6 +349,13 @@ export class CraftingSystem {
         if (!ARROW_BY_ID[id]) continue;
         const count = Math.floor(Number(n) || 0);
         if (count > 0) this.arrowBatches[id] = count;
+      }
+    }
+    if (o && o.portalItems && typeof o.portalItems === 'object') {
+      for (const [dest, n] of Object.entries(o.portalItems)) {
+        if (!PORTAL_RECIPE_BY_DEST[dest]) continue;
+        const count = Math.floor(Number(n) || 0);
+        if (count > 0) this.portalItems[dest] = count;
       }
     }
     return this;

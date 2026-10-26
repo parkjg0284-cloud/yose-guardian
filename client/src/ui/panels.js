@@ -79,12 +79,13 @@ import {
   wingRecipeFor,
   wingRecipesForTable,
   arrowRecipesForTable,
-  ARROW_RECIPE_COUNT
+  ARROW_RECIPE_COUNT,
+  PORTAL_RECIPES,
+  PORTAL_RECIPE_COUNT
 } from '../crafting.js';
 import { normalizeSeed } from '../utils/rng.js';
 import { auth, leaderboard, net } from '../net.js';
 import { NICKNAME_MAX, currentNickname, isValidNickname, nicknameFor, sanitizeNickname, setNickname } from '../profile.js';
-import { destinationsByTerrain } from '../travel.js';
 import { ARCANA_UPGRADES, hasArcanaTable } from '../systems/arcana.js';
 import {
   RECIPE_KINDS,
@@ -141,7 +142,7 @@ const PANEL_TITLES = {
   craft: '제작대',
   enchant: '마법부여',
   recipes: '조합법',
-  travel: '지형 이동',
+  travel: '포탈',
   arcana: '마법연성'
 };
 
@@ -715,10 +716,6 @@ export class PanelManager {
         this._render('arcana');
         break;
       }
-      case 'travel-go':
-        this.game?.teleports?.travelTo?.(d.region, this.game);
-        this._render('travel');
-        break;
       case 'recipe-terrain':
         this.state.recipes.terrain = d.terrain || 'all';
         this._render('recipes');
@@ -868,6 +865,15 @@ export class PanelManager {
         break;
       case 'craft-arrow':
         this._craftArrow(d.arrow);
+        break;
+      case 'craft-portal':
+        this._craftPortal(d.dest);
+        break;
+      case 'portal-install':
+        if (this.game?.beginPortalPlacement?.(d.dest)) this.close();
+        break;
+      case 'travel-craft':
+        this.open('craft');
         break;
       case 'panel-open': {
         // 패널에서 다른 패널로 바로 이동(예: 마법부여 → 건설)
@@ -1452,6 +1458,25 @@ export class PanelManager {
       cards.appendChild(card);
     }
     body.appendChild(cards);
+
+    body.appendChild(sectionTitle('🌀 포탈 아이템'));
+    const heldPortals = safe(() => g?.crafting?.portalItems ?? {}, {});
+    const heldPortalList = PORTAL_RECIPES.filter((r) => num(heldPortals[r.portalDest], 0) > 0);
+    if (!heldPortalList.length) {
+      body.appendChild(row('보유', '없음 — 제작(C)에서 포탈 아이템을 만들어 설치할 수 있습니다'));
+    } else {
+      const pgrid = grid();
+      for (const r of heldPortalList) {
+        const card = h('div', cardClass('rare'));
+        card.dataset.role = 'inventory-portal';
+        card.dataset.portal = r.portalDest;
+        card.style.borderTopColor = cssColor(r.color);
+        card.appendChild(row(`${r.icon} ${r.name}`, `${fmt(num(heldPortals[r.portalDest], 0))}개`));
+        card.appendChild(row('사용', '제작(C) 패널의 [설치] — 세운 뒤 가까이에서 N 이동'));
+        pgrid.appendChild(card);
+      }
+      body.appendChild(pgrid);
+    }
 
     body.appendChild(sectionTitle('보유 마법'));
     const spells = this._spellList();
@@ -2396,6 +2421,7 @@ export class PanelManager {
       row('날개 제작', `🪶 요정의 날개 ${fmt(WING_RECIPE_COUNT)}종 — 같은 티어 제작대에서 만듭니다(작업대 불가 · T8 은 꿈의 정원)`)
     );
     body.appendChild(row('화살', `🏹 화살 ${fmt(ARROW_RECIPE_COUNT)}종 — 활 계열이 1발씩 소모 (티어별 묶음 제작)`));
+    body.appendChild(row('포탈', `🌀 포탈 ${fmt(PORTAL_RECIPE_COUNT)}종 — 제작대로 아이템을 만들어 설치(가까이에서 N 이동)`));
     body.appendChild(row('단축키', 'C — 제작대 · 🔮 마법부여대 근처에서 E — 마법부여'));
     const enchantRow = h('div', 'row stat-row craft-enchant-row');
     enchantRow.appendChild(h('span', 'row-label', '🔮 마법부여대'));
@@ -2470,6 +2496,7 @@ export class PanelManager {
       body.appendChild(sectionTitle('제작 안내'));
       body.appendChild(row('순서', '1) 건설 탭에서 작업대 설치 → 2) 원하는 무기 제작 → 3) 무기 인벤토리(Tab)에서 장착'));
       body.appendChild(row('재료', '골드·목재·광물을 소비합니다. 채굴기(⛏)나 채굴탑으로 광물을 모으세요.'));
+      this._portalSection(body);
       return;
     }
 
@@ -2516,6 +2543,8 @@ export class PanelManager {
     if (!wingRecipes.length) wingCards.appendChild(row('레시피', '이 제작대에서 만들 수 있는 날개가 없습니다.'));
     else for (const r of wingRecipes) wingCards.appendChild(this._wingCraftCard(r, { built, owned: wingOwned }));
     body.appendChild(wingCards);
+
+    this._portalSection(body);
 
     body.appendChild(sectionTitle('제작 안내'));
     body.appendChild(row('순서', '1) 제작대 건설 → 2) 같은 티어의 무기 제작 → 3) 무기 인벤토리(Tab)에서 장착'));
@@ -2574,6 +2603,78 @@ export class PanelManager {
     card.appendChild(actions);
     if (w && w.desc) card.appendChild(row('설명', w.desc));
     return card;
+  }
+
+  /** 포탈 아이템 제작 */
+  _craftPortal(dest) {
+    const g = this.game;
+    const recipe = PORTAL_RECIPES.find((r) => r.portalDest === dest) || null;
+    const name = recipe ? recipe.name : String(dest);
+    if (typeof g?.craftPortal !== 'function') {
+      this.state.craft.message = '포탈을 제작할 수 없습니다(게임이 실행 중이 아닙니다).';
+      this._render('craft');
+      return null;
+    }
+    const r = safe(() => g.craftPortal(dest), null);
+    if (r && r.ok) {
+      this.state.craft.message = `${name} 아이템 제작 완료 — 보유 ${fmt(r.count)}개 · [설치]로 바닥에 세우세요.`;
+      this._toast(`🌀 ${name} 제작 완료`, 'success');
+    } else {
+      this.state.craft.message = `${name} 제작 실패 — ${(r && r.error) || '재료를 확인하세요.'}`;
+      this._toast(this.state.craft.message, 'warn');
+    }
+    this._render('craft');
+    return r;
+  }
+
+  /** 포탈 아이템 카드 묶음 — 제작대별로 보인다 */
+  _portalSection(body) {
+    body.appendChild(sectionTitle(`🌀 포탈 아이템 — ${fmt(PORTAL_RECIPE_COUNT)}종`));
+    body.appendChild(
+      row('안내', '포탈은 건설 목록에 없습니다. 제작대로 아이템을 만든 뒤 [설치]를 누르면 바닥에 세울 수 있습니다.')
+    );
+    const cards = grid();
+    for (const r of PORTAL_RECIPES) {
+      const table = CRAFTING_TABLE_BY_ID[r.table] || null;
+      const built = this._craftBuilt(r.table);
+      const have = num(safe(() => this.game?.portalCount?.(r.portalDest), 0), 0);
+      const card = h('div', cardClass('rare', { locked: !built, extra: 'weapon-card craft-card portal-craft-card' }));
+      card.dataset.role = 'craft-portal-row';
+      card.dataset.portal = r.portalDest;
+      card.dataset.table = r.table;
+      card.style.borderTopColor = cssColor(r.color);
+      const head = h('div', 'row stat-row weapon-head');
+      head.appendChild(h('span', 'row-label weapon-name', `${r.icon} ${r.name}`));
+      head.appendChild(h('span', 'badge rarity-rare r-rare weapon-grade', `T${num(r.tier, 1)}`));
+      card.appendChild(head);
+      card.appendChild(row('필요 제작대', `${tableTierLabel(table)}${built ? ' ✔' : ' — 미건설'}`));
+      card.appendChild(row('제작 비용', costText(r.cost)));
+      card.appendChild(row('보유', `${fmt(have)}개`));
+      card.appendChild(row('설명', r.desc));
+      const actions = h('div', 'row');
+      if (!built) {
+        actions.appendChild(h('span', 'row-value', '제작대를 먼저 건설하세요'));
+      } else {
+        const make = h('button', 'btn primary btn-primary', '제작');
+        make.type = 'button';
+        make.dataset.act = 'craft-portal';
+        make.dataset.dest = r.portalDest;
+        const ok = this._affordable(r.cost);
+        make.disabled = !ok;
+        actions.appendChild(make);
+        if (!ok) actions.appendChild(h('span', 'row-value', '재료 부족'));
+      }
+      if (have > 0) {
+        const put = h('button', 'btn ghost btn-ghost', '설치');
+        put.type = 'button';
+        put.dataset.act = 'portal-install';
+        put.dataset.dest = r.portalDest;
+        actions.appendChild(put);
+      }
+      card.appendChild(actions);
+      cards.appendChild(card);
+    }
+    body.appendChild(cards);
   }
 
   // ── 전직 (K) ────────────────────────────────────
@@ -3969,8 +4070,8 @@ export class PanelManager {
    * 지형(지역)별로 나누어, 그 지형에서 만드는 조합법과 필요한 재료를 한눈에 보여 준다.
    */
   /**
-   * 지형 이동 — 계약 §4.59.
-   * 가까운 포탈에서 N 을 누르면 열린다. 지형별로 나누어 색과 함께 보여 준다.
+   * 포탈 안내 — 계약 §4.59 · §4.74.
+   * 설치한 포탈과 만들 수 있는 포탈 아이템을 보여 준다. 월드 포탈은 없앴다.
    */
   /** 마법연성 패널(계약 §4.70) — 11종 업그레이드를 사고 단계를 올린다. */
   _renderArcana(body) {
@@ -4036,35 +4137,48 @@ export class PanelManager {
   }
 
   _renderTravel(body) {
-    const field = this.game?.teleports ?? null;
-    const here = field?.near ?? null;
-    body.appendChild(sectionTitle('지형 이동 — 텔레포트 포탈'));
-    body.appendChild(row('현재', here ? `${here.name} 포탈 (${here.color})` : '포탈 근처가 아닙니다 — 포탈에 가까이 가면 N 으로 열 수 있습니다'));
-    body.appendChild(row('안내', '지형마다 색이 다릅니다. [이동] 을 누르면 그 지형의 포탈 옆으로 순간이동합니다.'));
-    for (const group of destinationsByTerrain()) {
-      const card = h('div', cardClass());
-      card.appendChild(sectionTitle(group.label));
-      for (const d of group.items) {
-        const line = h('div', 'row');
-        const dot = h('span', 'swatch');
-        dot.setAttribute?.('style', `background:${d.color};display:inline-block;width:0.9rem;height:0.9rem;border-radius:50%;margin-right:0.4rem`);
-        // 검사·접근성용 훅(계약 §4.58) — 지형 색을 데이터로도 남긴다
-        dot.dataset.role = 'travel-dot';
-        dot.dataset.color = String(d.color ?? '');
-        dot.title = `${d.name} — ${d.color}`;
-        line.appendChild(dot);
-        line.appendChild(h('span', 'row-label', `${d.glyph ?? ''} ${d.name}`.trim()));
-        const go = h('button', 'btn ghost btn-ghost', here && here.id === d.id ? '여기' : '이동');
-        go.type = 'button';
-        go.dataset.act = 'travel-go';
-        go.dataset.region = d.id;
-        go.dataset.role = 'travel-go';
-        line.appendChild(go);
-        card.appendChild(line);
+    body.textContent = '';
+    body.appendChild(sectionTitle('포탈 — 제작해서 설치'));
+    body.appendChild(
+      row(
+        '안내',
+        '이제 지형에 서 있는 포탈은 없습니다. 제작(C)에서 포탈 아이템을 만들어 설치하면, 가까이에서 N 키로 그 지형에 이동합니다.'
+      )
+    );
+    const all = (this.game?.turrets?.turrets ?? []).filter((t) => !t.destroyed && t.type?.kind === 'portal');
+    body.appendChild(row('설치한 포탈', all.length ? `${fmt(all.length)}개` : '없음 — 제작(C)에서 포탈 아이템을 먼저 만드세요'));
+    if (all.length) {
+      const cards = grid();
+      for (const t of all) {
+        const card = h('div', cardClass('rare'));
+        card.dataset.role = 'travel-portal';
+        card.dataset.portal = t.type?.portalDest || '';
+        card.appendChild(sectionTitle(`🌀 ${t.type?.name ?? '포탈'}`));
+        card.appendChild(row('목적지', t.type?.portalName ?? '-'));
+        card.appendChild(row('위치', `${Math.round(t.position?.x ?? 0)}, ${Math.round(t.position?.z ?? 0)}`));
+        cards.appendChild(card);
       }
-      body.appendChild(card);
+      body.appendChild(cards);
+    }
+
+    const go = h('button', 'btn primary btn-primary', '🌀 제작 패널 열기');
+    go.type = 'button';
+    go.dataset.act = 'travel-craft';
+    body.appendChild(go);
+
+    body.appendChild(sectionTitle(`만들 수 있는 포탈 — ${fmt(PORTAL_RECIPE_COUNT)}종`));
+    for (const r of PORTAL_RECIPES) {
+      const have = num(safe(() => this.game?.portalCount?.(r.portalDest), 0), 0);
+      const built = this._craftBuilt(r.table);
+      const line = h('div', 'row');
+      line.dataset.role = 'travel-recipe';
+      line.dataset.portal = r.portalDest;
+      line.appendChild(h('span', 'row-label', `${r.icon} ${r.name}`));
+      line.appendChild(h('span', 'row-value', `${built ? '제작 가능' : '제작대 미건설'} · 보유 ${fmt(have)}개`));
+      body.appendChild(line);
     }
   }
+
   _renderRecipes(body) {
     const st = this.state.recipes ?? (this.state.recipes = { terrain: 'all', kind: 'all' });
     body.appendChild(sectionTitle('조합법 도감 — 지형별'));

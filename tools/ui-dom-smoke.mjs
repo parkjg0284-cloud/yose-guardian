@@ -452,28 +452,21 @@ attempt('조합법 도감 — 지형 탭과 조합법 카드(계약 §4.57)', ()
   pm.close();
   return rows1.length > 0 && tableSet;
 });
-attempt('지형 이동 — 포탈 패널에서 [이동] 클릭(계약 §4.58)', () => {
-  const calls = [];
+attempt('포탈 — 제작 아이템 안내 패널(계약 §4.59 · §4.74)', () => {
   const prevGame = pm.game;
-  pm.game = { ...(prevGame || {}), teleports: { travelTo: (id, game) => { calls.push({ id, game }); return true; } } };
-  pm.state.travel = pm.state.travel || {};
+  const portalCount = () => 0;
+  pm.game = { ...(prevGame || {}), portalCount, turrets: { turrets: [] } };
   pm.open('travel');
   const r0 = documentStub.getElementById('panel-root');
-  const rows = r0.querySelectorAll('[data-act="travel-go"]');
-  const paint = r0.querySelectorAll('[data-role="travel-dot"]');
-  ok('지형 이동 — 이동 버튼 렌더', rows.length >= 8, `버튼 ${rows.length}개 · 색점 ${paint.length}개`);
-  const colors = [...paint].map((p) => String(p.dataset?.color ?? '')).filter(Boolean);
-  ok('지형 이동 — 지형마다 색점이 붙는다', paint.length === rows.length && colors.length === rows.length, `색점 ${paint.length} / 버튼 ${rows.length}`);
-  ok('지형 이동 — 지형별 색이 서로 다르다', new Set(colors).size >= 5, `${new Set(colors).size}종 · ${colors.slice(0, 4).join(' ')}`);
-  if (!rows.length) { pm.game = prevGame; return false; }
-  const first = rows[0];
-  const id = first.dataset.region ?? first.dataset.id ?? '';
-  r0.dispatch('click', { target: first, preventDefault() {}, stopPropagation() {} });
-  ok('지형 이동 — 클릭이 travelTo 로 이어진다', calls.length === 1 && Boolean(calls[0]?.id), `호출 ${calls.length}회 · id ${calls[0]?.id ?? '없음'} (버튼 ${id || '?'})`);
-  ok('지형 이동 — 클릭한 목적지 id 가 그대로 전달된다', Boolean(id) && calls[0]?.id === id, `버튼 ${id || '?'} → ${calls[0]?.id ?? '없음'}`);
+  const rows = r0.querySelectorAll('[data-role="travel-recipe"]');
+  const go = r0.querySelectorAll('[data-act="travel-go"]');
+  const craftBtn = r0.querySelector('[data-act="travel-craft"]');
+  ok('포탈 — 목적지별 제작 안내 8종', rows.length >= 8, `행 ${rows.length}개`);
+  ok('포탈 — 월드 이동 버튼 제거', go.length === 0, `이동 버튼 ${go.length}개`);
+  ok('포탈 — 제작 패널 열기 버튼', Boolean(craftBtn), craftBtn ? '있음' : '없음');
   pm.close();
   pm.game = prevGame;
-  return calls.length === 1 && Boolean(calls[0]?.id);
+  return rows.length >= 8 && go.length === 0 && Boolean(craftBtn);
 });
 attempt('키 변경 — 설정 패널에 동작별 변경 버튼(계약 §4.55)', () => {
   pm.state.settings = pm.state.settings || {};

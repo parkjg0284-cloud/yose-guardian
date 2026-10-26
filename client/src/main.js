@@ -38,8 +38,8 @@ import { Input, Player } from './player/player.js';
 import { characterPayload, createCharacterStore, sanitizeCharacter, sanitizeRemoteCharacter } from './character.js';
 import { WeaponRig, buildWeaponMesh } from './player/weaponRig.js';
 import { currentNickname } from './profile.js';
+import { arrivalPoint, destinationById } from './travel.js';
 import { consume as keyConsume, isDown as keyDown } from './keys.js';
-import { TeleportField } from './world/teleports.js';
 import { SummonQueue } from './systems/summon-queue.js';
 import { Arcana, hasArcanaTable } from './systems/arcana.js';
 import { ENDLESS_UNLOCK_WAVE, isEndlessUnlocked, recordWave, recordCelestialKill, unlockEndless } from './progress.js';
@@ -297,7 +297,7 @@ class Game {
     this._handReadyAt = 0;
     this._handTarget = null;
     this._dt = 0;
-    this.build = { active: false, typeId: TURRETS[0]?.id, ghost: null, list: TURRETS, yaw: 0 };
+    this.build = { active: false, typeId: TURRETS[0]?.id, ghost: null, list: TURRETS.filter((t) => t.category !== 'portal'), yaw: 0 };
     this._shake = 0;
       // R 홀드 연속 회전 상태(§4.37)
       this._rotateHold = false;
@@ -983,7 +983,9 @@ class Game {
       projectiles: this.projectiles,
       audio: this.audio,
       stats: this.achievements,
-      rng: rng.fork('turrets')
+      rng: rng.fork('turrets'),
+      getItem: (dest) => this.crafting?.portalCount?.(dest) ?? 0,
+      takeItem: (dest) => this.crafting?.takePortal?.(dest) ?? false
     });
     this.turrets.miningBonus = bonus.miningSpeed * (this.classes?.modifiers?.miningSpeed ?? 1);
     // 컨베이어벨트 승강 — 플레이어는 world 를 통해 벨트 밀림을 조회한다.
@@ -1096,7 +1098,6 @@ class Game {
     const roamerRng = rng.fork('roamers');
     this.regionSpawner = new RegionSpawner({ rand: () => roamerRng.next() });
     // 지형 이동 포탈(3D) — 지형마다 색이 다른 고리 포탈(계약 §4.59)
-    this.teleports = new TeleportField({ scene: this.scene, world: this.world });
 
     try {
       this.ui.minimap = new Minimap({ canvas: this.dom.minimap, world: this.world, size: MAP.size });
@@ -1114,7 +1115,7 @@ class Game {
     this.player.position.set(bx, this.world.getHeight(bx, bz) + 0.1, bz);
     this.player.respawn?.(this.player.position.clone());
 
-    this.build = { active: false, typeId: TURRETS[0]?.id, ghost: null, list: TURRETS, yaw: 0 };
+    this.build = { active: false, typeId: TURRETS[0]?.id, ghost: null, list: TURRETS.filter((t) => t.category !== 'portal'), yaw: 0 };
     this.playTime = 0;
     this._playTimeAcc = 0;
     this._autosaveAcc = 0;
@@ -1578,11 +1579,20 @@ class Game {
               ? ' — 바라보는 방향으로 자원을 실어 나릅니다(위에 서면 실려 갑니다)'
               : placedType?.kind === 'spawner'
                 ? ' — 주기적으로 몬스터가 나옵니다! 방어선을 준비하세요'
-                : placedType?.kind === 'storage'
+                : placedType?.kind === 'portal'
+                  ? ' — 가까이에서 N 키를 누르면 그 지형으로 이동합니다'
+                  : placedType?.kind === 'storage'
               ? ' — 매 초 골드·목재를 자동으로 모읍니다'
               : '';
       this.notify(`${placedType?.name ?? '포탑'} 건설 완료${hint}`, 'success');
       if (placedType?.category === 'facility') this.ui?.panels?.refresh?.();
+      if (placedType?.category === 'portal') {
+        this.ui?.panels?.refresh?.();
+        if (this.portalCount(placedType.portalDest) <= 0) {
+          this.build.active = false;
+          this._updateGhost();
+        }
+      }
       net.sendTurretPlace({
         id: turret.id,
         typeId: this.build.typeId,
@@ -2200,6 +2210,12 @@ class Game {
         const w = fairyWingById(id);
         this.audio?.play?.('gachaLegend');
         this.notify(`날개 제작 완료 — ${w ? w.name : id} (즉시 착용)`, 'gacha');
+      },
+      onPortalCrafted: (dest) => {
+        const name = TURRET_BY_ID['portal_' + dest]?.portalName ?? '포탈';
+        this.track?.('portalsCrafted', 1);
+        this.audio?.play?.('upgrade');
+        this.notify(`🌀 ${name} 포탈 아이템 제작 — 설치하면 지속 포탈이 됩니다`, 'success');
       }
     };
   }
@@ -2416,6 +2432,48 @@ class Game {
     this.notify((r.arrow?.name ?? id) + ' ' + r.amount + '발 제작 — 보유 ' + (this.economy?.getArrow?.(id) ?? 0) + '발', 'success');
     this.ui?.panels?.refresh?.();
     return r;
+  }
+
+  /** 포탈 아이템 제작 — 같은 제작대를 먼저 건설해야 한다 */
+  craftPortal(dest) {
+    const r = this.crafting?.craftPortal?.(dest) ?? { ok: false, error: '제작 시스템이 없습니다.' };
+    if (!r.ok) {
+      if (r.error) this.notify(r.error, 'warn');
+      return r;
+    }
+    this.ui?.panels?.refresh?.();
+    return r;
+  }
+
+  /** 보유 포탈 아이템 수(설치 게이트가 쓴다) */
+  portalCount(dest) {
+    return this.crafting?.portalCount?.(dest) ?? 0;
+  }
+
+  /** 제작한 포탈 아이템을 설치하는 건설 모드로 들어간다 */
+  beginPortalPlacement(dest) {
+    if (this.portalCount(dest) <= 0) {
+      this.notify('포탈 아이템이 없습니다 — 제작(C)에서 먼저 만드세요', 'warn');
+      return false;
+    }
+    this.selectTurret('portal_' + dest);
+    return true;
+  }
+
+  /** 설치한 포탈 근처에서 N — 그 지형으로 이동한다 */
+  travelToRegion(destId) {
+    const dest = destinationById(destId);
+    if (!dest) return false;
+    const now = Date.now();
+    if (this._travelCooldownUntil && now < this._travelCooldownUntil) return false;
+    const point = arrivalPoint(dest);
+    if (!this.player?.setPosition) return false;
+    this.player.setPosition(point.x, undefined, point.z);
+    this.player.velocity?.set?.(0, 0, 0);
+    this._travelCooldownUntil = now + 800;
+    this.audio?.play?.('upgrade');
+    this.notify(`${dest.name}(으)로 이동했습니다`, 'success');
+    return true;
   }
 
   /** 이 날개를 만들려면 어느 제작대가 필요한가(패널 안내용) */
@@ -2835,10 +2893,10 @@ class Game {
     // 관리자 콘솔 — 관리자 계정에만 반응한다. 일반 계정은 키를 눌러도 아무 일도 없다(콘솔 내부에서 한 번 더 검사).
     if (actionPressed('admin') && this.ui.admin?.isAdmin?.()) this.ui.admin.toggle?.();
     if (actionPressed('travel')) {
-      // 지어 둔 포탈이 가까이 있으면 바로 그 지형으로 — 없으면 세계 포탈 목록
+      // 설치한 포탈이 가까이 있으면 바로 그 지형으로 — 없으면 포탈 안내(설치 목록·제작 안내)
       const built = this._nearbyPortal(9);
-      if (built) this.teleports?.travelTo?.(built.dest, this);
-      else this.teleports?.openTravel?.(this);
+      if (built) this.travelToRegion(built.dest);
+      else this.ui?.panels?.open?.('travel');
     }
     if (actionPressed('arcana')) this.openArcana();
 
@@ -3862,9 +3920,6 @@ class Game {
         this.impacts?.update?.(dt);
         this._updateWings(dt);
         this._updateRegionSpawns(dt);
-    this.teleports?.update?.(dt, { player: this.player });
-    const nearPortal = this.teleports?.near ?? null;
-    if (nearPortal) this.ui?.hud?.setPrompt?.('N', `지형 이동 — ${nearPortal.name}`);
         this._checkWeaponUnlocks?.(dt);
         const impactShake = this.impacts?.shakeAmount ?? 0;
         if (impactShake > 0) this._shake = Math.max(this._shake ?? 0, impactShake);
