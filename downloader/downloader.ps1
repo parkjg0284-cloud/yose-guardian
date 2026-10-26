@@ -255,8 +255,25 @@ function Install-Game([switch]$Quiet, [string]$FromFile = '') {
   $latest = Get-Latest -Offline:$Quiet
   if ($FromFile) { Write-Log ('· 설치 파일: ' + (Split-Path $FromFile -Leaf)) }
   else { Write-Log ('· 최신 버전: ' + $latest.tag + $(if ($latest.live) { ' (온라인)' } else { ' (내장)' })) }
-  $work = Join-Path ([IO.Path]::GetTempPath()) ('yose-dl-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
-  New-Item -ItemType Directory -Path $work -Force | Out-Null
+  # 작업 폴더 — 앱과 같은 LocalAppData 를 먼저 쓰고, ACL·정리 정책으로 막히면 시스템 TEMP 로 물러난다.
+  $workBases = @(
+    (Join-Path $env:LOCALAPPDATA 'YoseGuardian\tmp'),
+    ([IO.Path]::GetTempPath()),
+    $env:TEMP
+  ) | Where-Object { $_ } | Select-Object -Unique
+  $work = $null
+  foreach ($base in $workBases) {
+    $candidate = Join-Path $base ('yose-dl-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
+    try {
+      New-Item -ItemType Directory -Path $candidate -Force -ErrorAction Stop | Out-Null
+      $work = $candidate
+      break
+    } catch {
+      if ($env:YOSE_DEBUG_WORK) { Write-Log ('  [debug] work base 실패: ' + $base + ' — ' + $_.Exception.Message) }
+    }
+  }
+  if (-not $work) { throw '설치 작업 폴더를 만들 수 없습니다 (LocalAppData·TEMP 권한 확인)' }
+  if ($env:YOSE_DEBUG_WORK) { Write-Log ('  [debug] work=' + $work) }
   $zip = Join-Path $work 'game.zip'
   $got = 0
   $fromSelected = $false

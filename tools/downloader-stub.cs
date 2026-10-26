@@ -92,19 +92,13 @@ internal static class DownloaderStub
                 }
             }
 
-            // 창 모드 — 로그를 파일로 돌리고 GUI 만 띄운 뒤 이 콘솔은 바로 끝난다
-            string logPath = Path.Combine(work, "gui.log");
-            psi.RedirectStandardOutput = true;
-            psi.RedirectStandardError = true;
+            // 창 모드 — 출력 파이프를 잡지 않고 GUI 프로세스만 띄운 뒤 이 콘솔은 끝난다.
+            // (리다이렉트한 파이프를 부모가 닫으면 PowerShell 창이 곧바로 종료될 수 있다)
+            psi.RedirectStandardOutput = false;
+            psi.RedirectStandardError = false;
             using (Process p = Process.Start(psi))
             {
                 if (p == null) { Console.WriteLine("  [실패] PowerShell 을 실행할 수 없습니다."); return 1; }
-                var sw = new StreamWriter(logPath, false, Encoding.UTF8);
-                sw.AutoFlush = true;
-                p.OutputDataReceived += (sender, e) => { if (e.Data != null) { try { sw.WriteLine(e.Data); } catch { } } };
-                p.ErrorDataReceived += (sender, e) => { if (e.Data != null) { try { sw.WriteLine(e.Data); } catch { } } };
-                p.BeginOutputReadLine();
-                p.BeginErrorReadLine();
             }
             return 0;
         }
