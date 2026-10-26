@@ -36,7 +36,7 @@
 
 ### 🎮 게임 다운로드 — 런처 exe (권장)
 
-1. **[Releases](../../releases/latest)** 에서 **`YoseGuardian-Launcher.exe`** 내려받기 (약 655KB)
+1. **[Releases](../../releases/latest)** 에서 **`YoseGuardian-Launcher.exe`** 내려받기 (약 657KB)
 2. **더블클릭** — 창이 뜨면 **[게임 다운로드 & 설치]** 한 번
 3. 최신 게임을 내려받아 `%LOCALAPPDATA%\YoseGuardian\app` 에 설치하고 **바로 시작**합니다
 
