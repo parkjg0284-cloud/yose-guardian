@@ -438,6 +438,7 @@ $tip = New-Object System.Windows.Forms.ToolTip
 $tip.SetToolTip($selectBtn, '내려받아 둔 game.zip 을 직접 골라 설치합니다 (오프라인·이전 판)')
 $tip.SetToolTip($resetBtn, '다시 최신 릴리스 자동 다운로드로 돌아갑니다')
 $tip.SetToolTip($playBtn, '설치된 게임을 실행합니다')
+if (-not $script:playLocked) { $script:playLocked = $false }
 $tip.SetToolTip($openBtn, '설치 폴더를 엽니다')
 
 $script:logBox = New-Object System.Windows.Forms.TextBox
@@ -453,6 +454,22 @@ $form.Controls.Add($script:logBox)
 $form.Controls.Add($script:logBox)
 
 $script:latestTag = ''
+
+# [게임 시작] 잠금 — 설치/업데이트가 필요한 동안은 시작하지 못하게 한다.
+#  · 설치·업데이트 중: '설치/업데이트 중…'
+#  · 설치 전/새 버전 있음: '업데이트 후 시작'
+#  · 최신 버전: 원래 문구로 활성화
+function Set-PlayLocked([bool]$locked, [string]$reason = '') {
+  $script:playLocked = $locked
+  $playBtn.Enabled = -not $locked
+  if ($locked) {
+    $playBtn.Text = if ($reason) { $reason } else { '업데이트 후 시작' }
+    $tip.SetToolTip($playBtn, '설치/업데이트가 끝나면 게임을 시작할 수 있습니다')
+  } else {
+    $playBtn.Text = $playLabel
+    $tip.SetToolTip($playBtn, '설치된 게임을 실행합니다')
+  }
+}
 
 # 버튼 표시/문구 — 설치 전 install · 새 버전 update · 최신이면 버튼 삭제(done)
 if ($null -eq $script:installShown) { $script:installShown = $false }
@@ -485,6 +502,13 @@ function Update-InstallButton([string]$latestTag) {
     $script:status.Text = ('선택한 파일로 설치합니다 — ' + (Split-Path $script:selectedZip -Leaf))
   }
   $script:info.Text = '설치 위치: ' + $app + $(if ($st.installed) { '  (설치 ' + $st.installed + ')' } else { '' })
+  if ($script:busy) {
+    Set-PlayLocked $true '설치/업데이트 중…'
+  } elseif ($st.mode -ne 'done' -or $script:selectedZip) {
+    Set-PlayLocked $true '업데이트 후 시작'
+  } else {
+    Set-PlayLocked $false
+  }
   Update-Layout
   return $st
 }
@@ -533,6 +557,7 @@ Write-Log '최신 버전을 확인하는 중…'
 $installBtn.Add_Click({
   if ($script:busy) { return }
   $script:busy = $true
+  Set-PlayLocked $true '설치/업데이트 중…'
   $script:bar.Value = 0
   $script:status.Text = '확인 중…'
   try {
@@ -551,16 +576,23 @@ $installBtn.Add_Click({
     }
     $script:info.Text = '설치 위치: ' + $app + '  (설치 ' + (Get-InstalledVersion) + ')'
     Update-Layout
-    if ($st.mode -eq 'done') { $playBtn.Focus() }
-    Write-Log ('· 설치 완료 — 버전 ' + (Get-InstalledVersion))
-    [System.Windows.Forms.MessageBox]::Show('설치가 끝났습니다. 지금 게임을 시작합니다.', $appName) | Out-Null
-    if (Start-Game) { Write-Log ('· 게임을 시작했습니다') }
+    $script:busy = $false
+    $st = Update-InstallButton $script:latestTag
+    if ($st.mode -eq 'done') {
+      $playBtn.Focus()
+      Write-Log ('· 설치 완료 — 버전 ' + (Get-InstalledVersion) + ' · [게임 시작] 버튼이 활성화되었습니다')
+      [System.Windows.Forms.MessageBox]::Show('설치가 끝났습니다. 이제 [게임 시작] 버튼을 누르면 게임이 열립니다.', $appName) | Out-Null
+    } else {
+      Write-Log ('· 설치 후에도 버전이 맞지 않습니다 — 설치 ' + $st.installed + ', 최신 ' + $st.latest)
+    }
   } catch {
     $script:status.Text = '실패 — 아래 기록을 확인하세요'
     Write-Log ('[오류] ' + $_.Exception.Message)
     [System.Windows.Forms.MessageBox]::Show($_.Exception.Message, '설치 실패') | Out-Null
   } finally {
     $script:busy = $false
+    # 실패해도 현재 설치 상태에 맞춰 잠금을 다시 계산한다. 최신이 아니면 잠긴 채로 둔다.
+    Update-InstallButton $script:latestTag | Out-Null
   }
 }.GetNewClosure())
 
@@ -601,6 +633,11 @@ $resetBtn.Add_Click({
 }.GetNewClosure())
 
 $playBtn.Add_Click({
+  if ($script:busy) { return }
+  if ($script:playLocked) {
+    [System.Windows.Forms.MessageBox]::Show('먼저 설치/업데이트를 끝내 주세요. 끝나면 [게임 시작] 버튼이 활성화됩니다.', $appName) | Out-Null
+    return
+  }
   if (Start-Game) { Write-Log ('· 게임을 시작했습니다') }
   else { [System.Windows.Forms.MessageBox]::Show(('아직 설치되지 않았습니다. [' + $installLabel + '] 를 먼저 눌러 주세요.'), $appName) | Out-Null }
 }.GetNewClosure())
@@ -631,7 +668,7 @@ if ($DumpControls) {
   foreach ($c in $form.Controls) {
     $kind = $c.GetType().Name
     $text = if ($null -ne $c.Text) { $c.Text } else { '' }
-    $lines.Add($kind + '|' + $text + '|' + $c.Location.X + ',' + $c.Location.Y)
+    $lines.Add($kind + '|' + $text + '|' + $c.Location.X + ',' + $c.Location.Y + '|enabled=' + [bool]$c.Enabled)
   }
   [IO.File]::WriteAllLines($DumpControls, $lines)
   exit 0

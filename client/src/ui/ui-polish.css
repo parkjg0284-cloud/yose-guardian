@@ -392,15 +392,9 @@
   overflow: visible;
 }
 
-/* 싱글 플레이 / 멀티플레이 옆의 [불러오기] */
+/* 싱글 플레이 / 멀티플레이 CTA */
 #menu-root .menu-cta-row { display: flex; align-items: stretch; gap: 8px; }
 #menu-root .menu-cta-row .menu-cta { flex: 1 1 auto; }
-#menu-root .menu-cta-row .menu-cta-load {
-  flex: 0 0 auto;
-  font-size: 13px;
-  padding: 0 14px;
-  opacity: .92;
-}
 /* 시작 화면에서는 '바로 가기' 카드도 숨긴다(H-95) */
 #menu-root[data-view="main"] .menu-shortcuts { display: none !important; }
 
@@ -609,7 +603,6 @@
 
 .solo-actions { display: flex; gap: 10px; margin-top: 16px; }
 .solo-start { flex: 1 1 auto; padding: 14px 18px; font-size: 17px; font-weight: 800; letter-spacing: 0.04em; }
-.solo-load { flex: 0 0 auto; }
 
 /* ══ 멀티플레이 — 보랏빛 카드 · 중간 크기(880px) · 2단 ════════════════ */
 .menu-card.menu-multi {

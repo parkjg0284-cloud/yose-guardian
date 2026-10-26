@@ -1137,12 +1137,7 @@ const menu = attempt('MainMenu constructs (builds #menu-root)', () => new menuMo
   const cta = mroot.querySelector('[data-act="world"]');
   ok('메인화면 — 버튼이 화면 최상위(body)에 붙는다', !!documentStub.body.querySelector('[data-act="world"]'));
   const heroLoads = [...(menu._heroStack?.querySelectorAll('[data-act="load"]') || [])];
-  ok('메인화면 — 싱글·멀티 옆 [불러오기] 2개', heroLoads.length === 2 && heroLoads.some((b) => b.dataset.mode === 'world') && heroLoads.some((b) => b.dataset.mode === 'multi'), heroLoads.map((b) => b.dataset.mode).join(','));
-  let loadPayload = null;
-  const offHeroLoad = menu.on('load', (p) => { loadPayload = p; });
-  if (heroLoads[0]) heroLoads[0].dispatch('click', { target: heroLoads[0], preventDefault() {}, stopPropagation() {} });
-  offHeroLoad?.();
-  ok('메인화면 — [불러오기] 클릭이 load 를 보낸다', loadPayload?.mode === 'world', JSON.stringify(loadPayload));
+  ok('메인화면 — [불러오기] 버튼이 없다', heroLoads.length === 0, `loads=${heroLoads.length}`);
   let started = false;
   menu.on('start', () => { started = true; });
   // H-94: 싱글 플레이 버튼은 화면만 열고, 게임 시작은 [게임 시작] 버튼이 한다.
@@ -1162,27 +1157,19 @@ const menu = attempt('MainMenu constructs (builds #menu-root)', () => new menuMo
   menu.show('main');
   menu._heroAct('world');
   const soloLoads = documentStub.getElementById('menu-root').querySelectorAll('[data-act="menu-load"]');
-  ok(
-    '싱글 화면 — [불러오기] 가 카드 안에 있다',
-    soloLoads.some((b) => b.dataset.mode === 'solo'),
-    `modes=${soloLoads.map((b) => b.dataset.mode).join(',')}`
-  );
+  ok('싱글 화면 — [불러오기] 버튼이 없다', soloLoads.length === 0, `loads=${soloLoads.length}`);
   const seedRowLoads = documentStub
     .getElementById('menu-root')
     .querySelector('.solo-seedrow')
     ?.querySelectorAll('[data-act="menu-load"]') ?? [];
-  ok(
-    '싱글 화면 — [불러오기] 가 시드 선택 줄에 있다',
-    seedRowLoads.some((b) => b.dataset.mode === 'solo'),
-    `seedRow=${seedRowLoads.length}`
-  );
+  ok('싱글 화면 — 시드 줄에도 [불러오기] 가 없다', seedRowLoads.length === 0, `seedRow=${seedRowLoads.length}`);
   menu.show('main');
   menu._heroAct('multi');
   const multiLoads = documentStub.getElementById('menu-root').querySelectorAll('[data-act="menu-load"]');
+  ok('멀티 화면 — [불러오기] 버튼이 없다', multiLoads.length === 0, `loads=${multiLoads.length}`);
   ok(
-    '멀티 화면 — [불러오기] 가 카드 안에 있다',
-    multiLoads.some((b) => b.dataset.mode === 'multi'),
-    `modes=${multiLoads.map((b) => b.dataset.mode).join(',')}`
+    '메인 메뉴 — 모든 화면에서 [불러오기] 를 제거했다',
+    documentStub.getElementById('menu-root').querySelectorAll('[data-act="load"], [data-act="menu-load"]').length === 0
   );
   menu.hide();
 }

@@ -2075,3 +2075,40 @@ GitHub 에 이미 올라가 있으면 다시 올리지 않는다.
 - 실전 브라우저 `.tmp/fairy-live.mjs` 13/13 — UI로 요정 전직 → T1 자동 지급·즉시 장착·중복 없음, T7 장착/뷰모델 `fairy_wand_t7`, 실제 `_attack()` 추적 꽃가루 1발·쿨다운.
 - 런처 `-SelfTest` — launcher/installer 각각 업데이트 내역 3개 버전, downloader `-DumpControls` 에 **[업데이트 내역]** 버튼.
 - `npm run verify` — 2,273개 통과(빌드 포함). `tools/cmd-lint.mjs` 13/13.
+
+---
+
+## §4.82 메인화면 정리 · 런처 시작 잠금 (v1.18.0)
+
+**메인화면 [불러오기] 제거**
+- `client/src/ui/menu.js` 에서 `menu-load` 액션, 싱글 시드 줄의 `solo-load` 버튼, 멀티 카드의 불러오기 버튼,
+  `_renderHeroActions` 의 싱글·멀티 옆 `menu-cta-load` 버튼을 모두 제거한다.
+- `_heroAct` 의 `load` 분기와 `main.js` 의 `menu.on('load')` 연결도 제거한다. 세이브 불러오기는
+  **설정 → 내 세이브 목록**(`save:load`)만 남긴다.
+- 제거된 버튼의 CSS(`.menu-cta-load`, `.solo-load`)도 함께 지운다.
+- `tools/ui-dom-smoke.mjs` 는 메인·싱글·멀티 화면에 `[data-act="load"]`/`[data-act="menu-load"]` 가
+  **0개**인지 검사한다.
+
+**런처 [게임 시작] 잠금**
+- `downloader/downloader.ps1` 에 `Set-PlayLocked` 를 둔다. 설치 전·새 버전·설치/업데이트 진행 중에는
+  `$playBtn.Enabled = $false` 이고 문구는 `업데이트 후 시작` 또는 `설치/업데이트 중…` 이다.
+- `Update-InstallButton` 이 설치 상태(`install`/`update`/`done`)와 `$script:selectedZip`/`$script:busy` 를
+  함께 보고 잠금을 계산한다. 최신(`done`)이고 선택 파일이 없을 때만 `게임 시작` 으로 활성화한다.
+- 설치 핸들러는 시작 시 잠그고, 성공/실패와 무관하게 `finally` 에서 상태를 다시 계산한다. 성공 후에는
+  게임을 자동 실행하지 않고 **`[게임 시작]` 버튼을 활성화**한다(사용자 요청).
+- `Start-Game` 은 `$script:busy`/`$script:playLocked` 이면 실행하지 않는다.
+- `downloader/downloader.json` 에 `tag` 를 두어 오프라인에서도 내장 버전을 올바르게 판정한다.
+- `tools/build-launcher.mjs`·`build-downloader.mjs` 는 `YOSE_TAG`(없으면 `git describe`)으로 내장 태그를 정하고,
+  `Set-PlayLocked`·`업데이트 후 시작` 문구가 payload 에 있는지 검사한다.
+
+**게임 코드 오류 처리**
+- `main.js` 의 `panels.on('load')` 는 `this.load()` 의 rejection 을 잡아 `console.error` + 안내로 처리한다.
+- `load()` 는 클라우드 저장 확인을 `try/catch` 로 감싸 실패해도 로컬 세이브로 진행한다.
+- `_restore()` 는 `this.start()` 까지 `try` 안에서 실행해 복원 초기화 실패도 오류 안내로 끝낸다.
+
+**검사**
+- `tools/smoke.mjs` 972/972 — 불러오기 오류 처리(클라우드·복원) 소스 계약 1건 추가.
+- `tools/ui-dom-smoke.mjs` 349/349 — 메인/싱글/멀티 불러오기 버튼 0개, 설정 세이브 목록 불러오기 유지.
+- `tools/headless.mjs` 594/594 · 버그테스트 변동 없음.
+- `npm run verify` — 2,274개 통과(빌드 포함). `tools/cmd-lint.mjs` 13/13.
+- 런처 `-DumpControls` 로 설치 전/최신 상태의 `게임 시작` enabled 값을 확인한다.

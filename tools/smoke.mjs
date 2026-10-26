@@ -1269,6 +1269,12 @@ section('전직 배선 (main.js · player.js)');
   );
   check('main.js — 저장/불러오기에 전직 포함', mainSrc.includes('classes: this.classes?.toJSON?.()') && mainSrc.includes('this.classes?.fromJSON?.(data.classes)'));
   check(
+    'main.js — 불러오기 실패를 잡아 알림(클라우드·복원)',
+    mainSrc.includes('void this.load().catch') &&
+      mainSrc.includes('[load] 클라우드 저장 확인 실패') &&
+      /try \{\s*if \(!this\.running\) this\.start\(/.test(mainSrc)
+  );
+  check(
     'main.js — K 키로 전직 패널(포인터 정책 경로)',
     mainSrc.includes("actionPressed('classes')") && mainSrc.includes("this.togglePanel('classes')")
   );

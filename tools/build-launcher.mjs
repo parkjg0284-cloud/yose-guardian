@@ -42,11 +42,13 @@ copyFileSync(join(ROOT, 'launcher', 'install.ps1'), join(BUILD, 'install.ps1'));
 copyFileSync(GAME, join(BUILD, 'game.zip'));
 
 // 내장 판 태그 — 오프라인일 때 버튼 상태(install/update/done) 판정 기준
-let tagOf = '';
-try {
-  tagOf = execSync('git describe --tags --abbrev=0', { cwd: ROOT, encoding: 'utf8' }).trim();
-} catch {
-  tagOf = '';
+let tagOf = process.env.YOSE_TAG || '';
+if (!tagOf) {
+  try {
+    tagOf = execSync('git describe --tags --abbrev=0', { cwd: ROOT, encoding: 'utf8' }).trim();
+  } catch {
+    tagOf = '';
+  }
 }
 {
   const confPath = join(BUILD, 'downloader.json');
@@ -64,7 +66,7 @@ if (!conf.url || !/^https?:\/\//.test(conf.url)) {
   process.exit(1);
 }
 const ps1 = readFileSync(join(BUILD, 'downloader.ps1'), 'utf8');
-for (const needle of ['게임 다운로드 & 설치', '게임 시작', 'install.ps1', 'SELFTEST OK', 'Update-InstallButton', '설치 파일 선택', '선택한 파일 설치', 'Test-GameZip', '업데이트 내역']) {
+for (const needle of ['게임 다운로드 & 설치', '게임 시작', 'install.ps1', 'SELFTEST OK', 'Update-InstallButton', 'Set-PlayLocked', '업데이트 후 시작', '설치 파일 선택', '선택한 파일 설치', 'Test-GameZip', '업데이트 내역']) {
   if (!ps1.includes(needle)) {
     console.error(`  [실패] downloader.ps1 에 '${needle}' 가 없습니다`);
     process.exit(1);
@@ -154,11 +156,22 @@ log(`[5/7] ${OUT.split('\\').pop()} ${kb(statSync(OUT).size)}`);
   const b = run(stateDir);
   writeFileSync(join(stateDir, '.yose-version'), tagOf || '내장판', 'utf8');
   const c = run(stateDir);
+  // [게임 시작] 잠금 — 최신이면 enabled=True, 구버전이면 '업데이트 후 시작' + enabled=False
+  const dumpPath = join(BUILD, 'controls-probe.txt');
+  const dump = (tag) => {
+    writeFileSync(join(stateDir, '.yose-version'), tag, 'utf8');
+    execFileSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', join(BUILD, 'downloader.ps1'), '-Launcher', '-Path', stateDir, '-DumpControls', dumpPath], { timeout: 60000, windowsHide: true });
+    return readFileSync(dumpPath, 'utf8');
+  };
+  const latestDump = dump(tagOf || '내장판');
+  const oldDump = dump('v0.0.0');
   rmSync(stateDir, { recursive: true, force: true });
-  const ok = a[2] === 'install' && b[2] === 'update' && c[2] === 'done';
-  log(`[6/7] 버튼 상태 검사 ${ok ? 'OK' : '실패'} — 설치 전 ${a[2] || '?'} · 새 버전 ${b[2] || '?'} · 최신 ${c[2] || '?'}`);
+  const playReady = /Button\|게임 시작\|[^|]*\|enabled=True/.test(latestDump);
+  const playLocked = /Button\|업데이트 후 시작\|[^|]*\|enabled=False/.test(oldDump);
+  const ok = a[2] === 'install' && b[2] === 'update' && c[2] === 'done' && playReady && playLocked;
+  log(`[6/7] 버튼 상태 검사 ${ok ? 'OK' : '실패'} — 설치 전 ${a[2] || '?'} · 새 버전 ${b[2] || '?'} · 최신 ${c[2] || '?'} · 시작 잠금 ${playLocked ? 'OK' : '실패'}/${playReady ? 'OK' : '실패'}`);
   if (!ok) {
-    console.error(`  설치 전=${a.join('|')} · 새 버전=${b.join('|')} · 최신=${c.join('|')}`);
+    console.error(`  설치 전=${a.join('|')} · 새 버전=${b.join('|')} · 최신=${c.join('|')} · playReady=${playReady} · playLocked=${playLocked}`);
     process.exitCode = 1;
   }
 }

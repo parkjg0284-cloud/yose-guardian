@@ -471,8 +471,6 @@ class Game {
       this.notify('그래픽이 복구되었습니다', 'success');
     });
 
-    // 메뉴 [불러오기] — 저장한 게임을 이어서 한다(싱글·멀티 공통).
-    this.ui.menu.on('load', () => this.load());
     // 메뉴 [서버 주소] — 다른 PC 에서 켠 서버로 붙는다(마인크래프트 멀티처럼).
     this.ui.menu.on('server-connect', ({ address } = {}) => this.connectServer(address));
     // 메뉴 [주소 만들기] / [초대코드 만들기] / [복사]
@@ -555,7 +553,14 @@ class Game {
       this.notify('칭호를 변경했습니다', 'success');
     });
     this.ui.panels.on('save', () => this.save());
-    this.ui.panels.on('load', () => this.load());
+    this.ui.panels.on('load', () => {
+      // 불러오기는 localStorage + 클라우드(네트워크)를 함께 본다. 실패가
+      // unhandled rejection 으로 남지 않도록 여기서 한 번 더 감싼다.
+      void this.load().catch((err) => {
+        console.error('[load] 불러오기 실패', err);
+        this.notify?.('게임을 불러오지 못했습니다 — 저장 데이터를 확인해 주세요', 'error');
+      });
+    });
     this.ui.panels.on('quit', () => this.quit());
     this.ui.panels.on('resume', () => this.resume());
     this.ui.panels.on('save:load', ({ id } = {}) => this.loadSaveSlot(id));
@@ -3487,10 +3492,15 @@ class Game {
       /* 무시 */
     }
     if (auth.loggedIn) {
-      const r = await cloudSave.load();
-      if (r.ok && r.data?.data) {
-        const cloud = r.data.data;
-        if (!data || new Date(cloud.savedAt || 0) > new Date(data.savedAt || 0)) data = cloud;
+      try {
+        const r = await cloudSave.load();
+        if (r.ok && r.data?.data) {
+          const cloud = r.data.data;
+          if (!data || new Date(cloud.savedAt || 0) > new Date(data.savedAt || 0)) data = cloud;
+        }
+      } catch (err) {
+        // 클라우드가 죽어도 로컬 세이브로 계속 진행한다.
+        console.warn('[load] 클라우드 저장 확인 실패', err);
       }
     }
     if (!data) {
@@ -3506,8 +3516,8 @@ class Game {
       this.notify('세이브 데이터가 올바르지 않습니다', 'error');
       return false;
     }
-    if (!this.running) this.start({ mode: data.mode, seed: data.seed, difficulty: data.difficulty });
     try {
+      if (!this.running) this.start({ mode: data.mode, seed: data.seed, difficulty: data.difficulty });
       if (data.quality) this.applyPreset(data.quality);
       this.economy?.fromJSON?.(data.economy);
       this.achievements?.fromJSON?.(data.achievements);

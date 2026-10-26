@@ -365,10 +365,6 @@ export class MainMenu {
         this.emit('multiplayer', { mode: this.state.mode, difficulty: this.state.difficulty });
         this.hide();
         break;
-      case 'menu-load':
-        // 불러오기 — 각 플레이 화면(싱글/멀티) 안의 버튼.
-        this.emit('load', { mode: d.mode || 'solo' });
-        break;
       case 'menu-server-connect': {
         // 마인크래프트처럼 주소만 넣고 접속 — 비우면 지금 서버(내 PC)로 돌아온다.
         const address = String(this._field('menu-server', '')).trim();
@@ -738,13 +734,6 @@ export class MainMenu {
     seedGallery.type = 'button';
     seedGallery.dataset.act = 'menu-seeds';
     seedRow.appendChild(seedGallery);
-    // 저장한 게임 이어하기 — 시드를 고르는 이 줄에서 바로 불러온다(사용자 요청).
-    const seedLoad = h('button', 'btn ghost btn-ghost solo-load', '📂 불러오기');
-    seedLoad.type = 'button';
-    seedLoad.dataset.act = 'menu-load';
-    seedLoad.dataset.mode = 'solo';
-    seedLoad.title = '저장한 게임을 이어서 합니다';
-    seedRow.appendChild(seedLoad);
     seedBox.appendChild(seedRow);
     start.appendChild(seedBox);
 
@@ -911,13 +900,6 @@ export class MainMenu {
     lobbyBtn.type = 'button';
     lobbyBtn.dataset.act = 'menu-multiplayer';
     multiActs.appendChild(lobbyBtn);
-    // 저장한 게임 이어하기 — 플레이 화면 안에 둔다(사용자 요청).
-    const loadMulti = h('button', 'btn ghost btn-ghost', '📂 불러오기');
-    loadMulti.type = 'button';
-    loadMulti.dataset.act = 'menu-load';
-    loadMulti.dataset.mode = 'multi';
-    loadMulti.title = '저장한 게임을 이어서 합니다';
-    multiActs.appendChild(loadMulti);
     if (last) {
       const again = h('button', 'btn ghost btn-ghost', `최근 코드 ${last} 로 참가`);
       again.type = 'button';
@@ -1026,31 +1008,21 @@ export class MainMenu {
   /** 오른쪽 아래 4단 버튼 — 새로운 세계 · 멀티플레이 · 설정 · 게임종료(계약 §4.75). */
   _renderHeroActions(body) {
     const stack = h('div', 'menu-hero-actions');
-    const item = (act, icon, label, cls, withLoad) => {
+    const item = (act, icon, label, cls) => {
       const rowEl = h('div', 'menu-cta-row');
       const b = h('button', `btn btn-lg menu-cta ${cls}`, `${icon} ${label}`);
       b.type = 'button';
       b.dataset.act = act;
       b.addEventListener('click', () => this._heroAct(act));
       rowEl.appendChild(b);
-      // 싱글·멀티 옆에 [불러오기] — 저장한 게임을 바로 이어서 한다(사용자 요청).
-      if (withLoad) {
-        const ld = h('button', 'btn menu-cta-load', '📂 불러오기');
-        ld.type = 'button';
-        ld.dataset.act = 'load';
-        ld.dataset.mode = act;
-        ld.title = '저장한 게임을 이어서 합니다';
-        ld.addEventListener('click', () => this._heroAct('load', { mode: act }));
-        rowEl.appendChild(ld);
-      }
       stack.appendChild(rowEl);
       return b;
     };
     const loggedIn = Boolean(safe(() => auth.loggedIn, false));
     const user = safe(() => auth.user, null);
     // 로그인/회원가입은 설정 안으로 옮겼다(사용자 요청) — 메인 화면에는 계정 버튼을 두지 않는다.
-    item('world', '🎮', '싱글 플레이', 'is-primary', true);
-    item('multi', '🧙', '멀티플레이', 'is-violet', true);
+    item('world', '🎮', '싱글 플레이', 'is-primary');
+    item('multi', '🧙', '멀티플레이', 'is-violet');
     item('options', '⚙️', '설정', 'is-ghost');
     item('leave', '🚪', '게임종료', 'is-danger');
     // body 는 _renderMain 이 지웠다 다시 채우므로 스택은 **메뉴 루트**에 붙여 살아남게 한다(H-88b).
@@ -1071,12 +1043,7 @@ export class MainMenu {
   }
 
   /** 스택 버튼 → 기존 메뉴 흐름으로 넘긴다. */
-  _heroAct(act, opts = {}) {
-    // 저장한 게임 불러오기 — 싱글/멀티 옆 버튼(사용자 요청).
-    if (act === 'load') {
-      this.emit('load', { mode: opts.mode || 'world' });
-      return;
-    }
+  _heroAct(act) {
     // 화면 전환 — 버튼을 눌러야 그 화면만 보인다(H-94).
     if (act === 'auth') {
       // 로그인 화면 — 회원가입/로그인을 여기서 한다.

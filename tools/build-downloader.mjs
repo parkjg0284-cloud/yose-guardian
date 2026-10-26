@@ -39,10 +39,12 @@ copyFileSync(join(ROOT, 'launcher', 'install.ps1'), join(BUILD, 'install.ps1'));
 copyFileSync(GAME, join(BUILD, 'game.zip'));
 
 // 내장 판 태그 — 오프라인일 때 [설치]/[업데이트] 판정 기준
-let tagOf = '';
-try {
-  tagOf = execSync('git describe --tags --abbrev=0', { cwd: ROOT, encoding: 'utf8' }).trim();
-} catch { tagOf = ''; }
+let tagOf = process.env.YOSE_TAG || '';
+if (!tagOf) {
+  try {
+    tagOf = execSync('git describe --tags --abbrev=0', { cwd: ROOT, encoding: 'utf8' }).trim();
+  } catch { tagOf = ''; }
+}
 {
   const confPath = join(BUILD, 'downloader.json');
   const obj = JSON.parse(readFileSync(confPath, 'utf8').replace(/^\uFEFF/, ''));
@@ -59,7 +61,7 @@ if (!conf.url || !/^https?:\/\//.test(conf.url)) {
   process.exit(1);
 }
 const ps1 = readFileSync(join(BUILD, 'downloader.ps1'), 'utf8');
-for (const needle of ['최신 버전 설치', 'install.ps1', 'SELFTEST OK', 'Update-InstallButton', '업데이트 내역']) {
+for (const needle of ['최신 버전 설치', 'install.ps1', 'SELFTEST OK', 'Update-InstallButton', 'Set-PlayLocked', '업데이트 후 시작', '업데이트 내역']) {
   if (!ps1.includes(needle)) {
     console.error(`  [실패] downloader.ps1 에 '${needle}' 가 없습니다`);
     process.exit(1);

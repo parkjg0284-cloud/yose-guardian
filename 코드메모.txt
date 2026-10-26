@@ -871,3 +871,15 @@ npm install 이 실패한다
   · 문서 — README 요정 절 · docs 배지 v1.17.0 · 업데이트 내역 섹션 · WEAPONS.md 82종 · CONTRACT §4.81 · 코드메모 [53]
   [검증] smoke 971/971 · headless 594/594 · ui-dom 349/349 · verify 2,273/2,273 · 런처/다운로더 SelfTest OK
   끝.
+
+[54] v1.18.0 — 메인화면 불러오기 제거 · 런처 시작 버튼 잠금 · 오류 처리
+  · menu.js — menu-load/solo-load/menu-cta-load 버튼과 _heroAct('load') 제거, ui-polish.css 정리
+  · main.js — panels 'load' rejection 처리, load() 클라우드 try/catch, _restore() start()까지 try
+  · downloader.ps1 — Set-PlayLocked: install/update/진행 중에는 게임 시작 비활성, 완료 후 활성
+    설치 성공 후 자동 실행 제거, finally 에서 잠금 재계산 · DumpControls 에 enabled 표시
+  · downloader.json tag=v1.18.0 → 오프라인 버전 판정 수정 · build 스크립트 YOSE_TAG 지원
+  · updates.json 4개 버전(v1.18~v1.15) · README/docs/index/CONTRACT §4.82/HANDOFF 갱신
+  [검증] smoke 972/972 · headless 594/594 · ui-dom 349/349 · verify 2,274/2,274
+    실브라우저 — 메인 불러오기 0개, 18개 패널 예외 0, 설정 세이브 불러오기 정상
+    런처 — v1.18 설치본 게임 시작 enabled=True / v1.17 설치본 enabled=False
+  끝.

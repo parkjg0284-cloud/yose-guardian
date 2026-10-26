@@ -32,6 +32,8 @@ npm.cmd run bugtest4   # 전기·저장고·지형 채굴·포탑 추적·연사
   `.env` 의 `PORT` 에 저장되고 `app.js`·`게임실행.vbs`·`run.cmd`·`tools/dev.mjs` 가 모두 그 값을 읽는다(v1.16.0).
 - **v1.17.0 요정 직업** — 메인코어 E → 전직에서 **요정(🧚)** 선택. 요정의 지팡이 T1은 전직 시 자동 지급되고,
   T2~T7은 해당 티어 제작대에서 만든다. 무기 82종·계열 11개. 런처 **[업데이트 내역]** 에 변경 내용이 표시된다.
+- **v1.18.0 메인화면·런처** — 메인/싱글/멀티의 [불러오기] 버튼을 없앴다(설정 → 내 세이브 목록만 사용).
+  런처는 설치/업데이트 중 [게임 시작]을 잠그고 끝나면 활성화하며, 설치 후 자동 실행하지 않는다.
 - `npm run dev` 는 `tools/dev.mjs` 로 바뀌었다: 서버(Express+Socket.io)와 Vite 를 **같은 프로세스에서** 띄운다.
 - `npm run dev:tunnel` 은 `tools/dev-tunnel.mjs` 가 터널 출력을 `.tmp/tunnel-<port>.log` 로 받아 공개 주소를 찾고 `PUBLIC_URL` 로 넘긴 뒤 `dev.mjs` 를 그대로 import 한다(파이프 spawn 금지 환경 대응).
   `concurrently` 는 자식 프로세스 spawn 을 막는 환경에서 `spawn EPERM` 으로 즉사했기 때문에 제거했다.
