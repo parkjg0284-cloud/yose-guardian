@@ -1,4 +1,5 @@
 // 방 하나의 상태 + 서버 권위 20Hz 루프 (계약 §2.4)
+import { randomUUID } from 'node:crypto';
 import { CHAT_MAX, S2C, TICK_HZ, TICK_MS, clampNum, normalizeDifficulty, normalizeMode, sanitizeText, toInt } from './protocol.js';
 
 const MAP_HALF = 2500;
@@ -6,6 +7,10 @@ const BASE_MAX_HP = 4100;
 const MAX_TURRETS = 256;
 const MAX_ENEMIES = 200;
 const MAX_CHAT_LOG = 50;
+/** 접속이 끊겨도 이 시간 동안은 자리를 비워 둔다 — 그 안에 돌아오면 이어서 한다. */
+export const RECONNECT_GRACE_MS = 45000;
+/** 재접속 토큰 최대 길이 */
+const TOKEN_MAX = 64;
 /** 캐릭터 외형 살균 — 스킨 id·아이콘·색만 남긴다(코스메틱, 능력치 없음) */
 function sanitizeCharacter(raw) {
   const src = raw && typeof raw === 'object' ? raw : {};
@@ -49,7 +54,7 @@ export class Room {
     this.seed = sanitizeText(seed, 32);
     this.difficulty = normalizeDifficulty(difficulty);
     this.io = io;
-    this.maxPlayers = toInt(clampNum(maxPlayers, 1, 16, 4), 4);
+    this.maxPlayers = toInt(clampNum(maxPlayers, 1, 8, 4), 4);
     // 비공개 방은 메인 화면 '열린 방' 목록에 올리지 않는다(초대코드를 아는 사람만 입장).
     this.private = isPrivate === true;
     this.phase = 'lobby';
@@ -98,11 +103,18 @@ export class Room {
   /** 플레이어 입장 — character 는 코스메틱 외형(서버가 다시 살균한다) */
   addPlayer(socket, nickname, character) {
     if (!socket || !socket.id) return { ok: false, error: '소켓이 없습니다' };
-    if (this.players.has(socket.id)) return { ok: true, player: this.players.get(socket.id) };
+    if (this.players.has(socket.id)) {
+      const existing = this.players.get(socket.id);
+      return { ok: true, player: existing, token: existing.token };
+    }
     if (this.players.size >= this.maxPlayers) return { ok: false, error: '방이 가득 찼습니다' };
     if (this.phase !== 'lobby') return { ok: false, error: '이미 시작된 게임입니다' };
     const player = {
       id: socket.id,
+      // 재접속 토큰 — 소켓이 끊겼다 새로 붙어도 같은 좌석을 찾을 수 있게 한다.
+      token: randomUUID(),
+      connected: true,
+      disconnectedAt: 0,
       nickname: sanitizeText(nickname, 16) || '플레이어',
       character: sanitizeCharacter(character),
       ready: false,
@@ -119,27 +131,121 @@ export class Room {
     this.players.set(socket.id, player);
     if (!this.hostId) this.hostId = socket.id;
     if (typeof socket.join === 'function') socket.join(this.code);
+    player.socket = socket;
     this.startTimer();
     this.broadcastState();
-    return { ok: true, player };
+    return { ok: true, player, token: player.token };
+  }
+
+  /** 접속 중인(끊기지 않은) 플레이어 수 */
+  get connectedCount() {
+    let n = 0;
+    for (const p of this.players.values()) if (p.connected) n += 1;
+    return n;
   }
 
   /** 플레이어 퇴장 — 진행 중 이탈도 안전해야 한다 */
-  removePlayer(socketId) {
+  removePlayer(socketId, { silent = false } = {}) {
     const player = this.players.get(socketId);
     if (!player) return null;
     this.players.delete(socketId);
-    if (this.hostId === socketId) this.hostId = this.players.keys().next().value ?? null;
+    player.socket = null;
+    const hostChanged = this.hostId === socketId;
+    if (hostChanged) this.hostId = this.players.keys().next().value ?? null;
     if (this.players.size === 0) {
       if (this.phase === 'playing') this.end();
       this.stopTimer();
       if (typeof this.onEmpty === 'function') {
         try { this.onEmpty(this); } catch { /* 정리 실패는 무시 */ }
       }
-    } else if (this.phase === 'lobby') {
+    } else {
+      // 로비든 진행 중이든 방장 변경·인원 변화를 즉시 알린다(유령 방장 방지).
       this.broadcastState();
+      if (!silent) {
+        this.emit(S2C.GAME_EVENT, {
+          type: 'system',
+          payload: { message: `${player.nickname}님이 나갔습니다`, kind: 'player:left', playerId: player.id },
+          from: player.id,
+        });
+      }
     }
     return player;
+  }
+
+  /**
+   * 접속 끊김 처리 — 진행 중이면 45초 동안 자리를 비워 두고, 로비면 바로 내보낸다.
+   * 유예 시간 안에 rejoinPlayer(token) 로 돌아오면 같은 좌석·같은 상태로 이어진다.
+   */
+  handleDisconnect(socketId) {
+    const player = this.players.get(socketId);
+    if (!player) return null;
+    player.socket = null;
+    // 방장이 끊기면 다른 사람에게 바로 넘긴다(유령 방장이 시작을 막지 않게).
+    if (this.hostId === socketId) {
+      const next = [...this.players.values()].find((p) => p.id !== socketId && p.connected !== false);
+      if (next) this.hostId = next.id;
+    }
+    if (this.phase === 'playing') {
+      player.connected = false;
+      player.disconnectedAt = Date.now();
+      this.broadcastState();
+      this.emit(S2C.GAME_EVENT, {
+        type: 'system',
+        payload: {
+          message: `${player.nickname}님의 접속이 끊겼습니다 — ${Math.round(RECONNECT_GRACE_MS / 1000)}초 안에 돌아오면 이어서 합니다`,
+          kind: 'player:disconnect',
+          playerId: player.id,
+        },
+        from: player.id,
+      });
+      return player;
+    }
+    return this.removePlayer(socketId, { silent: true });
+  }
+
+  /** 재접속 — 토큰으로 좌석을 찾아 새 소켓에 다시 붙인다. */
+  rejoinPlayer(token, socket) {
+    const key = sanitizeText(token, TOKEN_MAX);
+    if (!key || !socket?.id) return { ok: false, error: '재접속 정보가 없습니다' };
+    let target = null;
+    for (const p of this.players.values()) {
+      if (p.token === key) { target = p; break; }
+    }
+    if (!target) return { ok: false, error: '재접속 시간이 만료되었습니다(45초)' };
+    if (this.players.has(socket.id) && this.players.get(socket.id) !== target) {
+      return { ok: false, error: '이미 접속 중입니다' };
+    }
+    const oldId = target.id;
+    const wasDisconnected = target.connected === false;
+    this.players.delete(oldId);
+    target.id = socket.id;
+    target.connected = true;
+    target.disconnectedAt = 0;
+    this.players.set(socket.id, target);
+    if (this.hostId === oldId) this.hostId = socket.id;
+    if (typeof socket.join === 'function') socket.join(this.code);
+    target.socket = socket;
+    this.broadcastState();
+    if (wasDisconnected) {
+      this.emit(S2C.GAME_EVENT, {
+        type: 'system',
+        payload: { message: `${target.nickname}님이 다시 접속했습니다`, kind: 'player:rejoin', playerId: target.id },
+        from: target.id,
+      });
+    }
+    return { ok: true, player: target, token: target.token, state: this.serialize(), snapshot: this.snapshot() };
+  }
+
+  /** 유예 시간이 지난 끊긴 플레이어 정리 — tick 에서 호출 */
+  purgeDisconnected(now = Date.now()) {
+    let removed = 0;
+    for (const p of [...this.players.values()]) {
+      if (p.connected) continue;
+      if (!p.disconnectedAt || now - p.disconnectedAt < RECONNECT_GRACE_MS) continue;
+      this.removePlayer(p.id, { silent: false });
+      removed += 1;
+    }
+    return removed;
   }
 
   /** 준비 상태 토글 */
@@ -175,29 +281,33 @@ export class Room {
     return true;
   }
 
-  /** 포탑 설치 (검증 후 저장) */
+  /** 포탑 설치 (검증 후 저장) — `{ entry, created }` 를 돌려준다(중복 중계 방지). */
   placeTurret(id, turret) {
-    if (!turret || typeof turret !== 'object') return null;
-    if (this.turrets.size >= MAX_TURRETS) return null;
+    if (!turret || typeof turret !== 'object') return { entry: null, created: false, error: '건물 정보가 없습니다' };
     const turretId = sanitizeText(turret.id ?? turret.turretId, 32) || `t${++this._turretSeq}`;
-    if (this.turrets.has(turretId)) return this.turrets.get(turretId);
+    if (this.turrets.has(turretId)) return { entry: this.turrets.get(turretId), created: false };
+    if (this.turrets.size >= MAX_TURRETS) return { entry: null, created: false, error: '건물이 너무 많습니다' };
     const entry = {
       id: turretId,
       typeId: sanitizeText(turret.typeId, 32) || 'unknown',
       x: clampNum(turret.x, -MAP_HALF, MAP_HALF, 0),
       y: clampNum(turret.y, -500, 2000, 0),
       z: clampNum(turret.z, -MAP_HALF, MAP_HALF, 0),
-      ownerId: sanitizeText(turret.ownerId ?? id, 64),
+      // 방향은 설치할 때 한 번만 정해진다 — 재동기화(스냅샷)에도 실어 보낸다.
+      yaw: clampNum(turret.yaw, -Math.PI * 4, Math.PI * 4, 0),
+      // 소유자는 클라이언트 주장이 아니라 실제 소켓 id 를 쓴다(사칭 방지).
+      ownerId: id,
     };
     this.turrets.set(turretId, entry);
-    return entry;
+    return { entry, created: true };
   }
 
-  /** 포탑 판매/철거 */
+  /** 포탑 판매/철거 — 소유자 또는 방장만 */
   removeTurret(id, turretId) {
     const key = sanitizeText(turretId, 32);
     if (!key || !this.turrets.has(key)) return null;
     const entry = this.turrets.get(key);
+    if (entry.ownerId !== id && this.hostId !== id) return null;
     this.turrets.delete(key);
     return entry;
   }
@@ -208,8 +318,17 @@ export class Room {
     if (this.players.size === 0) return { ok: false, error: '플레이어가 없습니다' };
     this.phase = 'playing';
     this.startedAt = Date.now();
-    this.wave = Math.max(1, toInt(this.wave, 1));
+    this.wave = 1;
     this.baseHp = this.baseMaxHp;
+    // 재대국 준비 — 이전 판의 집계가 남으면 점수가 부풀려진다.
+    this.kills = 0;
+    this.gold = 0;
+    this.score = 0;
+    this.duration = 0;
+    this.turrets.clear();
+    this.enemies.clear();
+    // 시드가 비어 있으면 모두가 다른 월드를 보게 된다 — 여기서 한 번만 정한다.
+    if (!this.seed) this.seed = `mp-${Math.random().toString(36).slice(2, 10)}`;
     this.startTimer();
     for (const player of this.players.values()) {
       player.ready = true;
@@ -224,7 +343,7 @@ export class Room {
       startAt: this.startedAt,
     });
     this.broadcastState();
-    return { ok: true };
+    return { ok: true, seed: this.seed };
   }
 
   /** 게임 종료 + game:over 방송 */
@@ -248,6 +367,7 @@ export class Room {
       score: this.score,
       duration: this.duration,
       players: this.players.size,
+      connected: this.connectedCount,
       baseHp: this.baseHp,
     };
   }
@@ -285,9 +405,15 @@ export class Room {
         break;
       }
       default:
-        break;
+        // 모르는 타입은 중계하지 않는다 — 시스템 알림/사운드 위조 통로를 막는다.
+        return false;
     }
-    this.emit(S2C.GAME_EVENT, { type: kind, payload: data, from });
+    // 중계용 사본 — 클라이언트가 넣은 message 같은 자유 문자열은 시스템 알림으로 쓰이지 않게 뺀다.
+    const relay = { ...data };
+    delete relay.message;
+    if (relay.sound !== undefined) relay.sound = sanitizeText(relay.sound, 32);
+    this.emit(S2C.GAME_EVENT, { type: kind, payload: relay, from });
+    return true;
   }
 
   /** 채팅 (200자 제한) */
@@ -313,15 +439,18 @@ export class Room {
       difficulty: this.difficulty,
       phase: this.phase,
       maxPlayers: this.maxPlayers,
+      private: this.private,
       players: [...this.players.values()].map((p) => ({
         id: p.id,
         nickname: p.nickname,
         character: p.character,
         ready: !!p.ready,
         alive: !!p.alive,
+        connected: p.connected !== false,
         hp: Math.round(p.hp),
         wave: p.wave,
       })),
+      chat: this.chatLog.slice(-MAX_CHAT_LOG),
     };
   }
 
@@ -338,6 +467,7 @@ export class Room {
       difficulty: this.difficulty,
       phase: this.phase,
       players: this.players.size,
+      connected: this.connectedCount,
       maxPlayers: this.maxPlayers,
       host: sanitizeText(host?.nickname, 16) || '',
       private: this.private,
@@ -367,6 +497,7 @@ export class Room {
         character: p.character,
         sit: p.state.sit === true,
         alive: !!p.alive,
+        connected: p.connected !== false,
       };
     }
     return {
@@ -388,6 +519,8 @@ export class Room {
     if (bucket === this._lastTickBucket) return;
     this._lastTickBucket = bucket;
 
+    // 재접속 유예가 지난 좌석은 여기서 회수한다(그 사이 돌아오면 살아난다).
+    this.purgeDisconnected(now);
     if (this.players.size === 0) {
       if (now > this.emptyGraceUntil) {
         this.stopTimer();
@@ -411,6 +544,17 @@ export class Room {
   /** 방 정리 */
   dispose() {
     this.stopTimer();
+    for (const p of this.players.values()) {
+      const socket = p.socket;
+      p.socket = null;
+      if (!socket) continue;
+      try {
+        if (socket.data && socket.data.roomCode === this.code) socket.data.roomCode = null;
+      } catch { /* 무시 */ }
+      try {
+        if (typeof socket.leave === 'function') socket.leave(this.code);
+      } catch { /* 무시 */ }
+    }
     this.players.clear();
     this.turrets.clear();
     this.enemies.clear();

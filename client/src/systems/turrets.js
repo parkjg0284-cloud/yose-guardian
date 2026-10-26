@@ -1643,7 +1643,7 @@ export class TurretSystem {
 
     const y = num(position.y, num(this.world?.getHeight?.(Number(position.x), Number(position.z)), 0));
     const turret = new Turret({
-      id: `t${++this._serial}`,
+      id: (typeof opts?.id === 'string' && /^[A-Za-z0-9:_-]{1,32}$/.test(opts.id) ? opts.id : `t${++this._serial}`),
       type,
       position: { x: Number(position.x), y, z: Number(position.z) },
       ownerId,
@@ -1669,6 +1669,68 @@ export class TurretSystem {
     this.updatePower(true); // 새 건물의 전력 상태를 즉시 반영
     this.audio?.play?.('build');
     return turret;
+  }
+
+  /**
+   * 다른 클라이언트가 지은 건물을 그대로 세운다 — 자원 소모·통계·사운드 없음.
+   * 서버가 준 id 를 유지해야 회전·철거 이벤트가 같은 건물을 가리킨다.
+   */
+  placeRemote(entry) {
+    if (!entry || typeof entry !== 'object') return null;
+    const id = String(entry.id ?? '').slice(0, 32);
+    if (!id) return null;
+    const existing = this.find(id);
+    if (existing) return existing;
+    const type = TURRET_BY_ID[entry.typeId];
+    if (!type) return null;
+    if (this.turrets.length >= MAX_TURRETS) return null;
+    const y = num(entry.y, num(this.world?.getHeight?.(num(entry.x), num(entry.z)), 0));
+    const turret = new Turret({
+      id,
+      type,
+      position: { x: num(entry.x), y, z: num(entry.z) },
+      ownerId: entry.ownerId ?? null,
+      scene: this.scene,
+      system: this,
+      yaw: num(entry.yaw, 0),
+      invested: { gold: 0, wood: 0, minerals: {} }
+    });
+    turret.remote = true;
+    this.turrets.push(turret);
+    this.scene?.add?.(turret.mesh);
+    this.updatePower(true);
+    return turret;
+  }
+
+  /** 원격 건물 철거 — 환불·통계 없음 */
+  removeRemote(turretId) {
+    const turret = this.find(turretId);
+    if (!turret || !turret.remote) return false;
+    this._remove(turret);
+    this.updatePower(true);
+    return true;
+  }
+
+  /** 스냅샷 기준으로 원격 건물을 맞춘다(재접속 복구). 로컬 소유 건물은 건드리지 않는다. */
+  syncRemote(list, localOwnerId = null) {
+    const now = Date.now();
+    if (now - (this._remoteSyncAt || 0) < 800) return 0;
+    this._remoteSyncAt = now;
+    const seen = new Set();
+    let n = 0;
+    for (const entry of Array.isArray(list) ? list : []) {
+      if (!entry?.id) continue;
+      const id = String(entry.id);
+      if (localOwnerId && entry.ownerId === localOwnerId) continue;
+      seen.add(id);
+      if (!this.find(id) && this.placeRemote(entry)) n += 1;
+    }
+    for (const turret of [...this.turrets]) {
+      if (!turret.remote || seen.has(turret.id)) continue;
+      this._remove(turret);
+      n += 1;
+    }
+    return n;
   }
 
   /**

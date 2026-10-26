@@ -66,7 +66,9 @@ const server = http.createServer(app);
 const io = new SocketServer(server, {
   cors: { origin: corsOrigin, methods: ['GET', 'POST'], credentials: true },
   maxHttpBufferSize: 1e6,
-  pingTimeout: 20000,
+  // 끊김 감지: 10초마다 핑, 15초 무응답이면 종료(기본 25+20초 → 최대 45초 유령 방장 문제 완화).
+  pingInterval: 10000,
+  pingTimeout: 15000,
 });
 const rooms = new RoomManager({ io });
 
@@ -187,14 +189,29 @@ function quietly(fn) {
 
 io.on('connection', (socket) => {
   socket.data.roomCode = null;
+  socket.data.resumeToken = null;
+  /** 간단한 토큰 버킷 — 도배/폭주만 막는다 */
+  const buckets = new Map();
+  const limited = (key, max, windowMs) => {
+    const now = Date.now();
+    const b = buckets.get(key) || { start: now, n: 0 };
+    if (now - b.start > windowMs) {
+      b.start = now;
+      b.n = 0;
+    }
+    b.n += 1;
+    buckets.set(key, b);
+    return b.n > max;
+  };
 
   /** 현재 방 조회 */
   const currentRoom = () => (socket.data.roomCode ? rooms.getRoom(socket.data.roomCode) : null);
 
-  /** 현재 방에서 나간다 */
+  /** 현재 방에서 나간다 — 명시적 퇴장은 좌석을 바로 회수한다. */
   const leaveCurrent = () => {
     const code = socket.data.roomCode;
     socket.data.roomCode = null;
+    socket.data.resumeToken = null;
     if (!code) return null;
     const room = rooms.getRoom(code);
     if (!room) return null;
@@ -222,7 +239,8 @@ io.on('connection', (socket) => {
         return { ok: false, error: added.error };
       }
       socket.data.roomCode = room.code;
-      return { ok: true, code: room.code, state: room.serialize() };
+      socket.data.resumeToken = added.token;
+      return { ok: true, code: room.code, token: added.token, state: room.serialize() };
     }),
   );
 
@@ -231,21 +249,40 @@ io.on('connection', (socket) => {
       const opts = payload && typeof payload === 'object' ? payload : {};
       const code = sanitizeText(opts.code, 8).toUpperCase();
       if (!code) return { ok: false, error: '방 코드가 필요합니다' };
+      if (!/^[A-Z0-9]{4}$/.test(code)) return { ok: false, error: '초대코드는 영문·숫자 4자리입니다' };
+      // 무차별 코드 대입 방지 — 같은 소켓에서 10초에 8회까지만.
+      if (limited('join', 8, 10000)) return { ok: false, error: '시도가 너무 잦습니다 — 잠시 뒤 다시 시도하세요' };
       const nickname = sanitizeText(opts.nickname, 16) || '플레이어';
       const previousCode = socket.data.roomCode;
       // 입장에 성공한 뒤에만 이전 방을 떠난다 (실패한 코드 입력으로 방에서 쫓겨나지 않도록)
       const result = rooms.joinRoom(code, socket, nickname, opts.character);
-      if (!result.ok) {
-        socket.emit(S2C.ROOM_ERROR, { message: result.error });
-        return { ok: false, error: result.error };
-      }
+      if (!result.ok) return { ok: false, error: result.error };
       if (previousCode && previousCode !== result.room.code) {
         const previous = rooms.getRoom(previousCode);
         if (previous) previous.removePlayer(socket.id);
         if (typeof socket.leave === 'function') socket.leave(previousCode);
       }
       socket.data.roomCode = result.room.code;
-      return { ok: true, state: result.state };
+      socket.data.resumeToken = result.player?.token ?? socket.data.resumeToken;
+      return { ok: true, code: result.room.code, token: result.player?.token ?? null, state: result.state };
+    }),
+  );
+
+  // 재접속 — 게임 중 끊겼다가 45초 안에 돌아오면 같은 좌석으로 이어서 한다.
+  socket.on(C2S.ROOM_REJOIN, (payload = {}, ack) =>
+    withAck(ack, () => {
+      const opts = payload && typeof payload === 'object' ? payload : {};
+      const code = sanitizeText(opts.code, 8).toUpperCase();
+      const token = sanitizeText(opts.token, 64);
+      if (!code || !token) return { ok: false, error: '재접속 정보가 없습니다' };
+      if (limited('rejoin', 12, 10000)) return { ok: false, error: '시도가 너무 잦습니다 — 잠시 뒤 다시 시도하세요' };
+      const room = rooms.getRoom(code);
+      if (!room) return { ok: false, error: '방이 이미 정리되었습니다 — 새 방을 만들어 주세요' };
+      const result = room.rejoinPlayer(token, socket);
+      if (!result.ok) return result;
+      socket.data.roomCode = room.code;
+      socket.data.resumeToken = result.token;
+      return { ok: true, code: room.code, token: result.token, state: result.state, snapshot: result.snapshot };
     }),
   );
 
@@ -282,6 +319,7 @@ io.on('connection', (socket) => {
     withAck(ack, () => {
       const room = currentRoom();
       if (!room) return { ok: false, error: '방에 참여하고 있지 않습니다' };
+      if (limited('chat', 5, 3000)) return { ok: false, error: '채팅이 너무 빠릅니다' };
       const opts = payload && typeof payload === 'object' ? payload : {};
       const result = room.chat(socket.id, opts.text);
       return result.ok ? { ok: true } : { ok: false, error: result.error };
@@ -292,6 +330,7 @@ io.on('connection', (socket) => {
     quietly(() => {
       const room = currentRoom();
       if (!room) return;
+      if (limited('state', 60, 1000)) return;
       room.setPlayerState(socket.id, payload);
     }),
   );
@@ -300,23 +339,31 @@ io.on('connection', (socket) => {
     quietly(() => {
       const room = currentRoom();
       if (!room) return;
-      const turret = room.placeTurret(socket.id, payload);
-      if (turret) socket.to(room.code).emit(S2C.GAME_EVENT, { type: 'turret:place', payload: turret, from: socket.id });
-      // 건물 회전 — 같은 방의 다른 클라이언트에 방향만 중계한다(위치로도 찾을 수 있게 좌표 동봉).
-      socket.on('turret:rotate', (payload = {}) => {
-        const yaw = Number(payload?.yaw);
-        if (!Number.isFinite(yaw) || !payload?.turretId) return;
-        socket.to(room.code).emit(S2C.GAME_EVENT, {
-          type: 'turret:rotate',
-          payload: {
-            turretId: String(payload.turretId),
-            yaw,
-            x: Number(payload.x),
-            y: Number(payload.y),
-            z: Number(payload.z)
-          },
-          from: socket.id
-        });
+      if (limited('place', 20, 2000)) return;
+      const placed = room.placeTurret(socket.id, payload);
+      if (placed?.created) {
+        socket.to(room.code).emit(S2C.GAME_EVENT, { type: 'turret:place', payload: placed.entry, from: socket.id });
+      }
+    }),
+  );
+
+  // 건물 회전 — 최상위에 한 번만 등록한다(설치할 때마다 등록하면 N중계·리스너 누수가 된다).
+  socket.on('turret:rotate', (payload = {}) =>
+    quietly(() => {
+      const room = currentRoom();
+      if (!room) return;
+      const yaw = Number(payload?.yaw);
+      if (!Number.isFinite(yaw) || !payload?.turretId) return;
+      socket.to(room.code).emit(S2C.GAME_EVENT, {
+        type: 'turret:rotate',
+        payload: {
+          turretId: String(payload.turretId),
+          yaw,
+          x: Number(payload.x),
+          y: Number(payload.y),
+          z: Number(payload.z)
+        },
+        from: socket.id
       });
     }),
   );
@@ -335,6 +382,7 @@ io.on('connection', (socket) => {
     quietly(() => {
       const room = currentRoom();
       if (!room) return;
+      if (limited('event', 60, 2000)) return;
       const opts = payload && typeof payload === 'object' ? payload : {};
       room.applyGameEvent(socket.id, opts.type, opts.payload);
     }),
@@ -345,7 +393,8 @@ io.on('connection', (socket) => {
       const code = socket.data.roomCode;
       socket.data.roomCode = null;
       const room = code ? rooms.getRoom(code) : null;
-      if (room) room.removePlayer(socket.id);
+      // 진행 중이면 45초 유예(재접속), 로비면 즉시 정리.
+      if (room) room.handleDisconnect(socket.id);
     });
   });
 });

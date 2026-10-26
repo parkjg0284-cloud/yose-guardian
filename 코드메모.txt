@@ -718,4 +718,24 @@ npm install 이 실패한다
     [검사] tools/ui-dom-smoke — 비관리자 DOM 0개 · lazy build · revoke 3종
            .tmp/console-scale-check.mjs — Chrome headless 로 1366/1600/1920/2560/3840 측정 17개 통과
 
+    [45] 멀티플레이 품질 — 재접속 · 건물 동기화 · 끊김 처리 (v1.9.0)
+
+      [재접속] 방 만들기/참가 응답에 재접속 토큰(randomUUID)을 실어 준다
+                게임 중 끊기면 45초 유예 — 좌석은 유지하고 connected=false 로 표시
+                room:rejoin(코드+토큰) 으로 새 소켓 id 에 좌석을 다시 붙인다(스냅샷 동봉)
+                sessionStorage 에 토큰을 보관 — 새로고침해도 같은 방으로 복귀
+                클라이언트 재연결은 무한 재시도(600ms→8s) · 로비에 [다시 연결] 버튼
+      [중계] turret:rotate 리스너를 최상위로 — 설치마다 등록해 N배로 중계되던 버그 수정
+             중복 id 설치는 다시 중계하지 않는다(placeTurret.created)
+             소유자는 클라이언트 주장 대신 소켓 id — 남의 건물 철거 거부
+             설치 시 yaw 보존 · 이벤트 유실은 스냅샷 동기화(800ms)로 복구
+             원격 건물은 자원·통계·효과음 없이 placeRemote, 철거는 removeRemote
+      [시작] 빈 시드 자동 배정 · 이전 판 집계 초기화 · private/maxPlayers(1~8) 정리
+             시작된 방 입장 거부 · 잘못된 코드 안내는 ack 한 곳에서만(토스트 중복 제거)
+      [끊김] 방장 이탈 시 남은 사람에게 즉시 위임 · 시스템 메시지 3종(나감/끊김/복귀)
+             3초 넘게 복귀가 없으면 얼어붙은 동료 모델을 숨긴다
+      [검사] tools/mp-check.mjs — 실제 서버 + 소켓 2~3개로 37개(재접속·위임·중계·권한)
+             npm run verify 체인에 포함 · headless 에 원격 건물 7개 추가(563)
+             .tmp/mp-live3.mjs — Chrome headless + 소켓으로 22개(표시·복구·중계·재접속)
+             e2e-net 86/94(기존 8개 실패는 관리자 계정·/api/net 환경) · pages 12/0
   끝.

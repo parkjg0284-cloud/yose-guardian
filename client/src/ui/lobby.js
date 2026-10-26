@@ -348,6 +348,12 @@ export class Lobby {
     });
     on('net:connect', () => this.render());
     on('net:disconnect', () => this.render());
+    on('net:error', () => this.render());
+    on('net:reconnect', () => {
+      this.error = '';
+      this.render();
+    });
+    on('net:resumed', () => this.render());
   }
 
   _wireKeys() {
@@ -397,6 +403,22 @@ export class Lobby {
     if (safe(() => net.connected, false)) return true;
     await safeAsync(() => net.connect(this._nickname()));
     return Boolean(safe(() => net.connected, false));
+  }
+
+  /** [다시 연결] — 끊긴 소켓을 새로 붙이고 로비를 갱신한다. */
+  async reconnect() {
+    if (this.busy) return false;
+    this.busy = true;
+    this.error = '';
+    this.notice = '서버에 다시 연결하는 중…';
+    this.render();
+    await safeAsync(() => net.connect(this._nickname()));
+    this.busy = false;
+    const ok = Boolean(safe(() => net.connected, false));
+    if (ok) this.notice = '서버에 다시 연결되었습니다';
+    else this.error = `서버에 연결하지 못했습니다 — ${safe(() => net.lastError, '') || '주소와 네트워크를 확인하세요'}`;
+    this.render();
+    return ok;
   }
 
   _me() {
@@ -500,6 +522,9 @@ export class Lobby {
     switch (d.act) {
       case 'lobby-close':
         this.close();
+        break;
+      case 'lobby-reconnect':
+        this.reconnect();
         break;
       case 'lobby-character':
         this.emit('character', { character: this._character() });
@@ -625,6 +650,7 @@ export class Lobby {
     const status = el('div', 'lobby-status', this._statusText());
     status.dataset.role = 'status';
     head.appendChild(status);
+    if (!safe(() => net.connected, false)) head.appendChild(button('다시 연결', 'primary btn-primary', 'lobby-reconnect'));
     head.appendChild(button('닫기 (ESC)', 'ghost btn-ghost', 'lobby-close'));
     shell.appendChild(head);
 
@@ -806,6 +832,9 @@ export class Lobby {
     body.appendChild(invite);
 
     const info = el('div', 'lobby-card');
+    if (!safe(() => net.connected, false)) {
+      info.appendChild(el('div', 'lobby-hint warn', '서버 연결이 끊겼습니다 — 자동으로 다시 연결하는 중입니다. 필요하면 위의 [다시 연결]을 누르세요.'));
+    }
     const players = Array.isArray(room.players) ? room.players : [];
     info.appendChild(el('h2', 'card-title', `참가자 ${players.length} / ${room.maxPlayers ?? 4}`));
     info.appendChild(row('모드', modeName(room.mode)));

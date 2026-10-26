@@ -595,12 +595,45 @@ class Game {
     });
     net.on('game:snapshot', (snap) => {
       this.lastSnapshot = snap;
+      this.lastSnapshotAt = Date.now();
       this.remote?.update(snap, net.id);
+      // 스냅샷의 건물 목록으로 원격 건물을 맞춘다(재접속 복구 포함).
+      if (this.multiplayer) this.turrets?.syncRemote?.(snap.turrets, net.id);
     });
     net.on('game:event', (msg) => {
-      const p = msg?.payload;
-      if (p?.message) this.notify(p.message, 'info');
-      if (p?.sound) this.audio.play(p.sound);
+      // 메시지 알림은 applyNetGameEvent 가 한 번만 처리한다(중복 토스트 방지).
+      if (msg?.payload?.sound) this.audio.play(msg.payload.sound);
+    });
+    // 접속 끊김/복귀 — 게임 중에도 상태를 알리고 자동으로 좌석을 되찾는다.
+    net.on('net:disconnect', () => {
+      if (this.state === 'playing' || this.state === 'paused') {
+        this.notify('서버 연결이 끊겼습니다 — 자동으로 다시 연결합니다', 'warn');
+      }
+      // 3초 넘게 안 돌아오면 얼어붙은 동료 모델을 숨긴다(복귀하면 스냅샷으로 다시 나타난다).
+      clearTimeout(this._netGhostTimer);
+      this._netGhostTimer = setTimeout(() => {
+        if (net.connected) return;
+        this.remote?.clear?.();
+      }, 3000);
+    });
+    net.on('net:reconnect', () => {
+      clearTimeout(this._netGhostTimer);
+      if (this.multiplayer) this.notify('서버에 다시 연결되었습니다', 'success');
+    });
+    net.on('net:resumed', () => {
+      if (!this.multiplayer) return;
+      this.notify('협동 게임으로 복귀했습니다', 'success');
+      if (this.lastSnapshot) this.turrets?.syncRemote?.(this.lastSnapshot.turrets, net.id);
+    });
+    net.on('net:resume-failed', ({ fatal, error } = {}) => {
+      if (!this.multiplayer) return;
+      if (fatal) {
+        this.multiplayer = false;
+        this.remote?.clear?.();
+        this.notify('복귀 시간이 지났습니다 — 로비에서 새로 시작하세요', 'error');
+      } else {
+        this.notify(String(error || '재접속을 다시 시도합니다'), 'warn');
+      }
     });
     net.on('game:over', (res) => {
       this.notify(`게임 종료 — 웨이브 ${res?.wave ?? 0}, 점수 ${res?.score ?? 0}`, 'info');
@@ -1227,6 +1260,12 @@ class Game {
     this.ui.panels.close();
     // 메뉴로 돌아가면 커서가 필요하다 — 어느 상태에서 불렸든 포인터를 푼다.
     this.input.exitPointerLock?.();
+    // 방에 들어가 있었다면 좌석을 반납한다 — 유령 참가자·재입장 실패 방지.
+    if (this.multiplayer) {
+      this.multiplayer = false;
+      this.remote?.clear?.();
+      try { net.leaveRoom(); } catch { /* 무시 */ }
+    }
     this._teardownRun();
     this._initPreview();
     this.state = 'menu';
@@ -1414,7 +1453,20 @@ class Game {
   /** 다른 클라이언트가 돌린 건물 방향을 따라간다(회전 릴레이). */
   applyNetGameEvent(ev) {
     const p = ev?.payload ?? null;
-    if (ev?.type !== 'turret:rotate' || !p) return false;
+    const type = ev?.type;
+    if (!type || !p) return false;
+    if (type === 'system') {
+      if (p.message) this.notify(String(p.message).slice(0, 160), 'info');
+      return true;
+    }
+    if (type === 'turret:place') {
+      // 동료가 지은 건물을 이쪽 월드에도 세운다(자원 소모 없음).
+      return Boolean(this.turrets?.placeRemote?.(p));
+    }
+    if (type === 'turret:sell') {
+      return Boolean(this.turrets?.removeRemote?.(p.id ?? p.turretId));
+    }
+    if (type !== 'turret:rotate') return false;
     const byId = this.turrets?.find?.(p.turretId) ?? null;
     const found = byId && !byId.destroyed ? byId : this._turretNear(p);
     if (!found) return false;
@@ -1508,7 +1560,12 @@ class Game {
       this.audio.play('error');
       return true;
     }
-    const turret = this.turrets.place(this.build.typeId, hit, net.id || 'local', { yaw: Number(this.build.yaw) || 0 });
+    const placeOpts = { yaw: Number(this.build.yaw) || 0 };
+    // 멀티에서는 플레이어별로 겹치지 않는 id 를 쓴다(회전·철거가 남의 건물을 건드리지 않게).
+    if (this.multiplayer) {
+      placeOpts.id = String(net.id || 'p').slice(0, 8) + '-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    }
+    const turret = this.turrets.place(this.build.typeId, hit, net.id || 'local', placeOpts);
     if (turret) {
       this.audio.play('build');
       const placedType = TURRET_BY_ID[this.build.typeId] || null;
@@ -1527,6 +1584,7 @@ class Game {
       this.notify(`${placedType?.name ?? '포탑'} 건설 완료${hint}`, 'success');
       if (placedType?.category === 'facility') this.ui?.panels?.refresh?.();
       net.sendTurretPlace({
+        id: turret.id,
         typeId: this.build.typeId,
         x: hit.x,
         y: hit.y,
@@ -3130,9 +3188,13 @@ class Game {
       return false;
     }
     this.net.setServer(target);
-    setApiBase(target === self ? '' : target);
     const nickname = currentNickname() || auth.user?.nickname || auth.user?.username || undefined;
     const ok = await this.net.connect(nickname);
+    // 연결에 성공했을 때만 REST 주소를 바꾼다 — 실패한 주소로 로그인·저장이 죽지 않게.
+    if (ok) {
+      setApiBase(target === self ? '' : target);
+      netInfo.reset();
+    }
     this.notify(
       ok ? `서버에 연결되었습니다 — ${target}` : `서버에 연결하지 못했습니다 — ${target}`,
       ok ? 'success' : 'error'

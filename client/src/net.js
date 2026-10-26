@@ -261,6 +261,26 @@ export const roomList = {
   }
 };
 
+const RESUME_KEY = 'yose.guardian.roomResume';
+/** 새로고침해도 같은 좌석으로 돌아오게 세션 저장소에 보관한다(실패해도 조용히 넘어간다). */
+function readResume() {
+  try {
+    const raw = globalThis.sessionStorage?.getItem(RESUME_KEY);
+    const value = raw ? JSON.parse(raw) : null;
+    return value && value.code && value.token ? { code: String(value.code), token: String(value.token) } : null;
+  } catch {
+    return null;
+  }
+}
+function writeResume(value) {
+  try {
+    if (value) globalThis.sessionStorage?.setItem(RESUME_KEY, JSON.stringify(value));
+    else globalThis.sessionStorage?.removeItem(RESUME_KEY);
+  } catch {
+    /* 저장소가 막혀 있으면 메모리 값만 쓴다 */
+  }
+}
+
 export class Net {
   constructor(url) {
     this.url = url || (typeof location !== 'undefined' ? location.origin : 'http://localhost:3001');
@@ -271,6 +291,9 @@ export class Net {
     this.lastError = null;
     this._listeners = new Map();
     this._stateTimer = 0;
+    /** 마지막으로 들어간 방 — 끊겼다 돌아오면 이 정보로 좌석을 되찾는다. */
+    this.resume = readResume();
+    this._hadConnect = false;
   }
 
   _emitLocal(event, payload) {
@@ -296,24 +319,74 @@ export class Net {
   }
 
   async connect(nickname) {
-    if (this.socket) return this.connected;
+    if (this.socket && !this.connected) {
+      // 끊긴 소켓이 남아 있으면 버리고 새로 만든다(재시도 소진 뒤에도 복구되게).
+      try {
+        if (!this.socket.active && this.socket.disconnected) {
+          this.socket.removeAllListeners?.();
+          this.socket.close?.();
+          this.socket = null;
+        }
+      } catch {
+        this.socket = null;
+      }
+    }
+    if (this.socket) {
+      if (this.connected) return true;
+      // 이미 만들어진 소켓이 끊겨 있으면 붙을 때까지 잠깐 기다린다(사용자가 재시도했을 때).
+      await new Promise((resolve) => {
+        const socket = this.socket;
+        const finish = () => resolve();
+        const timer = setTimeout(finish, 5000);
+        socket.once('connect', () => { clearTimeout(timer); resolve(); });
+        socket.once('connect_error', () => { clearTimeout(timer); resolve(); });
+        try {
+          socket.connect();
+        } catch {
+          clearTimeout(timer);
+          resolve();
+        }
+      });
+      return this.connected;
+    }
     this.nickname = nickname || this.nickname;
     try {
       this.socket = io(this.url, {
         transports: ['websocket', 'polling'],
-        reconnectionAttempts: 3,
-        timeout: 4000,
+        // 3회로 끝내면 Wi-Fi 전환·절전에서 영영 못 붙는다 — 계속 재시도한다.
+        reconnectionAttempts: Infinity,
+        reconnectionDelay: 600,
+        reconnectionDelayMax: 8000,
+        randomizationFactor: 0.3,
+        timeout: 5000,
         autoConnect: true,
         query: this.nickname ? { nickname: this.nickname } : {}
       });
       this.socket.on('connect', () => {
+        const reconnected = this._hadConnect;
+        this._hadConnect = true;
         this.connected = true;
         this.id = this.socket.id;
-        this._emitLocal('net:connect', { id: this.id });
+        this.lastError = null;
+        this._emitLocal('net:connect', { id: this.id, reconnected });
+        if (reconnected) this._emitLocal('net:reconnect', { id: this.id });
+        // 새 소켓 id 로는 서버가 나를 모른다 — 저장해 둔 토큰으로 좌석을 되찾는다.
+        // (새로고침 직후 첫 연결에서도 같은 방식으로 복귀한다.)
+        if (this.resume) this.resumeRoom().catch(() => {});
       });
       this.socket.on('disconnect', (reason) => {
         this.connected = false;
         this._emitLocal('net:disconnect', { reason });
+        // 서버가 강제로 끊으면 자동 재연결이 없다 — 직접 다시 붙인다.
+        if (reason === 'io server disconnect') {
+          setTimeout(() => {
+            try {
+              this.socket?.connect();
+            } catch {
+              /* 무시 */
+            }
+          }, 800);
+        }
       });
       this.socket.on('connect_error', (err) => {
         this.connected = false;
@@ -349,6 +422,8 @@ export class Net {
     if (next === this.url && !this.socket) return false;
     this.disconnect();
     this.url = next;
+    // 서버가 바뀌면 이전 서버가 알려준 LAN 주소 캐시는 버린다.
+    try { netInfo.reset(); } catch { /* 무시 */ }
     return true;
   }
 
@@ -362,6 +437,57 @@ export class Net {
     this.connected = false;
     this.id = null;
     this.room = null;
+    this.resume = null;
+    writeResume(null);
+    this._hadConnect = false;
+  }
+
+  /** 저장해 둔 방 정보(코드+토큰)로 좌석을 되찾는다. */
+  async resumeRoom() {
+    const info = this.resume;
+    if (!info || !info.code || !info.token) return false;
+    if (!this.socket?.connected) return false;
+    const res = await this._ack('room:rejoin', { code: info.code, token: info.token }, 6000);
+    if (res?.ok) {
+      if (res.state) this.room = res.state;
+      this._emitLocal('net:resumed', res);
+      return true;
+    }
+    const message = String(res?.error || '재접속 실패');
+    // 방이 정리됐거나 유예가 끝난 경우에만 복귀 정보를 버린다. 일시 오류는 다음 연결에서 다시 시도.
+    if (/만료|정리|찾을 수 없|없습니다/.test(message)) {
+      this.resume = null;
+      this.room = null;
+      writeResume(null);
+    }
+    this._emitLocal('net:resume-failed', { error: message, fatal: !this.resume });
+    return false;
+  }
+
+  /** 사용자가 직접 다시 연결을 시도할 때 */
+  retry() {
+    if (this.socket?.connected) return true;
+    if (!this.socket) {
+      this.connect(this.nickname).catch(() => {});
+      return false;
+    }
+    try {
+      this.socket.connect();
+    } catch {
+      /* 무시 */
+    }
+    return false;
+  }
+
+  _rememberRoom(res) {
+    if (!res?.ok) return;
+    const code = res.code || res.state?.code || null;
+    const token = res.token || this.resume?.token || null;
+    if (code && token) {
+      this.resume = { code, token };
+      writeResume(this.resume);
+    }
+    if (res.state) this.room = res.state;
   }
 
   _ack(event, payload, timeout = 4000) {
@@ -394,14 +520,14 @@ export class Net {
 
   async createRoom(opts = {}) {
     const res = await this._ack('room:create', opts);
-    if (res.ok && res.state) this.room = res.state;
+    this._rememberRoom(res);
     if (!res.ok) this.lastError = res.error;
     return res;
   }
 
   async joinRoom(opts = {}) {
     const res = await this._ack('room:join', opts);
-    if (res.ok && res.state) this.room = res.state;
+    this._rememberRoom(res);
     if (!res.ok) this.lastError = res.error;
     return res;
   }
@@ -409,6 +535,8 @@ export class Net {
   leaveRoom() {
     const res = this._ack('room:leave', {});
     this.room = null;
+    this.resume = null;
+    writeResume(null);
     return res;
   }
 

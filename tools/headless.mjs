@@ -2765,6 +2765,26 @@ section('캐릭터 만들기 / 앉기·점프 / 부드러운 회전');
   const relay = smoothSys.setYaw(sTurret.id, Math.PI, { smooth: true });
   check('릴레이 수신 회전도 부드럽게', relay.ok === true && sTurret.yawTarget != null && Math.abs(Number(sTurret.yaw) - Math.PI) < 1e-6);
   check('없는 건물 회전 — 실패 반환', smoothSys.rotate('nope', 1, { smooth: true }).ok === false && smoothSys.setYaw('nope', 1, { smooth: true }).ok === false);
+
+  // ── 멀티 원격 건물 — 자원 소모 없이 생성/동기화/철거
+  const goldBeforeRemote = smoothEco.gold;
+  const remote = smoothSys.placeRemote({ id: 'peer-1', typeId: smoothDef.id, x: 40, y: 0, z: 40, yaw: 1.25, ownerId: 'peer' });
+  check(
+    '원격 건물 생성 — id·방향 유지',
+    Boolean(remote) && remote.id === 'peer-1' && Math.abs(Number(remote.yaw) - 1.25) < 1e-6,
+    remote ? 'yaw=' + Number(remote.yaw).toFixed(2) : '실패'
+  );
+  check('원격 건물 — 자원을 쓰지 않는다', smoothEco.gold === goldBeforeRemote, `${goldBeforeRemote} → ${smoothEco.gold}`);
+  check(
+    '원격 건물 — 같은 id 중복 생성 없음',
+    smoothSys.placeRemote({ id: 'peer-1', typeId: smoothDef.id, x: 41, y: 0, z: 41, yaw: 0 }) === remote &&
+      smoothSys.turrets.filter((t) => t.id === 'peer-1').length === 1
+  );
+  const synced = smoothSys.syncRemote([{ id: 'peer-2', typeId: smoothDef.id, x: 44, y: 0, z: 44, yaw: 0, ownerId: 'peer' }], 'local');
+  check('스냅샷 동기화 — 없는 원격은 제거, 새 원격은 추가', Boolean(smoothSys.find('peer-2')) && !smoothSys.find('peer-1'), `변경 ${synced}건`);
+  check('스냅샷 동기화 — 내 건물은 유지', Boolean(smoothSys.find(sTurret.id)));
+  check('원격 건물 철거', smoothSys.removeRemote('peer-2') === true && !smoothSys.find('peer-2'));
+  check('원격이 아닌 건물은 removeRemote 거부', smoothSys.removeRemote(sTurret.id) === false && Boolean(smoothSys.find(sTurret.id)));
 }
 
 console.log(`\n${'═'.repeat(58)}`);

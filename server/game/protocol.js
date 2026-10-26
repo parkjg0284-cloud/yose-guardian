@@ -4,6 +4,7 @@
 export const C2S = Object.freeze({
   ROOM_CREATE: 'room:create',
   ROOM_JOIN: 'room:join',
+  ROOM_REJOIN: 'room:rejoin',
   ROOM_LEAVE: 'room:leave',
   ROOM_READY: 'room:ready',
   ROOM_START: 'room:start',
