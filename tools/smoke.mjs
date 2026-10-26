@@ -48,6 +48,7 @@ import {
   WEAPON_GRADES,
   WEAPON_MOTIONS,
   WEAPON_IMPACTS,
+  WEAPON_IMPACT_OVERRIDES,
   WEAPON_ULTIMATES,
   MOTION_EASINGS,
   DREAM_TREE,
@@ -508,14 +509,14 @@ check('보스 주기 10의 배수', WAVE_CONFIG.bossEvery === 10);
 check('완벽 방어 보너스 2배', WAVE_CONFIG.perfectBonus === 2);
 check('준비 시간 30초', WAVE_CONFIG.prepTime === 30);
 
-// ─────────────────────────────────────── 6. 무기 시스템 (5계열 × 7등급 + 비밀 꿈나무)
+// ─────────────────────────────────────── 6. 무기 시스템 (7계열 × 7등급 + 비밀 꿈나무)
 section('무기 시스템');
 {
   const families = WEAPON_FAMILIES.map((f) => f.id);
   const gradeById = Object.fromEntries(WEAPON_GRADES.map((g) => [g.id, g]));
   const counts = Object.fromEntries(families.map((f) => [f, weaponsByFamily(f).length]));
-  check('무기 68종 = 6계열 × 7등급(42) + 제작 전용 24 + 유물 지팡이 1 + 비밀 꿈나무 1', WEAPON_TOTAL_COUNT === 68 && WEAPON_CORE_COUNT === 67, `총 ${WEAPON_TOTAL_COUNT} / 핵심 ${WEAPON_CORE_COUNT}`);
-  check('계열 9종 — 카타나 추가(자동 생성 제외 계열)', WEAPON_FAMILIES.length === 9 && WEAPON_FAMILIES.some((f) => f.id === 'katana' && f.exclusive === true), WEAPON_FAMILIES.map((f) => f.id).join(','));
+  check('무기 75종 = 7계열 × 7등급(49) + 제작 전용 24 + 유물 지팡이 1 + 비밀 꿈나무 1', WEAPON_TOTAL_COUNT === 75 && WEAPON_CORE_COUNT === 74, `총 ${WEAPON_TOTAL_COUNT} / 핵심 ${WEAPON_CORE_COUNT}`);
+  check('계열 10종 — 카타나 추가(자동 생성 제외 계열) + 쌍권총', WEAPON_FAMILIES.length === 10 && WEAPON_FAMILIES.some((f) => f.id === 'katana' && f.exclusive === true) && WEAPON_FAMILIES.some((f) => f.id === 'gun' && f.kind === 'gun'), WEAPON_FAMILIES.map((f) => f.id).join(','));
   check('카타나는 등급 자동 생성 대상이 아니다(계열 무기 1종)', WEAPONS.filter((w) => w.family === 'katana').length === 1);
 
   // ── 유물 카타나 '불멸' (계약 §4.51) ──
@@ -532,7 +533,7 @@ section('무기 시스템');
   check('꿈의 끝은 희망 — 색은 비밀 등급색 그대로', lanternW?.color === WEAPON_GRADES.find((g) => g.id === 'secret').color, lanternW ? '0x' + lanternW.color.toString(16) : '없음');
   check('꿈의 끝은 희망 — 비살상·수치 유지(피해 0 · kind save · 구원 임팩트)', lanternW?.nonLethal === true && lanternW.damage === 0 && lanternW.kind === 'save' && weaponImpact('dream_lantern').nonLethal === true && weaponMotion('dream_lantern').swap.style === 'spin');
 
-  check('계열별 수량 12/10/11/11/10/1/2/10 (제작 무기 포함)', counts.staff === 12 && counts.sword1h === 10 && counts.sword2h === 11 && counts.scythe === 11 && counts.dagger === 10 && counts.scissors === 1 && counts.dream === 2 && counts.bow === 10, JSON.stringify(counts));
+  check('계열별 수량 12/10/11/11/10/1/1/2/10/7 (제작 무기 포함)', counts.staff === 12 && counts.sword1h === 10 && counts.sword2h === 11 && counts.scythe === 11 && counts.dagger === 10 && counts.katana === 1 && counts.scissors === 1 && counts.dream === 2 && counts.bow === 10 && counts.gun === 7, JSON.stringify(counts));
   check('무기 id 중복 없음', new Set(WEAPONS.map((w) => w.id)).size === WEAPONS.length);
   check('모든 무기에 이름/등급/계열', WEAPONS.every((w) => w.name && gradeById[w.grade] && families.includes(w.family)));
   check('등급 8종 배율 1.0/1.05/1.1/1.2/1.35/1.5/1.75/2.0',
@@ -551,20 +552,20 @@ section('무기 시스템');
     return !(w.damage > base && w.damage <= base * 1.4);
   });
   check('제작 무기는 같은 등급 기본형보다 강하다(1.0~1.4배)', craftWeak.length === 0, craftWeak.map((w) => w.id).join(',') || '전부 특화형');
-  check('원거리/근접/활/구원 종류 값 유효', WEAPONS.every((w) => ['ranged', 'melee', 'bow', 'save'].includes(w.kind)), JSON.stringify([...new Set(WEAPONS.map((w) => w.kind))]));
+  check('원거리/근접/활/쌍권총/구원 종류 값 유효', WEAPONS.every((w) => ['ranged', 'melee', 'bow', 'gun', 'save'].includes(w.kind)), JSON.stringify([...new Set(WEAPONS.map((w) => w.kind))]));
 
   // ★ 모든 무기에 스왑모션
   const noSwap = WEAPONS.filter((w) => {
     const m = weaponMotion(w.id);
     return !(m?.swap && m.swap.duration > 0 && Array.isArray(m.swap.phases) && m.swap.phases.length >= 2);
   });
-  check('모든 무기에 스왑모션 (68/68)', noSwap.length === 0, `${WEAPONS.length - noSwap.length}/${WEAPONS.length}`);
+  check('모든 무기에 스왑모션 (75/75)', noSwap.length === 0, `${WEAPONS.length - noSwap.length}/${WEAPONS.length}`);
   check('스왑모션 키프레임 0→1 정렬', families.every((f) => {
     const p = WEAPON_MOTIONS[f].swap.phases;
     return p[0].t === 0 && p[p.length - 1].t === 1 && p.every((k, i) => i === 0 || k.t >= p[i - 1].t);
   }));
   check('스왑모션 이징은 전부 지원 목록 안', families.every((f) => WEAPON_MOTIONS[f].swap.phases.every((p) => !p.ease || MOTION_EASINGS.includes(p.ease))), MOTION_EASINGS.join('/'));
-  check('계열별 스왑 스타일 9종 상이(카타나 iai 포함)', new Set(families.map((f) => WEAPON_MOTIONS[f].swap.style)).size === 9, families.map((f) => `${f}:${WEAPON_MOTIONS[f].swap.style}`).join(' '));
+  check('계열별 스왑 스타일 10종 상이(카타나 iai · 쌍권총 cross 포함)', new Set(families.map((f) => WEAPON_MOTIONS[f].swap.style)).size === 10, families.map((f) => `${f}:${WEAPON_MOTIONS[f].swap.style}`).join(' '));
   check('모든 무기에 공격/스킬/반동 모션', WEAPONS.every((w) => {
     const m = weaponMotion(w.id);
     return m.attack?.duration > 0 && m.skill?.duration > 0 && m.recoil?.duration > 0;
@@ -572,7 +573,7 @@ section('무기 시스템');
   check('모든 무기에 타격 임팩트', WEAPONS.every((w) => !!WEAPON_IMPACTS[w.family]), `${new Set(WEAPONS.map((w) => w.family)).size}계열`);
 
   // 궁극기
-  check('궁극기 9종 (문서 5 + 유물 지팡이 2 + 시간의 가위 1 + 유물 활 1)', WEAPON_ULTIMATES.length === 9, WEAPON_ULTIMATES.map((u) => u.name).join(' · '));
+  check('궁극기 10종 (문서 5 + 유물 지팡이 2 + 시간의 가위 1 + 유물 활 1 + 은하수의 밤 1)', WEAPON_ULTIMATES.length === 10, WEAPON_ULTIMATES.map((u) => u.name).join(' · '));
   check('모든 궁극기에 무기 연결', WEAPON_ULTIMATES.every((u) => !!WEAPON_BY_ID[u.weapon]));
   check('문서의 궁극기 5종 존재', ['kingsJudgment', 'worldSlash', 'apocalypse', 'assassination', 'dreamsEnd'].every((id) => WEAPON_ULTIMATES.some((u) => u.id === id)));
   check('궁극기마다 쿨다운/설명 존재', WEAPON_ULTIMATES.every((u) => u.cooldown > 0 && !!u.desc));
@@ -715,7 +716,7 @@ check('채굴기 — 맨땅에서 지형 티어 광물 자동 채굴(drillRegion
 // ─────────────────────────────────────── 7-2. 작업대 = 전체 무기 제작
 section('작업대 (전체 무기 제작)');
 {
-  check('작업대 레시피 67종 = 전체 68 − 1', WORKBENCH_RECIPE_COUNT === 67 && WORKBENCH_RECIPES.length === WEAPONS.length - 1, `${WORKBENCH_RECIPE_COUNT}종`);
+  check('작업대 레시피 74종 = 전체 75 − 1', WORKBENCH_RECIPE_COUNT === 74 && WORKBENCH_RECIPES.length === WEAPONS.length - 1, `${WORKBENCH_RECIPE_COUNT}종`);
   check('작업대에서 꿈의 끝은 희망 제외', WORKBENCH_EXCLUDED.includes('dream_lantern') && !workbenchRecipeFor('dream_lantern') && !isWorkbenchCraftable('dream_lantern'));
   check('작업대는 나머지 전부 포함 (꿈나무·유물 지팡이 포함)', WEAPONS.filter((w) => w.id !== 'dream_lantern').every((w) => isWorkbenchCraftable(w.id)), `${WORKBENCH_RECIPE_COUNT}/${WEAPONS.length - 1}`);
   check('작업대 레시피 비용 = 등급 티어 비용(무기별 서명 비용 우선)', WORKBENCH_RECIPES.every((r) => { const w = WEAPON_BY_ID[r.weaponId]; return r.cost === (w.cost ?? RECIPE_COST_BY_TIER[w.tier]); }), WEAPON_BY_ID.time_scissors.cost.gold + 'G 서명 비용 포함');
@@ -741,7 +742,7 @@ section('제작대 / 무기 제작');
   const tiers = CRAFTING_TABLES.map((t) => t.tier);
   check('제작대 8종 — T1~T8 티어 전부 존재', CRAFTING_TABLES.length === 8 && new Set(tiers).size === 8 && [1, 2, 3, 4, 5, 6, 7, 8].every((n) => tiers.includes(n)), CRAFTING_TABLES.map((t) => `T${t.tier} ${t.name}`).join(' · '));
   check('제작대마다 레시피 보유', CRAFTING_TABLES.every((t) => WEAPON_RECIPES.filter((r) => r.table === t.id).length > 0), CRAFTING_TABLES.map((t) => `${t.name} ${WEAPON_RECIPES.filter((r) => r.table === t.id).length}`).join(' '));
-  check('제작 레시피 34종 (제작 전용 24 + 계열 자동 활 7 + 유물 지팡이 2 + 꿈나무 1)', WEAPON_RECIPES.length === 34, `${WEAPON_RECIPES.length}종`);
+  check('제작 레시피 41종 (제작 전용 24 + 계열 자동 활 7 + 쌍권총 7 + 유물 지팡이 2 + 꿈나무 1)', WEAPON_RECIPES.length === 41, `${WEAPON_RECIPES.length}종`);
   const craftErr = validateCrafting();
   check('제작 데이터 자체 검증', craftErr.length === 0, craftErr.join(' | ') || '문제 없음');
   const craftOnly = WEAPONS.filter((w) => w.craftOnly);
@@ -804,12 +805,12 @@ section('활 / 화살 (궁수 계열)');
   const autoBows = bows.filter((w) => !w.craftOnly).map((w) => w.id);
   const craftBows = ['bow_wind', 'bow_dragonbone', 'bow_forever'];
   const bowBad = bows.filter((w) => w.kind !== 'bow' || w.family !== 'bow' || !(weaponMotion(w.id)?.swap?.duration > 0) || !weaponImpact(w.id));
-  const familyBad = FAMILY_TIER_RECIPES.filter((r) => !autoBows.includes(r.weaponId) || CRAFTING_TABLE_BY_ID[r.table]?.tier !== weaponById(r.weaponId)?.tier);
+  const familyBad = FAMILY_TIER_RECIPES.filter((r) => r.family === 'bow' && (!autoBows.includes(r.weaponId) || CRAFTING_TABLE_BY_ID[r.table]?.tier !== weaponById(r.weaponId)?.tier));
   check(
     '활 계열 10종 (자동 7 + 제작 전용 3) — kind bow · 스왑모션 · 임팩트',
     bows.length === 10 && autoBows.length === 7 && craftBows.every((id) => bows.some((w) => w.id === id)) && bowBad.length === 0 &&
       !!WEAPON_MOTIONS.bow && WEAPON_MOTIONS.bow.swap.duration > 0 && !!WEAPON_IMPACTS.bow &&
-      FAMILY_FORGE_FAMILIES.includes('bow') && FAMILY_TIER_RECIPE_COUNT === 7 && familyBad.length === 0,
+      FAMILY_FORGE_FAMILIES.includes('bow') && FAMILY_TIER_RECIPES.filter((r) => r.family === 'bow').length === 7 && familyBad.length === 0,
     bowBad.map((w) => w.id).join(',') || familyBad.map((r) => r.id).join(',') || `${bows.length}종 = 자동 ${autoBows.length} + 제작 전용 ${craftBows.length} · 스왑 ${WEAPON_MOTIONS.bow.swap.style}`
   );
 
@@ -878,6 +879,91 @@ section('활 / 화살 (궁수 계열)');
     [wireAdmin.includes('/화살'), 'admin /화살']
   ]) if (!cond) wireBad.push(name);
   check('활·화살 배선 (main·rig·audio·economy·panels·hud·admin)', wireBad.length === 0, wireBad.join(',') || '전부 확인');
+}
+
+
+// ─────────────────────────────────────── 8-3. 쌍권총 · 건마스터
+section('쌍권총 / 건마스터 (v1.11.0)');
+{
+  const guns = weaponsByFamily('gun');
+  const tiers = guns.map((w) => w.tier).sort((a, b) => a - b);
+  check(
+    '쌍권총 7티어 — T1~T7 · 유물 은하수의 밤',
+    guns.length === 7 && tiers.join(',') === '1,2,3,4,5,6,7' && WEAPON_BY_ID.gun_relic?.name === '은하수의 밤' &&
+      WEAPON_BY_ID.gun_relic?.grade === 'relic' && WEAPON_BY_ID.gun_relic?.kind === 'gun' && WEAPON_BY_ID.gun_relic?.hands === 2,
+    guns.map((w) => `T${w.tier} ${w.name}`).join(' · ')
+  );
+  check(
+    '쌍권총 — 원거리 투사체 · 2발 버스트 · 탄 소모 없음',
+    guns.every((w) => w.kind === 'gun' && w.projectile === true && w.hands === 2) &&
+      WEAPON_FAMILIES.find((f) => f.id === 'gun')?.burst === 2,
+    `${WEAPON_FAMILIES.find((f) => f.id === 'gun')?.baseDamage}dmg · ${WEAPON_FAMILIES.find((f) => f.id === 'gun')?.cooldown}s`
+  );
+  check(
+    '쌍권총 모션 — cross 스왑 · release 있는 사격 · 반동',
+    WEAPON_MOTIONS.gun?.swap?.style === 'cross' && WEAPON_MOTIONS.gun?.swap?.phases?.length >= 3 &&
+      WEAPON_MOTIONS.gun?.attack?.release >= 0 && WEAPON_MOTIONS.gun?.attack?.duration > 0 &&
+      WEAPON_MOTIONS.gun?.skill?.duration > 0 && WEAPON_MOTIONS.gun?.recoil?.duration > 0
+  );
+  check(
+    '쌍권총 임팩트 — bullet + 은하수 오버라이드(galaxy)',
+    WEAPON_IMPACTS.gun?.kind === 'bullet' && WEAPON_IMPACTS.gun?.sound === 'impactBullet' &&
+      WEAPON_IMPACT_OVERRIDES.gun_relic?.kind === 'galaxy' && WEAPON_IMPACT_OVERRIDES.gun_relic?.sound === 'impactGalaxy'
+  );
+  check(
+    '은하수의 밤 궁극기 — galaxyNight(은하수) · 42m · 유물 임팩트',
+    WEAPON_ULTIMATE_BY_ID.galaxyNight?.weapon === 'gun_relic' && WEAPON_ULTIMATE_BY_ID.galaxyNight?.kind === 'galaxy' &&
+      WEAPON_ULTIMATE_BY_ID.galaxyNight?.radius === 42 && ULTIMATE_IMPACTS.galaxyNight?.kind === 'galaxy' &&
+      ULTIMATE_IMPACTS.galaxyNight?.sound === 'ultimateGalaxy'
+  );
+  const gunmaster = classById('gunmaster');
+  check(
+    '건마스터 직업 — family gun · signature 은하수의 밤 · 패시브',
+    gunmaster?.family === 'gun' && gunmaster?.signature === 'gun_relic' &&
+      Number(gunmaster?.passive?.weaponDamage) > 1 && Number(gunmaster?.passive?.moveSpeed) > 1 &&
+      classModifiers('gunmaster', 3).weaponDamage > classModifiers('gunmaster', 1).weaponDamage
+  );
+  check(
+    '건마스터 잠금 — 1차 T4 · 3차 유물 · 타 직업 family 잠금',
+    weaponLock('gun_epic', 'gunmaster', 1).locked === false && weaponLock('gun_legendary', 'gunmaster', 1).kind === 'tier' &&
+      weaponLock('gun_relic', 'gunmaster', 2).kind === 'tier' && weaponLock('gun_relic', 'gunmaster', 3).locked === false &&
+      weaponLock('gun_relic', 'mage', 3).kind === 'family'
+  );
+  const gunRecipes = FAMILY_TIER_RECIPES.filter((r) => r.family === 'gun');
+  check(
+    '쌍권총 제작 — 7티어가 각 제단(forge_t1~t7)에 있다',
+    FAMILY_FORGE_FAMILIES.includes('gun') && gunRecipes.length === 7 &&
+      gunRecipes.every((r) => CRAFTING_TABLE_BY_ID[r.table]?.tier === weaponById(r.weaponId)?.tier) &&
+      gunRecipes.every((r) => isWorkbenchCraftable(r.weaponId))
+  );
+
+  // 화면/런타임 배선 — 문자열 계약
+  const gunMain = readFileSync(new URL('../client/src/main.js', import.meta.url), 'utf8');
+  const gunRig = readFileSync(new URL('../client/src/player/weaponRig.js', import.meta.url), 'utf8');
+  const gunHud = readFileSync(new URL('../client/src/ui/hud.js', import.meta.url), 'utf8');
+  const gunCss = readFileSync(new URL('../client/src/ui/styles.css', import.meta.url), 'utf8');
+  const gunAudio = readFileSync(new URL('../client/src/audio.js', import.meta.url), 'utf8');
+  const gunPanels = readFileSync(new URL('../client/src/ui/panels.js', import.meta.url), 'utf8');
+  const gunBad = [];
+  for (const [cond, name] of [
+    [gunMain.includes('_gunAttack('), 'main._gunAttack'],
+    [gunMain.includes("weapon.kind === 'gun'"), 'main.kind gun'],
+    [gunMain.includes('muzzleAt?.(i)'), 'main.muzzleAt'],
+    [gunMain.includes('weaponSkill()'), 'main.weaponSkill'],
+    [gunMain.includes("'gunshotGalaxy'"), 'main.은하수 사격음'],
+    [gunRig.includes('function buildDualPistols('), 'rig.buildDualPistols'],
+    [gunRig.includes("shape === 'gun'"), 'rig.shape gun'],
+    [gunRig.includes('userData.muzzles'), 'rig.두 총구'],
+    [gunRig.includes("weaponId === 'gun_relic'"), 'rig.은하수 모델'],
+    [gunHud.includes('hud-weaponskill'), 'hud 무기 스킬'],
+    [gunHud.includes('_updateWeaponSkill('), 'hud 무기 스킬 갱신'],
+    [gunCss.includes('.hud-weaponskill-key'), 'css 무기 스킬'],
+    [gunAudio.includes('gunshot(o = {})'), 'audio.gunshot'],
+    [gunAudio.includes('impactGalaxy(o = {})'), 'audio.impactGalaxy'],
+    [gunAudio.includes('ultimateGalaxy(o = {})'), 'audio.ultimateGalaxy'],
+    [gunPanels.includes('대표 무기'), 'panels 대표 무기']
+  ]) if (!cond) gunBad.push(name);
+  check('쌍권총 배선 (main·rig·hud·css·audio·panels)', gunBad.length === 0, gunBad.join(',') || '전부 확인');
 }
 
 // ─────────────────────────────────────── 결과
@@ -1026,19 +1112,19 @@ section('전직 시스템 (직업 · 단계 · 무기 잠금)');
 {
   const jobClasses = CLASSES.filter((c) => c.family);
   const lockedAt = (classId, stage) => WEAPONS.filter((w) => weaponLock(w.id, classId, stage).locked).length;
-  check('직업 6종 + 초심자', CLASSES.length === 7 && jobClasses.length === 6, CLASSES.map((c) => c.name).join(' · '));
+  check('직업 7종 + 초심자', CLASSES.length === 8 && jobClasses.length === 7, CLASSES.map((c) => c.name).join(' · '));
   check('직업 id 중복 없음', new Set(CLASSES.map((c) => c.id)).size === CLASSES.length);
   check('모든 직업이 계열·글리프·설명을 가진다', CLASSES.every((c) => c.glyph && c.desc && (c.family || c.id === 'novice')));
-  check('계열 하나에 직업 하나(6계열)', ['staff', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow'].every((f) => Boolean(CLASS_BY_FAMILY[f]) && classForFamily(f) === CLASS_BY_FAMILY[f]));
+  check('계열 하나에 직업 하나(7계열)', ['staff', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow', 'gun'].every((f) => Boolean(CLASS_BY_FAMILY[f]) && classForFamily(f) === CLASS_BY_FAMILY[f]));
   check('공용 계열(가위·꿈나무·카타나)은 직업이 없다', !classForFamily('scissors') && !classForFamily('dream') && !classForFamily('katana') && CLASS_RULES.sharedFamilies.join(',') === 'scissors,dream,katana');
   check('단계 4개(0~3차) · 등급 상한 상승', CLASS_STAGES.length === 4 && CLASS_STAGES.map((s) => s.maxTier).join(',') === '2,4,6,8');
   check('단계 패시브 배율 상승', CLASS_STAGES.map((s) => s.bonus).join(',') === '1,1,1.5,2');
   check('전직 조건 — 웨이브·비용이 단계마다 오른다', CLASS_RULES.firstWave === 3 && CLASS_RULES.secondWave === 12 && CLASS_RULES.thirdWave === 22 && CLASS_RULES.secondCost > 0 && CLASS_RULES.thirdCost > CLASS_RULES.secondCost);
   check('재전직 — 200 골드(웨이브 제한 없음)', CLASS_RULES.respecCost === 200 && CLASS_RULES.respecWave === 0, `${CLASS_RULES.respecWave}웨이브 · ${CLASS_RULES.respecCost}골드`);
   check('직업마다 대표 무기가 실제로 존재', jobClasses.every((c) => Boolean(WEAPON_BY_ID[c.signature]) && WEAPON_BY_ID[c.signature].family === c.family), jobClasses.map((c) => (WEAPON_BY_ID[c.signature] || {}).name).join(' · '));
-  check('계열별 직업 무기 10종 이상', ['staff', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow'].every((f) => weaponsByFamily(f).length >= 10), jobClasses.map((c) => c.name + ':' + weaponsByFamily(c.family).length).join(' '));
+  check('계열별 직업 무기 — 기존 6계열 10종 이상 + 쌍권총 7티어', ['staff', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow'].every((f) => weaponsByFamily(f).length >= 10) && weaponsByFamily('gun').length === 7, jobClasses.map((c) => c.name + ':' + weaponsByFamily(c.family).length).join(' '));
 
-  check('68종 전부 잠금 판정 가능(unknown 없음)', WEAPONS.every((w) => weaponLock(w.id, 'novice', 0).kind !== 'unknown'), WEAPONS.length + '종');
+  check('75종 전부 잠금 판정 가능(unknown 없음)', WEAPONS.every((w) => weaponLock(w.id, 'novice', 0).kind !== 'unknown'), WEAPONS.length + '종');
   check('모르는 무기는 잠김 + unknown', weaponLock('없는무기', 'mage', 1).locked === true && weaponLock('없는무기', 'mage', 1).kind === 'unknown');
   check('등급 조회 — 유물 7 · 꿈나무 8', weaponTier('staff_relic') === 7 && weaponTier('dream_tree') === 8 && weaponTier('staff_common') === 1);
 
@@ -1053,7 +1139,7 @@ section('전직 시스템 (직업 · 단계 · 무기 잠금)');
   check('전직하면 잠기는 무기가 늘어난다', lockedAt(mage, 1) > lockedAt('novice', 0), lockedAt('novice', 0) + '종 → ' + lockedAt(mage, 1) + '종');
   check('공용 계열은 직업과 무관하게 사용(가위·꿈나무)', ['novice', 'mage', 'knight', 'reaper'].every((c) => !weaponLock('time_scissors', c, 3).locked && !weaponLock('dream_tree', c, 3).locked));
   check('공용 계열은 등급 상한 예외(초심자도 가위 사용)', weaponLock('time_scissors', 'novice', 0).locked === false && weaponLock('dream_tree', 'novice', 0).locked === false);
-  check('5직업 × 3차 — 자기 계열은 전부 사용 가능', jobClasses.every((c) => weaponsByFamily(c.family).every((w) => !weaponLock(w.id, c.id, 3).locked)));
+  check('7직업 × 3차 — 자기 계열은 전부 사용 가능', jobClasses.every((c) => weaponsByFamily(c.family).every((w) => !weaponLock(w.id, c.id, 3).locked)));
 
   const noviceMods = classModifiers('novice', 0);
   const mage1 = classModifiers('mage', 1);
@@ -2536,7 +2622,7 @@ section('마법부여 — 모든 무기 속성 부여 · 맨손 시작');
   check('마법부여 속성 14종 · 최대 5레벨', enchant.ENCHANT_ELEMENT_LIST.length === 14 && enchant.ENCHANT_MAX === 5, `${enchant.ENCHANT_ELEMENT_LIST.length}종 / ${enchant.ENCHANT_MAX}레벨`);
   const enchantErrors = enchant.validateEnchantData();
   check('마법부여 데이터 무결성(모든 속성에 비용·재료·대응 속성)', enchantErrors.length === 0, enchantErrors.join(' · '));
-  check('맨손 — WEAPONS 밖(수집 68종·가챠 계산 유지)', !data.WEAPONS.some((w) => w.id === 'fists') && data.WEAPONS.length === 68 && data.FIST_WEAPON.id === 'fists', `${data.WEAPONS.length}종`);
+  check('맨손 — WEAPONS 밖(수집 75종·가챠 계산 유지)', !data.WEAPONS.some((w) => w.id === 'fists') && data.WEAPONS.length === 75 && data.FIST_WEAPON.id === 'fists', `${data.WEAPONS.length}종`);
   check('맨손 — 근접 무기(피해·사거리·쿨다운)', data.FIST_WEAPON.kind === 'melee' && data.FIST_WEAPON.damage > 0 && data.FIST_WEAPON.range > 0 && data.FIST_WEAPON.cooldown > 0, `피해 ${data.FIST_WEAPON.damage} · ${data.FIST_WEAPON.range}m · ${data.FIST_WEAPON.cooldown}s`);
   check(
     'weaponOrFist — null/맨손/실제 무기',

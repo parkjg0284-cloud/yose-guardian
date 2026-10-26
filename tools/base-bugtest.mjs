@@ -329,9 +329,10 @@ console.log('\n── ⑩ 활 · 화살 — 계열 제단 레시피 · 발당 �
   const arrowCtxOf = (owned = new Set()) => ({ wave: 200, cleared: 199, hasWeapon: (id) => owned.has(id), onCrafted: (id) => owned.add(id) });
 
   // (1) 활 T1~T7 — 각 티어 제단에서 그 티어 활을 만들 수 있고, 다른 티어 제단에서는 못 만든다
+  const bowTierRecipes = FAMILY_TIER_RECIPES.filter((r) => r.family === 'bow');
   const bowTierBad = [];
   for (let tier = 1; tier <= 7; tier += 1) {
-    const recipe = FAMILY_TIER_RECIPES.find((r) => r.tier === tier);
+    const recipe = bowTierRecipes.find((r) => r.tier === tier);
     const bowW = recipe ? weaponById(recipe.weaponId) : null;
     if (!recipe || !bowW || bowW.family !== 'bow' || bowW.tier !== tier || CRAFTING_TABLE_BY_ID[recipe.table]?.tier !== tier) {
       bowTierBad.push(`T${tier}:${recipe?.weaponId ?? '없음'}`);
@@ -346,13 +347,13 @@ console.log('\n── ⑩ 활 · 화살 — 계열 제단 레시피 · 발당 �
     const eco2 = arrowRichEco();
     const ctx2 = arrowCtxOf();
     const cs2 = new CraftingSystem({ getEconomy: () => eco2, getContext: () => ctx2 });
-    for (const other of FAMILY_TIER_RECIPES) if (other.tier !== tier) cs2.build(other.table, ctx2);
+    for (const other of bowTierRecipes) if (other.tier !== tier) cs2.build(other.table, ctx2);
     if (cs2.canCraft(recipe.weaponId, ctx2).ok) bowTierBad.push(`T${tier}:다른 제단에서도 제작됨`);
   }
   check(
     '활 T1~T7 = 각 티어 제단 레시피 (티어 일치 · 다른 제단 불가)',
-    FAMILY_TIER_RECIPES.length === 7 && bowTierBad.length === 0,
-    bowTierBad.join(',') || FAMILY_TIER_RECIPES.map((r) => `${r.weaponId}@${r.table}`).join(' ')
+    bowTierRecipes.length === 7 && bowTierBad.length === 0,
+    bowTierBad.join(',') || bowTierRecipes.map((r) => `${r.weaponId}@${r.table}`).join(' ')
   );
 
   // (2) 발당 피해 배수 = 티어 순 단조 증가 · 실제 피해 = 무기 피해 × 배수(반올림)

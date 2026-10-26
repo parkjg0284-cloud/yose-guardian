@@ -327,6 +327,17 @@ export class HUD {
     bottom.appendChild(build);
     this._reg('build', build);
 
+    // 장착한 무기의 스킬 키·이름 — 무기를 바꾸면 즉시 갱신된다.
+    const skill = el('div', 'hud-weaponskill hidden');
+    this._reg('weaponSkillKey', skill.appendChild(el('span', 'hud-weaponskill-key', 'R')));
+    const skillBody = el('div', 'hud-weaponskill-body');
+    this._reg('weaponSkillLabel', skillBody.appendChild(el('span', 'hud-weaponskill-label', '무기 스킬')));
+    this._reg('weaponSkillName', skillBody.appendChild(el('b', 'hud-weaponskill-name', '—')));
+    skill.appendChild(skillBody);
+    this._reg('weaponSkillCool', skill.appendChild(el('span', 'hud-weaponskill-cool', '준비됨')));
+    bottom.appendChild(skill);
+    this._reg('weaponSkill', skill);
+
     const prompt = el('div', 'hud-prompt is-passive');
     this._reg('promptKey', prompt.appendChild(el('span', 'hud-prompt-key', 'E')));
     this._reg('promptText', prompt.appendChild(el('span', 'hud-prompt-text', DEFAULT_PROMPT)));
@@ -654,6 +665,8 @@ export class HUD {
 
     /* ---------- 건설 힌트 ---------- */
     this._updateBuildHint(game, active);
+    /* ---------- 무기 스킬 (키 + 이름 + 쿨다운) ---------- */
+    this._updateWeaponSkill(game, active);
 
     /* ---------- 상호작용 프롬프트 ---------- */
     this._updatePrompt(game, active);
@@ -873,6 +886,29 @@ export class HUD {
       if (count > 0) parts.push(`광물 ${fmt(count)}`);
     }
     return parts.join(' · ');
+  }
+
+  /** 장착 무기의 스킬 키·이름·쿨다운 — game.weaponSkill() 이 없으면 숨긴다(스텁 안전). */
+  _updateWeaponSkill(game, active) {
+    const box = this._refs.weaponSkill;
+    if (!box) return;
+    const info = typeof game?.weaponSkill === 'function' ? game.weaponSkill() : null;
+    const show = Boolean(active && info && info.name);
+    box.classList.toggle('hidden', !show);
+    if (!show) return;
+    setText(this._refs.weaponSkillKey, info.key ?? 'R');
+    setText(this._refs.weaponSkillLabel, info.label ?? '무기 스킬');
+    setText(this._refs.weaponSkillName, info.name);
+    const cooling = info.ready === false && Number(info.readyIn) > 0;
+    setClass(box, 'is-cooling', cooling);
+    setClass(box, 'is-relic', info.ultimate === 'galaxyNight');
+    setText(
+      this._refs.weaponSkillCool,
+      cooling ? `${Math.ceil(Number(info.readyIn))}초` : info.ultimate ? '준비됨' : '연사'
+    );
+    box.title = cooling
+      ? `${info.key} — ${info.name} · ${Math.ceil(Number(info.readyIn))}초 후 사용 가능`
+      : `${info.key} — ${info.name} · 지금 사용할 수 있습니다`;
   }
 
   _updateBuildHint(game, active) {

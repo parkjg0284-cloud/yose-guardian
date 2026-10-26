@@ -290,7 +290,7 @@ ok('KEYBINDS — 친구(U)', panelsMod.KEYBINDS.some(([k, d]) => k === 'U' && d 
 ok('KEYBINDS — 앉기(Ctrl) · R 유지 회전 항목 존재', panelsMod.KEYBINDS.some((k) => k[0] === 'Ctrl') && panelsMod.KEYBINDS.some((k) => k[0] === 'R (유지)'));
 const pm = attempt('PanelManager constructs (builds #panel-root)', () => new panelsMod.PanelManager({ game }));
 
-// [bench] 패널 1회 렌더 비용 — 관리자 무기 소환(67종)이 UI 재렌더 폭주로 멈추는지 확인용.
+// [bench] 패널 1회 렌더 비용 — 관리자 무기 소환(74종)이 UI 재렌더 폭주로 멈추는지 확인용.
 // 실행 : PANEL_BENCH=1 npm run ui
 if (process.env.PANEL_BENCH) {
   const rows = [];
@@ -306,7 +306,7 @@ if (process.env.PANEL_BENCH) {
   rows.sort((a, b) => b[1] - a[1]);
   console.log('  [bench] 패널 1회 렌더(상위 6): ' + rows.slice(0, 6).map(([id, ms]) => id + ' ' + (ms < 0 ? '실패' : ms.toFixed(2) + 'ms')).join(' · '));
   const get = (id) => rows.find(([k]) => k === id)?.[1] ?? 0;
-  console.log('  [bench] /무기전부 67회 refresh 예상 — craft ' + (get('craft') * 67).toFixed(0) + 'ms · inventory ' + (get('inventory') * 67).toFixed(0) + 'ms · weapons ' + (get('weapons') * 67).toFixed(0) + 'ms');
+  console.log('  [bench] /무기전부 74회 refresh 예상 — craft ' + (get('craft') * 74).toFixed(0) + 'ms · inventory ' + (get('inventory') * 74).toFixed(0) + 'ms · weapons ' + (get('weapons') * 74).toFixed(0) + 'ms');
 }
 attempt('설정 패널(ESC) — 계속하기와 나가기가 맨 위에 있다(계약 §4.48)', () => {
   const prev = { state: game.state, waves: game.waves };
@@ -511,7 +511,7 @@ attempt('갱신 병합 — 67번 예약해도 프레임당 1회만 다시 그린
   const real = pm._render.bind(pm);
   pm._render = (id) => { renders += 1; return real(id); };
   try {
-    for (let i = 0; i < 67; i += 1) pm.requestRefresh();
+    for (let i = 0; i < 74; i += 1) pm.requestRefresh();
     if (renders !== 0) return false;                 // 예약만 하고 아직 그리지 않는다
     pm.flushRefresh();
     if (renders !== 1) return false;                 // 67번 예약 → 1번만 그린다
@@ -592,7 +592,7 @@ if (pm) {
     const makes = root.querySelectorAll('[data-act="craft-make"]');
     return Boolean(tab) && makes.length === 0;
   });
-  attempt('제작 패널 — 작업대 67종 + 무기별(계열) 분류 10탭', () => {
+  attempt('제작 패널 — 작업대 74종 + 무기별(계열) 분류 11탭', () => {
     game.workbenchBuilt = () => true;
     pm.state.craft.table = 'facility_workbench';
     pm.state.craft.benchFamily = 'all';
@@ -601,7 +601,7 @@ if (pm) {
     const makes0 = root0.querySelectorAll('[data-act="craft-make"]');
     const hasDream = makes0.some((b) => b.dataset.weapon === 'dream_lantern');
     const famTabs = root0.querySelectorAll('[data-act="craft-bench-family"]');
-    if (makes0.length !== 67 || hasDream || famTabs.length !== 10) return false;
+    if (makes0.length !== 74 || hasDream || famTabs.length !== 11) return false;
     // 계열 탭 → 그 무기만 나온다
     const daggerTab = [...famTabs].find((b) => b.dataset.family === 'dagger');
     if (!daggerTab) return false;
@@ -1523,6 +1523,56 @@ hudGame.staff = null;
 hudGame.economy = prevHudArrowEco;
 hud.update(0.1);
 
+// Round D — 장착 무기의 스킬 키 + 이름 + 쿨다운
+ok('HUD 무기 스킬 — 기본은 숨김(무기 없음)', hud._refs.weaponSkill?.classList.contains('hidden') === true);
+hudGame.weaponSkill = () => ({
+  key: 'R', label: '무기 스킬', name: '은하수의 밤', ultimate: 'galaxyNight',
+  kind: 'galaxy', cooldown: 150, readyIn: 12.3, ready: false
+});
+hud.update(0.1);
+ok(
+  'HUD 무기 스킬 — 키 R · 이름 은하수의 밤 · 남은 초',
+  hud._refs.weaponSkill.classList.contains('hidden') === false &&
+    String(hud._refs.weaponSkillKey.textContent) === 'R' &&
+    String(hud._refs.weaponSkillName.textContent) === '은하수의 밤' &&
+    String(hud._refs.weaponSkillCool.textContent) === '13초' &&
+    hud._refs.weaponSkill.classList.contains('is-cooling') === true,
+  [hud._refs.weaponSkillKey.textContent, hud._refs.weaponSkillName.textContent, hud._refs.weaponSkillCool.textContent].join(' / ')
+);
+ok(
+  'HUD 무기 스킬 — 유물 쌍권총은 은하수 강조(is-relic)',
+  hud._refs.weaponSkill.classList.contains('is-relic') === true &&
+    String(hud._refs.weaponSkill.title).includes('은하수의 밤'),
+  hud._refs.weaponSkill.title
+);
+hudGame.weaponSkill = () => ({
+  key: 'R', label: '무기 스킬', name: '은하수의 밤', ultimate: 'galaxyNight',
+  kind: 'galaxy', cooldown: 150, readyIn: 0, ready: true
+});
+hud.update(0.1);
+ok(
+  'HUD 무기 스킬 — 쿨다운이 끝나면 준비됨',
+  String(hud._refs.weaponSkillCool.textContent) === '준비됨' &&
+    hud._refs.weaponSkill.classList.contains('is-cooling') === false,
+  hud._refs.weaponSkillCool.textContent
+);
+hudGame.weaponSkill = () => ({
+  key: '좌클릭', label: '기본 공격', name: '낡은 쌍권총', ultimate: null,
+  kind: 'basic', cooldown: 0, readyIn: 0, ready: true
+});
+hud.update(0.1);
+ok(
+  'HUD 무기 스킬 — 궁극기가 없는 무기는 기본 공격 키/이름',
+  String(hud._refs.weaponSkillKey.textContent) === '좌클릭' &&
+    String(hud._refs.weaponSkillLabel.textContent) === '기본 공격' &&
+    String(hud._refs.weaponSkillName.textContent) === '낡은 쌍권총' &&
+    String(hud._refs.weaponSkillCool.textContent) === '연사',
+  [hud._refs.weaponSkillKey.textContent, hud._refs.weaponSkillName.textContent].join(' / ')
+);
+hudGame.weaponSkill = null;
+hud.update(0.1);
+ok('HUD 무기 스킬 — game.weaponSkill() 이 없으면 다시 숨김', hud._refs.weaponSkill.classList.contains('hidden') === true);
+
 // 보스 없음 → 숨김 유지
 hudGame.powerSummary = () => null;
 hudGame.storageSummary = () => null;
@@ -1703,27 +1753,27 @@ if (pm) {
     const text = body ? body.textContent || '' : '';
     return text.includes('초심자') && text.includes('잠깁니다') && (text.includes('직업 변경') || text.includes('재전직'));
   });
-  attempt('전직 패널 — 직업 카드 6종(계열·패시브·대표 무기)', () => {
+  attempt('전직 패널 — 직업 카드 7종(계열·패시브·대표 무기)', () => {
     const root = documentStub.getElementById('panel-root');
     const cards = root.querySelectorAll('[data-role="class-row"]');
     const families = [...cards].map((c) => c.dataset.family);
-    const needed = ['staff', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow'];
+    const needed = ['staff', 'sword1h', 'sword2h', 'scythe', 'dagger', 'bow', 'gun'];
     const card = cards[0];
     const hasDetail = card ? (card.textContent || '').includes('전용') && (card.textContent || '').includes('대표 무기') : false;
-    return cards.length === 6 && needed.every((f) => families.includes(f)) && hasDetail;
+    return cards.length === 7 && needed.every((f) => families.includes(f)) && hasDetail;
   });
   attempt('전직 패널 — 웨이브 3이면 [전직] 활성', () => {
     const root = documentStub.getElementById('panel-root');
     const mage = root.querySelectorAll('[data-act="class-advance"]').find((b) => b.dataset.id === 'mage');
     return Boolean(mage) && mage.disabled === false;
   });
-  attempt('전직 패널 — 웨이브 미달이면 6종 전부 비활성 + 사유', () => {
+  attempt('전직 패널 — 웨이브 미달이면 7종 전부 비활성 + 사유', () => {
     game.waves.wave = 1;
     pm.refresh();
     const root = documentStub.getElementById('panel-root');
     const btns = root.querySelectorAll('[data-act="class-advance"]');
     const blocked = root.querySelectorAll('[data-role="class-blocked"]');
-    return btns.length === 6 && [...btns].every((b) => b.disabled === true) && blocked.length === 6;
+    return btns.length === 7 && [...btns].every((b) => b.disabled === true) && blocked.length === 7;
   });
   attempt('전직 실행 — 마법사 1차 전직', () => {
     game.waves.wave = 5;
@@ -1739,7 +1789,7 @@ if (pm) {
     const cards = root.querySelectorAll('[data-role="class-row"]');
     const cur = [...cards].find((c) => c.dataset.current === '1');
     const reBtns = root.querySelectorAll('[data-act="class-advance"]');
-    return Boolean(cur) && cur.dataset.classId === 'mage' && reBtns.length === 5 && [...reBtns].every((b) => (b.textContent || '').includes('재전직'));
+    return Boolean(cur) && cur.dataset.classId === 'mage' && reBtns.length === 6 && [...reBtns].every((b) => (b.textContent || '').includes('재전직'));
   });
   attempt('전직 패널 — 잠긴 무기 목록(🔒) 표시', () => {
     const root = documentStub.getElementById('panel-root');

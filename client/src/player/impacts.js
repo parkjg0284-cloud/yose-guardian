@@ -4,7 +4,7 @@
 //       꿈나무(비살상) 임팩트와 구원 연출은 화면 흔들림(shake)을 만들지 않는다.
 
 import * as THREE from 'three';
-import { WEAPON_IMPACTS, ULTIMATE_IMPACTS, DREAM_TREE, weaponById } from '../data.js';
+import { WEAPON_IMPACTS, WEAPON_IMPACT_OVERRIDES, ULTIMATE_IMPACTS, DREAM_TREE, weaponById } from '../data.js';
 import { elementColor } from './staff.js';
 import { createRNG } from '../utils/rng.js';
 
@@ -22,7 +22,11 @@ const KIND_DEFAULTS = {
   void: { speed: 3.1, spread: 1.7, life: 1.5, size: 0.21, gravity: 0, rise: -0.45, inward: 3.2 },
   holy: { speed: 7.2, spread: 0.6, life: 0.92, size: 0.23, gravity: 1.0, rise: 1.7, fade: 1 },
   // 가위가 물리는 순간 — 짧고 빠르고 밝은 파편
-  snip: { speed: 8.6, spread: 0.7, life: 0.28, size: 0.11, gravity: -1.8, rise: 0.5, fade: 1 }
+  snip: { speed: 8.6, spread: 0.7, life: 0.28, size: 0.11, gravity: -1.8, rise: 0.5, fade: 1 },
+  // 총탄 — 작고 빠른 불티(충격 고리는 hit 에서 따로 그린다)
+  bullet: { speed: 9.4, spread: 0.4, life: 0.22, size: 0.085, gravity: -5.5, rise: 0.18, fade: 1 },
+  // 은하수 — 별가루가 천천히 흩날리며 떠오른다
+  star: { speed: 2.4, spread: 1.3, life: 1.25, size: 0.17, gravity: 0.45, rise: 0.42, wander: 0.55, flutter: true }
 };
 
 const MAX_PARTICLES_PER_BURST = 200;
@@ -338,7 +342,8 @@ export function impactSpec(weaponId = null, family = null) {
   const weapon = weaponId ? weaponById(weaponId) : null;
   const fam = family ?? weapon?.family ?? null;
   const base = (fam && WEAPON_IMPACTS[fam]) || WEAPON_IMPACTS.staff;
-  return { ...base, family: fam, weaponId: weapon?.id ?? null, grade: weapon?.grade ?? null };
+  const override = weapon?.id ? WEAPON_IMPACT_OVERRIDES[weapon.id] : null;
+  return { ...base, ...(override || {}), family: fam, weaponId: weapon?.id ?? null, grade: weapon?.grade ?? null };
 }
 
 export function ultimateSpec(ultimateId) {
@@ -390,6 +395,51 @@ export class ImpactFX {
       this._emit('snip', origin, { count, color, power: p, scale: sc, rng: this.rng });
       if (spec.stitch) {
         this._emit('holy', origin, { count: Math.max(5, Math.round(count * 0.45)), color: num(spec.mist, color), rng: this.rng });
+      }
+      if (num(spec.shake, 0) > 0) this._shake = Math.max(this._shake, num(spec.shake, 0) * p * 0.5);
+      this._play(spec.sound ?? null, { power: p });
+      return { kind, count, nonLethal: false };
+    }
+    if (kind === 'bullet') {
+      // 총탄 — 불티 + 짧은 충격 고리. 화면 흔들림은 아주 약하게.
+      const sc = num(spec.scale, 0.52);
+      this._emit('bullet', origin, { count, color, power: p, scale: sc, rng: this.rng });
+      const ring = num(spec.ring, 0);
+      if (ring > 0) {
+        this._ring(origin, {
+          color,
+          radius: Math.max(0.18, ring * sc),
+          duration: 0.16,
+          width: 0.035,
+          height: 0.35,
+          spin: 1.4
+        });
+      }
+      if (num(spec.shake, 0) > 0) this._shake = Math.max(this._shake, num(spec.shake, 0) * p * 0.5);
+      this._play(spec.sound ?? null, { power: p });
+      return { kind, count, nonLethal: false };
+    }
+    if (kind === 'galaxy') {
+      // 은하수 타격 — 별가루가 터지고 보랏빛/청록 고리가 겹쳐 번진다.
+      const sc = Math.max(0.5, num(spec.scale, 1.05));
+      this._emit('star', origin, { count, color, power: p, scale: sc, rng: this.rng });
+      this._emit('void', origin, {
+        count: Math.max(6, Math.round(count * 0.45)),
+        color: 0xc9b8ff,
+        spread: 0.9,
+        scale: sc * 0.7,
+        rng: this.rng
+      });
+      const rings = Math.max(1, Math.round(num(spec.rings, 2)));
+      for (let i = 0; i < rings; i += 1) {
+        this._ring(origin, {
+          color: i % 2 === 0 ? spec.color : 0x6af0e0,
+          radius: (0.85 + i * 0.5) * sc,
+          duration: 0.38 + i * 0.1,
+          width: 0.055,
+          height: 0.5,
+          spin: i % 2 === 0 ? 1.1 : -1.5
+        });
       }
       if (num(spec.shake, 0) > 0) this._shake = Math.max(this._shake, num(spec.shake, 0) * p * 0.5);
       this._play(spec.sound ?? null, { power: p });
@@ -487,6 +537,43 @@ export class ImpactFX {
           rng: this.rng
         });
       }
+    } else if (kind === 'galaxy') {
+      // 은하수의 밤 — 고리 4겹 + 별가루 소용돌이 + 안쪽으로 빨려드는 별.
+      const rings = Math.max(1, Math.round(num(spec.rings, 4)));
+      for (let i = 0; i < rings; i += 1) {
+        this._ring(origin, {
+          color: i % 2 === 0 ? spec.color : 0x6af0e0,
+          radius: Math.max(1.4, r * (0.3 + i * 0.22)),
+          duration: 0.85 + i * 0.18,
+          delay: i * 0.09,
+          width: 0.45 + i * 0.12,
+          height: 1.2 + i * 0.4,
+          spin: i % 2 === 0 ? 0.5 : -0.7
+        });
+      }
+      this._emit('star', origin, {
+        count: num(spec.stars, 90),
+        color: spec.color,
+        spread: Math.max(1.5, r * 0.42),
+        life: 2.1,
+        rise: 0.9,
+        scale: Math.max(1, r * 0.03),
+        rng: this.rng
+      });
+      this._emit('void', origin, {
+        count: num(spec.particles, 60),
+        color: 0xc9b8ff,
+        spread: Math.max(1.2, r * 0.2),
+        inward: 4.2,
+        scale: Math.max(1, r * 0.025),
+        rng: this.rng
+      });
+      this._emit('holy', origin, {
+        count: Math.max(8, Math.round(num(spec.stars, 90) * 0.25)),
+        color: 0xfff0d0,
+        spread: Math.max(1, r * 0.16),
+        rng: this.rng
+      });
     } else if (kind === 'timeStop') {
       this._ring(origin, { color: spec.color, radius: r || 14, duration: 1.5, spin: 0.6, height: 1.4 });
       this._ring(origin, { color: 0xffffff, radius: (r || 14) * 0.6, duration: 1.2, delay: 0.2, spin: -0.9 });

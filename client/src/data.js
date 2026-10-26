@@ -964,6 +964,12 @@ export const WEAPON_FAMILIES = [
     id: 'bow', name: '활', icon: '🏹', hands: 2, kind: 'bow', swing: 'draw',
     baseDamage: 30, cooldown: 0.8, range: 54, projectile: true, pierce: 1,
     desc: '화살을 시위에 걸어 당겨 쏜다. 화살을 1발씩 소모하며, 화살 티어가 높을수록 위력이 오른다.'
+  },
+  {
+    id: 'gun', name: '쌍권총', icon: '🔫', hands: 2, kind: 'gun', swing: 'shoot',
+    baseDamage: 13, cooldown: 0.34, range: 46, projectile: true, pierce: 0,
+    burst: 2,
+    desc: '두 자루를 동시에 쏘는 원거리 무기. 탄환이 빠르게 날아가고, 유물 등급 "은하수의 밤"은 별가루를 남긴다.'
   }
 ];
 
@@ -1276,6 +1282,35 @@ export const WEAPON_MOTIONS = {
     recoil: { duration: 0.18, kick: [0, 0.025, 0.07], rot: [-0.13, 0, 0], shake: 0.26 },
     // 시위 당김 트랙 — weaponRig 가 attack/skill 모션 진행도로 시위·화살을 뒤로 당긴다.
     string: { max: 0.3, flex: 0.07 }
+  },
+  gun: {
+    rest: { pos: [0, -0.3, -0.55], rot: [0.02, 0, 0], scale: 1 },
+    swap: {
+      duration: 0.48, style: 'cross', desc: '양손을 교차했다가 두 자루를 나란히 겨눈다.',
+      phases: [
+        { t: 0, pos: [0, -0.9, -0.3], rot: [0.62, 1.25, 0.3], scale: 0.9, ease: 'easeInQuad' },
+        { t: 0.5, pos: [0.05, -0.1, -0.5], rot: [-0.26, 0.12, -0.06], scale: 1.05, ease: 'easeOutBack' },
+        { t: 1, pos: [0, -0.3, -0.55], rot: [0.02, 0, 0], scale: 1, ease: 'easeOutCubic' }
+      ]
+    },
+    attack: {
+      duration: 0.2, style: 'recoil', release: 0.02,
+      phases: [
+        { t: 0, pos: [0, -0.3, -0.55], rot: [0.02, 0, 0], scale: 1, ease: 'linear' },
+        { t: 0.14, pos: [0, -0.25, -0.44], rot: [-0.17, 0, 0], scale: 1.03, ease: 'easeOutQuad' },
+        { t: 1, pos: [0, -0.3, -0.55], rot: [0.02, 0, 0], scale: 1, ease: 'easeOutCubic' }
+      ]
+    },
+    skill: {
+      duration: 1.35, style: 'galaxy',
+      phases: [
+        { t: 0, pos: [0, -0.3, -0.55], rot: [0.02, 0, 0], scale: 1, ease: 'easeOutQuad' },
+        { t: 0.42, pos: [0, 0.06, -0.48], rot: [0.26, 0, 0], scale: 1.14, ease: 'easeOutBack' },
+        { t: 0.78, pos: [0, -0.2, -0.62], rot: [-0.1, 0, 0], scale: 1.06, ease: 'easeInOutQuad' },
+        { t: 1, pos: [0, -0.3, -0.55], rot: [0.02, 0, 0], scale: 1, ease: 'easeOutCubic' }
+      ]
+    },
+    recoil: { duration: 0.14, kick: [0, 0.022, 0.075], rot: [-0.13, 0, 0], shake: 0.18 }
   }
 };
 
@@ -1303,6 +1338,18 @@ export const WEAPON_IMPACTS = {
   bow: {
     kind: 'spark', color: 0xd8f0ff, particles: 12, scale: 0.72, shake: 0.22, sound: 'impactQuick',
     pierce: true, trail: 0xa8e8ff, desc: '화살이 꿰뚫고 지나간다.'
+  },
+  gun: {
+    kind: 'bullet', color: 0xffe3a0, particles: 10, scale: 0.52, shake: 0.14, sound: 'impactBullet',
+    ring: 0.5, tracer: 0xffd27a, desc: '총구 화염과 작은 충격 고리가 함께 터진다.'
+  }
+};
+
+/** 무기별 임팩트 오버라이드 — 유물 쌍권총은 은하수 연출을 쓴다. */
+export const WEAPON_IMPACT_OVERRIDES = {
+  gun_relic: {
+    kind: 'galaxy', color: 0x9b7bff, particles: 28, scale: 1.06, shake: 0.3, sound: 'impactGalaxy',
+    rings: 2, stars: 24, tracer: 0xc9b8ff, desc: '별가루가 터지고 작은 은하 고리가 번진다.'
   }
 };
 
@@ -1346,6 +1393,11 @@ export const WEAPON_ULTIMATES = [
     id: 'eternalLove', weapon: 'bow_forever', name: '영원한 사랑', kind: 'multiStrike',
     cooldown: 165, duration: 5, radius: 44, hits: 12, color: 0xffd9e8, arrows: 60,
     desc: '44m 안의 모든 적에게 사랑의 화살 12발이 꽂힌다. 이 사랑은 영원히 멈추지 않는다.'
+  },
+  {
+    id: 'galaxyNight', weapon: 'gun_relic', name: '은하수의 밤', kind: 'galaxy',
+    cooldown: 150, duration: 6, radius: 42, color: 0x9b7bff, rings: 4, stars: 120, spiral: true,
+    desc: '42m 를 은하수의 밤으로 덮는다. 별가루가 적을 태우고, 밤하늘이 잠시 내려앉는다.'
   }
 ];
 
@@ -1373,6 +1425,11 @@ export const ULTIMATE_IMPACTS = {
     kind: 'multiStrike', color: 0xffd9e8, hits: 12, radius: 44, particles: 64, shake: 1.0,
     sound: 'ultimateQuick', halo: true, mist: 0xffb8d0,
     desc: '분홍빛 화살비가 44m 를 덮고, 꽂힌 자리마다 사랑의 빛이 번진다.'
+  },
+  galaxyNight: {
+    kind: 'galaxy', color: 0x9b7bff, radius: 42, rings: 4, stars: 120, spiral: true,
+    particles: 100, shake: 1.15, sound: 'ultimateGalaxy',
+    desc: '은하 고리 4겹이 42m 로 퍼지고, 120개의 별가루가 소용돌이친다.'
   }
 };
 
@@ -1468,7 +1525,7 @@ const CRAFT_ONLY_SPECS = [
     desc: '시간이 지워도 남는 칼. 스칠 때마다 목숨을 조금씩 되돌려받는다. 창세의 제단에서 제작한다.'
   }
 ];
-// ── 무기 68종 = 6계열 × 7등급(42) + 제작 전용 24종(활 3종·유물 가위·유물 카타나 포함) + 유물 지팡이 1종(보너스) + 비밀 꿈나무 1종 ──
+// ── 무기 75종 = 7계열 × 7등급(49) + 제작 전용 24종(활 3종·유물 가위·유물 카타나 포함) + 유물 지팡이 1종(보너스) + 비밀 꿈나무 1종 ──
 //    화살(ARROW_TIERS 7종)은 무기가 아니라 소모품이다 — economy 의 arrows 원장에 쌓인다.
 const WEAPON_NAME_TABLE = {
   staff: ['수습 지팡이', '철제 지팡이', '수정 지팡이', '비전 지팡이', '고대 지팡이', '신화 지팡이', '시간의 지팡이'],
@@ -1476,7 +1533,8 @@ const WEAPON_NAME_TABLE = {
   sword2h: ['나무 대검', '철 대검', '기사 대검', '룬 대검', '심판의 대검', '신화 대검', '세계수의 검'],
   scythe: ['낫', '철 낫', '전투 낫', '룬 낫', '사신의 낫', '신화 낫', '종말의 낫'],
   dagger: ['단검', '철 단검', '독니 단검', '룬 단검', '그림자 단검', '신화 단검', '아카식의 송곳니'],
-  bow: ['나무 활', '사냥꾼의 활', '강철 장궁', '룬 장궁', '폭풍의 장궁', '신화의 장궁', '영겁의 활']
+  bow: ['나무 활', '사냥꾼의 활', '강철 장궁', '룬 장궁', '폭풍의 장궁', '신화의 장궁', '영겁의 활'],
+  gun: ['낡은 쌍권총', '강철 쌍권총', '서리 쌍권총', '번개 쌍권총', '황혼 쌍권총', '성운 쌍권총', '은하수의 밤']
 };
 
 const WEAPON_ELEMENT_TABLE = {
@@ -1486,7 +1544,8 @@ const WEAPON_ELEMENT_TABLE = {
   scythe: [null, null, null, 'metal', 'blood', 'void', 'void'],
   dagger: [null, null, 'poison', 'dark', 'dark', 'void', 'void'],
   dream: ['spirit'],
-  bow: [null, null, 'wind', 'arcane', 'lightning', 'holy', 'crystal']
+  bow: [null, null, 'wind', 'arcane', 'lightning', 'holy', 'crystal'],
+  gun: [null, null, 'ice', 'lightning', 'dark', 'arcane', 'void']
 };
 
 export const WEAPONS = (() => {
@@ -1772,7 +1831,7 @@ export function ultimateImpact(id) {
   return ULTIMATE_IMPACTS[id] || null;
 }
 
-/** 스왑모션 보유 여부 — 68종 전부 true 여야 한다(검증용 · 활·카타나 포함) */
+/** 스왑모션 보유 여부 — 75종 전부 true 여야 한다(검증용 · 활·카타나·쌍권총 포함) */
 export function hasSwapMotion(id) {
   const m = weaponMotion(id);
   return !!(m && m.swap && m.swap.duration > 0 && Array.isArray(m.swap.phases) && m.swap.phases.length >= 2);
@@ -2842,6 +2901,16 @@ export const CLASSES = [
     desc: '활 계열 전용. 화살 피해가 오르고 발이 빠르며, 멀리서 적을 꿰뚫는다.',
     passive: { weaponDamage: 1.14, moveSpeed: 1.06 },
     signature: 'bow_forever'
+  },
+  {
+    id: 'gunmaster',
+    name: '건마스터',
+    glyph: '🔫',
+    family: 'gun',
+    color: 0x9b7bff,
+    desc: '쌍권총 계열 전용. 두 자루를 번갈아 쏘며 발이 빠르고, 은하수의 밤은 별가루로 밤하늘을 부른다.',
+    passive: { weaponDamage: 1.12, moveSpeed: 1.04 },
+    signature: 'gun_relic'
   }
 ];
 

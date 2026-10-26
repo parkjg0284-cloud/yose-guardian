@@ -473,7 +473,7 @@ try {
   check('dispose', false, err.message);
 }
 
-// ───────────────────────────── 10. 무기 68종 · 스왑모션 · 임팩트
+// ───────────────────────────── 10. 무기 75종 · 스왑모션 · 임팩트
 section('무기 / 스왑모션 / 임팩트');
 {
   const weaponCamera = new THREE.PerspectiveCamera(75, 16 / 9, 0.1, 1000);
@@ -482,7 +482,7 @@ section('무기 / 스왑모션 / 임팩트');
   const advance = (o, seconds) => { const step = 1 / 60; for (let t = 0; t < seconds; t += step) o.update(step); };
   check('초기 무기 장착 상태', rig.id === 'staff_common' && rig.state === 'idle' && rig.family === 'staff', `${rig.id}/${rig.state}`);
 
-  // 68종 전부 스왑모션 재생 → 완주 → rest 복귀
+  // 75종 전부 스왑모션 재생 → 완주 → rest 복귀
   const swapBad = [];
   for (const w of WEAPONS) {
     const res = rig.equip(w.id);
@@ -491,7 +491,7 @@ section('무기 / 스왑모션 / 임팩트');
     const done = rig.state === 'idle' && rig.progress >= 1;
     if (!res.ok || !(res.duration > 0) || !started || !done) swapBad.push(`${w.id}:${res.ok}/${res.duration}/${started}/${done}`);
   }
-  check('모든 무기(68) 스왑모션 재생·완주', swapBad.length === 0, swapBad.join(' ') || `${WEAPONS.length}/${WEAPONS.length} (평균 ${(WEAPONS.reduce((a, w) => a + weaponMotion(w.id).swap.duration, 0) / WEAPONS.length).toFixed(3)}s)`);
+  check('모든 무기(75) 스왑모션 재생·완주', swapBad.length === 0, swapBad.join(' ') || `${WEAPONS.length}/${WEAPONS.length} (평균 ${(WEAPONS.reduce((a, w) => a + weaponMotion(w.id).swap.duration, 0) / WEAPONS.length).toFixed(3)}s)`);
 
   // 계열별 스왑 스타일/포즈 변화/복귀
   const styleByFamily = {};
@@ -499,7 +499,7 @@ section('무기 / 스왑모션 / 임팩트');
     const res = rig.equip(weaponsByFamily(f.id)[0].id);
     styleByFamily[f.id] = res.style;
   }
-  check('계열별 스왑 스타일 9종(카타나 iai 포함)', new Set(Object.values(styleByFamily)).size === 9, JSON.stringify(styleByFamily));
+  check('계열별 스왑 스타일 10종(카타나 iai · 쌍권총 cross 포함)', new Set(Object.values(styleByFamily)).size === 10, JSON.stringify(styleByFamily));
   rig.equip('sword2h_relic', { instant: true });
   advance(rig, 0.2);
   const restPose = rig.debugPose();
@@ -522,6 +522,33 @@ section('무기 / 스왑모션 / 임팩트');
   }
   check('계열별 뷰모델 메시 생성', Object.values(tris).every((n) => n > 0), JSON.stringify(tris));
   check('유물/비밀 무기는 프리미엄 표시', buildWeaponMesh('staff_relic').group.userData.premium === true && buildWeaponMesh('dream_tree').group.userData.weaponId === DREAM_TREE.id);
+
+  // ── 쌍권총 — 두 자루/두 총구 + 은하수 모델 ──
+  const gunModel = buildWeaponMesh('gun_relic');
+  const gunMuzzles = gunModel.group.userData.muzzles ?? [];
+  const gunTris = { count: 0 };
+  gunModel.group.traverse((o) => { if (o.geometry?.attributes?.position) gunTris.count += o.geometry.attributes.position.count / 3; });
+  check(
+    '은하수의 밤 뷰모델 — 두 자루 · 두 총구 · 별가루/은하 고리',
+    gunModel.group.userData.family === 'gun' && gunMuzzles.length === 2 && gunModel.group.userData.premium === true &&
+      gunModel.animated.spin.length >= 4 && gunModel.animated.particles.length === 2 && gunTris.count > 50,
+    `muzzles=${gunMuzzles.length} spin=${gunModel.animated.spin.length} tris=${Math.round(gunTris.count)}`
+  );
+  const plainGun = buildWeaponMesh('gun_common');
+  check(
+    '일반 쌍권총도 두 자루(은하수 장식만 다르다)',
+    plainGun.group.userData.muzzles?.length === 2 && plainGun.animated.spin.length === 0 && plainGun.group.userData.premium !== true
+  );
+  rig.equip('gun_relic', { instant: true });
+  advance(rig, 0.2);
+  const muzzleL = rig.muzzleAt(0);
+  const muzzleR = rig.muzzleAt(1);
+  check(
+    '두 총구가 좌우로 실제로 떨어져 있다',
+    Math.abs(muzzleL.x - muzzleR.x) > 0.15 && Math.abs(muzzleL.z - muzzleR.z) < 0.05,
+    `dx=${Math.abs(muzzleL.x - muzzleR.x).toFixed(3)} dz=${Math.abs(muzzleL.z - muzzleR.z).toFixed(3)}`
+  );
+
 
   // 꿈나무 고유 스왑 연출 + 공격/스킬 release
   let specials = 0;
@@ -578,8 +605,16 @@ section('무기 / 스왑모션 / 임팩트');
   for (const w of WEAPONS) fx.hit(new THREE.Vector3(1, 1, 1), { weaponId: w.id, power: 1 });
   const afterHits = fx.activeCount;
   for (const u of WEAPON_ULTIMATES) fx.skill(new THREE.Vector3(0, 0, 0), { ultimateId: u.id });
-  check('68종 타격 임팩트 재생', afterHits > 0, `active=${afterHits}`);
-  check('8종 궁극기 스킬 임팩트 재생', fx.activeCount >= afterHits, `active=${fx.activeCount}`);
+  check('75종 타격 임팩트 재생', afterHits > 0, `active=${afterHits}`);
+  check('10종 궁극기 스킬 임팩트 재생', fx.activeCount >= afterHits, `active=${fx.activeCount}`);
+  const bulletHit = fx.hit(new THREE.Vector3(0, 1, 0), { weaponId: 'gun_common', power: 1 });
+  const galaxyHit = fx.hit(new THREE.Vector3(0, 1, 0), { weaponId: 'gun_relic', power: 1.2 });
+  const galaxySkill = fx.skill(new THREE.Vector3(0, 0, 0), { ultimateId: 'galaxyNight', radius: 42 });
+  check(
+    '쌍권총 타격 = bullet / 은하수의 밤 = galaxy(고리·별가루)',
+    bulletHit.kind === 'bullet' && galaxyHit.kind === 'galaxy' && galaxySkill.kind === 'galaxy' && fx.shakeAmount > 0,
+    `${bulletHit.kind} → ${galaxyHit.kind} / skill ${galaxySkill.kind} shake ${fx.shakeAmount.toFixed(2)}`
+  );
   const shakeBefore = fx.shakeAmount;
   fx.salvation(new THREE.Vector3(0, 1, 0), { radius: 40, petals: 140, butterflies: 28, gratitude: true });
   check('꿈나무 구원 연출은 흔들림을 만들지 않는다', fx.shakeAmount <= shakeBefore, `shake ${shakeBefore.toFixed(2)} → ${fx.shakeAmount.toFixed(2)}`);
@@ -2558,7 +2593,7 @@ section('마법부여 / 맨손 / 건물 회전');
   const e3 = sys.enchant(other.id, 'ice', { hasWeapon: () => true, hasEnchanter: true });
   check('무기마다 개별 부여(모든 무기 가능)', e3.ok === true && sys.count === 2 && sys.stateFor(other.id)?.element === 'ice', `${sys.count}종`);
   const allOk = WEAPONS.every((w) => sys.canEnchant(w.id, 'fire', { hasWeapon: () => true, hasEnchanter: true }).ok);
-  check('68종 전부 부여 가능', allOk, `${WEAPONS.length}종`);
+  check('75종 전부 부여 가능', allOk, `${WEAPONS.length}종`);
   const bonus = sys.bonusFor('sword1h_guard');
   check('bonusFor — 전투 반영값', bonus.element === 'fire' && bonus.damageMult > 1 && bonus.level === 2, JSON.stringify({ el: bonus.element, mult: bonus.damageMult }));
   const restored = new enc.EnchantSystem({}).fromJSON(JSON.parse(JSON.stringify(sys.toJSON())));

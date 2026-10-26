@@ -1,7 +1,7 @@
-// 요새의 수호자 — 무기 뷰모델(68종)과 스왑모션 엔진.
+// 요새의 수호자 — 무기 뷰모델(75종)과 스왑모션 엔진.
 // 모든 지오메트리는 절차 생성이며 외부 에셋을 쓰지 않는다.
 // 계약: 계열별 메시/모션은 data.js 의 WEAPON_MOTIONS 만 보고 재생한다(하드코딩 금지).
-//       모든 무기(68종)는 스왑모션을 가진다 — equip() 이 항상 swap 모션을 재생한다.
+//       모든 무기(75종)는 스왑모션을 가진다 — equip() 이 항상 swap 모션을 재생한다.
 //       활 계열은 motion.string 트랙(시위 당김)으로 시위·화살을 뒤로 물린다.
 //       가위 계열은 motion.snip 트랙(0=닫힘, 1=활짝)으로 두 날개를 여닫는다(그웬식 스닙).
 
@@ -505,6 +505,150 @@ function buildBow({ color, glow, tier = 1 }) {
   return { group, animated: a };
 }
 
+/**
+ * 쌍권총 — 두 자루를 좌우로 나란히 겨눈다.
+ * 유물 "은하수의 밤"(gun_relic)은 짙은 보랏빛 총신 위에 별가루 원반과 은하 고리가 돈다.
+ * 총구는 두 개이며 group.userData.muzzles 로 노출한다(사격 시 번갈아 사용).
+ */
+function buildDualPistols({ color, glow, tier = 1, galaxy = false }) {
+  const group = new THREE.Group();
+  group.name = 'weapon_gun';
+  const a = emptyAnimated();
+
+  const bodyMat = metal(galaxy ? 0x150b2c : 0x2a2f3a, {
+    metalness: galaxy ? 0.86 : 0.72,
+    roughness: galaxy ? 0.26 : 0.4
+  });
+  const accentMat = metal(galaxy ? 0x6af0e0 : color, {
+    emissive: galaxy ? 0x9b7bff : glow > 0 ? color : 0x000000,
+    emissiveIntensity: galaxy ? 1.2 : 0.5,
+    metalness: 0.8,
+    roughness: 0.22
+  });
+  const gripMat = metal(galaxy ? 0x241240 : 0x1b1f27, { metalness: 0.35, roughness: 0.72 });
+  const glowMat = new THREE.MeshBasicMaterial({
+    color: galaxy ? 0xd9c8ff : 0xffe3a0,
+    transparent: true,
+    opacity: 0.92,
+    depthWrite: false
+  });
+
+  const muzzles = [];
+  for (const sign of [-1, 1]) {
+    const gun = new THREE.Group();
+    gun.position.set(sign * 0.2, -0.015, 0);
+    gun.rotation.z = sign * -0.045;
+
+    // 슬라이드 + 프레임
+    gun.add(box(0.072, 0.072, 0.3, bodyMat, [0, 0.05, -0.06]));
+    gun.add(box(0.062, 0.03, 0.26, bodyMat, [0, 0.006, -0.045]));
+    // 총열
+    const barrel = cyl(0.025, 0.025, 0.1, bodyMat, 10);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0, 0.05, -0.24);
+    gun.add(barrel);
+    // 총구 링
+    const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.027, 0.006, 6, 14), accentMat);
+    mouth.position.set(0, 0.05, -0.295);
+    gun.add(mouth);
+
+    // 손잡이 + 방아쇠울
+    const grip = box(0.06, 0.16, 0.09, gripMat, [0, -0.075, 0.035]);
+    grip.rotation.x = -0.2;
+    gun.add(grip);
+    const guard = new THREE.Mesh(new THREE.TorusGeometry(0.036, 0.006, 5, 12, Math.PI), accentMat);
+    guard.rotation.set(Math.PI / 2, 0, Math.PI);
+    guard.position.set(0, -0.03, -0.03);
+    gun.add(guard);
+
+    // 가늠쇠 + 해머
+    gun.add(box(0.018, 0.014, 0.02, accentMat, [0, 0.092, -0.2]));
+    gun.add(box(0.026, 0.02, 0.02, accentMat, [0, 0.092, 0.075]));
+
+    // 등급 장식 — 희귀 이상은 총신에 룬 고리, 신화 이상은 날개 핀
+    if (tier >= 3) {
+      const rune = new THREE.Mesh(new THREE.TorusGeometry(0.016, 0.0035, 5, 10), accentMat);
+      rune.rotation.y = Math.PI / 2;
+      rune.position.set(sign * 0.04, 0.05, -0.08);
+      gun.add(rune);
+      a.rings.push({ mesh: rune, axis: 'z', speed: sign * 1.4 });
+    }
+    if (tier >= 5) {
+      gun.add(box(0.006, 0.03, 0.12, accentMat, [sign * 0.038, 0.065, -0.04]));
+    }
+
+    // 총구 잔광
+    const flash = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 6), glowMat);
+    flash.position.set(0, 0.05, -0.305);
+    gun.add(flash);
+    a.orbs.push({ mesh: flash, base: sign, pulse: 0.24 });
+
+    // 은하수 — 별가루 원반 + 회전 고리 두 겹 + 별 점
+    if (galaxy) {
+      const disc = new THREE.Mesh(
+        new THREE.CircleGeometry(0.15, 28),
+        new THREE.MeshBasicMaterial({
+          color: 0x5b3fa8,
+          transparent: true,
+          opacity: 0.42,
+          side: THREE.DoubleSide,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending
+        })
+      );
+      disc.rotation.x = -1.05;
+      disc.position.set(0, 0.045, -0.16);
+      gun.add(disc);
+      a.spin.push({ mesh: disc, speed: sign * 0.9 });
+
+      const halo = new THREE.Mesh(new THREE.TorusGeometry(0.13, 0.006, 6, 30), accentMat);
+      halo.position.set(0, 0.045, -0.16);
+      halo.rotation.x = 1.15;
+      gun.add(halo);
+      a.spin.push({ mesh: halo, speed: sign * -1.35 });
+
+      const starGeo = new THREE.BufferGeometry();
+      const starPos = new Float32Array(36 * 3);
+      for (let i = 0; i < 36; i += 1) {
+        const ang = i * 2.399;
+        const r = 0.05 + ((i * 37) % 100) / 100 * 0.13;
+        starPos[i * 3] = Math.cos(ang) * r;
+        starPos[i * 3 + 1] = 0.045 + Math.sin(ang * 1.7) * 0.02;
+        starPos[i * 3 + 2] = -0.16 + Math.sin(ang) * r * 0.55;
+      }
+      starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
+      const stars = new THREE.Points(
+        starGeo,
+        new THREE.PointsMaterial({
+          color: 0xe8ddff,
+          size: 0.014,
+          transparent: true,
+          opacity: 0.95,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          sizeAttenuation: true
+        })
+      );
+      gun.add(stars);
+      a.particles.push({ mesh: stars, speed: sign * 0.5 });
+    }
+
+    const muzzle = new THREE.Object3D();
+    muzzle.name = 'muzzle';
+    muzzle.position.set(0, 0.05, -0.32);
+    gun.add(muzzle);
+    muzzles.push(muzzle);
+
+    group.add(gun);
+  }
+
+  group.userData.muzzles = muzzles;
+  group.userData.muzzle = muzzles[1];
+  group.userData.headLocal = new THREE.Vector3(0, 0.08, -0.3);
+  group.userData.animated = a;
+  return { group, animated: a };
+}
+
 function buildDreamTree({ color, glow, animated }) {
   const group = new THREE.Group();
   group.name = 'weapon_dream_tree';
@@ -608,6 +752,8 @@ export function buildWeaponMesh(weaponId, opts = {}) {
     built = buildDreamTree({ color, glow, animated: emptyAnimated() });
   } else if (shape === 'bow') {
     built = buildBow({ color, glow, tier });
+  } else if (shape === 'gun') {
+    built = buildDualPistols({ color, glow, tier, galaxy: weaponId === 'gun_relic' });
   } else {
     built = buildSword({ length: 0.9, width: 0.07, color, glow, tier });
   }
@@ -671,7 +817,16 @@ export class WeaponRig {
     return { pos: [...(rest.pos ?? DEFAULT_REST.pos)], rot: [...(rest.rot ?? DEFAULT_REST.rot)], scale: num(rest.scale, 1) };
   }
   get muzzlePosition() {
-    const anchor = this._mesh?.userData?.muzzle ?? null;
+    return this.muzzleAt(0);
+  }
+
+  /** 총구 위치 — 쌍권총은 0(왼쪽)/1(오른쪽) 두 자루를 번갈아 쓴다. */
+  muzzleAt(index = 0) {
+    const anchors = this._mesh?.userData?.muzzles;
+    const list = Array.isArray(anchors) ? anchors : [];
+    const anchor = list.length
+      ? list[((Math.round(num(index, 0)) % list.length) + list.length) % list.length]
+      : (this._mesh?.userData?.muzzle ?? null);
     const v = new THREE.Vector3();
     if (anchor) {
       this.root.updateWorldMatrix(true, true);
@@ -727,7 +882,7 @@ export class WeaponRig {
   }
 
   /** 공격 모션 */
-  triggerAttack({ nonLethal = false } = {}) {
+  triggerAttack({ nonLethal = false, silent = false } = {}) {
     const motion = this._motions?.attack ?? null;
     if (!motion) return false;
     this._state = 'attacking';
@@ -736,7 +891,7 @@ export class WeaponRig {
     this._duration = Math.max(0.05, num(motion.duration, 0.3));
     this._released = false;
     this._nonLethal = !!nonLethal;
-    if (this.audio) {
+    if (this.audio && !silent) {
       try { this.audio.play?.(nonLethal ? 'salvation' : 'fire', { family: this.family }); } catch { /* 무시 */ }
     }
     return true;

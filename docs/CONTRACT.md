@@ -76,11 +76,11 @@ export function closeDb()
 - 비밀번호는 bcryptjs 해시(round 10), 최소 4자. username 3~20자 `[a-zA-Z0-9_]`, 중복 시 `409`.
 - JWT payload `{id, username, role}`, 만료 `.env JWT_EXPIRES`(기본 30d). 인가 판단은 토큰이 아니라 `requireAuth` 가 DB 에서 읽은 `row.role` 을 신뢰한다.
 - `user` 객체 = `{id, username, nickname, role, isAdmin}` (role 은 `'user'|'admin'`).
-- 제작: `client/src/crafting.js`(제작대 8종 `CRAFTING_TABLES` · 무기 레시피 33종 `WEAPON_RECIPES` · **화살 레시피 7종 `ARROW_RECIPES`** · **요정의 날개 레시피 8종 `WING_RECIPES`** · `validateCrafting()`)와
+- 제작: `client/src/crafting.js`(제작대 8종 `CRAFTING_TABLES` · 무기 레시피 41종 `WEAPON_RECIPES` · **화살 레시피 7종 `ARROW_RECIPES`** · **요정의 날개 레시피 8종 `WING_RECIPES`** · `validateCrafting()`)와
   `client/src/systems/crafting.js`(`CraftingSystem` — `isBuilt/isUnlocked/build/canCraft/craft/toJSON/fromJSON` + **`canCraftWing/craftWing`**).
-  제작대 티어 = 무기 등급 티어이고, 제작 전용 무기(`craftOnly: true`, 23종)는 `_defaultOwned()` 에서 제외된다.
+  제작대 티어 = 무기 등급 티어이고, 제작 전용 무기(`craftOnly: true`, 24종)는 `_defaultOwned()` 에서 제외된다.
 무기별 서명 비용(`WEAPONS[].cost`)이 있으면 레시피 비용이 티어 표준(`RECIPE_COST_BY_TIER`) 대신 그 값을 쓴다(예: `time_scissors` 36,000 G).
-- 작업대: `WORKBENCH_RECIPES`(전체 67종 − `WORKBENCH_EXCLUDED`(꿈의 끝은 희망) = 66종). `CraftingSystem.canCraft/craft` 는
+- 작업대: `WORKBENCH_RECIPES`(전체 75종 − `WORKBENCH_EXCLUDED`(꿈의 끝은 희망) = 74종). `CraftingSystem.canCraft/craft` 는
   ctx 의 `hasWorkbench` 가 true 면 작업대 경로(`via: 'workbench'`)를 먼저 쓰고, 없으면 티어 제작대 경로로 떨어진다.
 - 패널 id 는 **15종**(`craft`·`classes`·`enchant` 포함), 단축키는 **24행**(`C` 제작대 · `V` 요정의 날개 · `Ctrl` 앉기 · `R` 홀드 회전)이다. 관리자 계정은 서버 시작 시 `ensureAdminAccount()` 가 보장한다(`.env ADMIN_USERNAME`·`ADMIN_PASSWORD`·`ADMIN_NICKNAME`, 기본 `admin`/`(비밀번호는 .env 참조)`/`관리자`).
 - `requireAdmin` 미들웨어 = `requireAuth` + `req.user.isAdmin` 검사(아니면 `403`).
@@ -670,7 +670,7 @@ export function runAdminCommand(text, { game, user, isAdmin } = {})
 |---|---|---|---|
 | `/도움말` | 도움말 · ? · h · 명령어 | — | 명령 14종 목록 |
 | `/무기 <id\|이름>` | 무기 · w · 무기소환 | — | `game.ownWeapon` + `game.equipWeapon` |
-| `/무기전부` | 무기전부 · 모든무기 · allweapons | — | 67종 전부 |
+| `/무기전부` | 무기전부 · 모든무기 · allweapons | — | 75종 전부 |
 | `/돈 [수량]` | 돈 · 골드 · money · g · 돈소환 | 100,000 | `game.addGold` |
 | `/목재 [수량]` | 목재 · 나무 | 10,000 | `game.addWood` |
 | `/광물 <id\|이름> [수량]` | 광물 · 자원 · ore · minerals | 99 | `game.addMineral` |
@@ -1147,7 +1147,7 @@ HUD 조준선은 `game.ui.panels.hasOpen()` 이 참이면 숨는다(`hud.js`).
 ### 4.32 맨손 시작 (`data.js` `FIST_WEAPON` · `player/weaponRig.js` · `main.js`)
 
 - `data.js`: `FIST_WEAPON`(id `'fists'`, name 맨손, kind melee, damage 6, range 2.5, cooldown 0.7, `fist: true`) · `FIST_WEAPON_ID` · `weaponOrFist(id)`(null/'fists' → 맨손, 미지 id → null).
-  **맨손은 `WEAPONS`/`WEAPON_BY_ID`/`WEAPON_MOTIONS` 에 넣지 않는다** — 수집 67종·가챠·제작·업적 계산이 흔들리지 않게 하기 위함(스모크가 검증).
+  **맨손은 `WEAPONS`/`WEAPON_BY_ID`/`WEAPON_MOTIONS` 에 넣지 않는다** — 수집 75종·가챠·제작·업적 계산이 흔들리지 않게 하기 위함(스모크가 검증).
 - `WeaponRig.equip(id)` 는 `weaponOrFist(id)` 를 쓰고, 맨손이면 **메시 없음 + 모션 없음**(이전 무기의 애니메이션 핸들을 `emptyAnimated()` 로 비운다). `constructor({ weaponId = null })` 기본값도 맨손.
 - `main.js`: `_defaultOwned()` → **빈 Set**(보유 0종) · `this.weapons = { owned, equipped: FIST_WEAPON_ID }` · `weaponList()` 는 **보유 + 쓸 수 있는 무기만**(WEAPONS 폴백 금지) · `equipWeapon(null|'fists')` 는 보유·전직 잠금 검사를 건너뛴다 · `_attack()` 은 `weapon.fist` 면 `cooldown`(0.7s)마다 `_meleeStrike(FIST_WEAPON)` 을 직접 호출(공격 모션이 없으므로) · `onCrafted` 는 `equipWeapon(id, { silent: true, instant: true })` 로 **자동 장착**.
 - 시작 자원은 `gold 1200 · wood 400`(첫 작업대 650 G·160 목재 + 첫 제작 450 G·150 목재를 바로 할 수 있게).
@@ -1585,7 +1585,7 @@ if (this.state === 'menu' || this.state === 'paused') this._prewarmStep(); // �
 | `systems/summon-queue.js` | 순수 지연 큐(`push` · `step(warm, equip)` · `summary` · `validateSummonQueue`) |
 | `systems/admin-commands.js` | `/무기` 가 `game.summonWeapon` 을 쓰고, 안내에 "예열 후 장착(잠시)" 표시 |
 
-- 무기 68종 예열은 게임 시작 후 **68프레임(약 1.1초)** 에 걸쳐 끝난다. 프레임당 1종이라 한 프레임이 크게 튀지 않는다.
+- 무기 75종 예열은 게임 시작 후 **75프레임(약 1.2초)** 에 걸쳐 끝난다. 프레임당 1종이라 한 프레임이 크게 튀지 않는다.
 - `renderer.compile` 이 없는 환경(헤드리스)에서는 예열을 건너뛰고 **즉시 장착**한다(검사가 그대로 돈다).
 - 예열한 무기는 `_warmedWeapons` 에 기록해 두 번 컴파일하지 않는다.
 - 소환 큐는 순수 로직이라 `tools/smoke.mjs` 에서 순서(예열 → 장착) · 중복 · 예열 실패 · 상한을 직접 검증한다.
@@ -1742,3 +1742,53 @@ if (this.state === 'menu' || this.state === 'paused') this._prewarmStep(); // �
 - `tools/headless.mjs` 574/574 — 제작대 없음/아이템 없음 거부 · 제작 비용 · 설치 소모 · 저장/복원.
 - `tools/ui-dom-smoke.mjs` 333/333 — 포탈 안내 패널(이동 버튼 0 · 제작 안내 8종).
 - 실전 브라우저(`.tmp/portal-live.mjs`) 21/21 — 제작 → 설치 → 아이템 소모 → N 이동(161m) → 패널 UI.
+
+## §4.75 건마스터 · 쌍권총 7티어 · 은하수의 밤 · 무기 스킬 HUD
+
+**요청** — 직업에 건마스터를 추가해 쌍권총을 티어별로 쓰게 하고, 유물 등급은 은하수 테마의 쌍권총
+"은하수의 밤"으로 만든다. 무기 임팩트를 추가하고, 무기를 들면 무기 스킬 키와 스킬 이름이 HUD 에 보이게 한다.
+
+**데이터 (`client/src/data.js`)**
+- 계열 `gun`(쌍권총) — `kind: 'gun'` · `hands: 2` · `projectile: true` · `burst: 2` · 기본 피해 13 · 쿨다운 0.34 · 사거리 46 · 탄약 소모 없음.
+- 7티어 이름 — 낡은 / 강철 / 서리 / 번개 / 황혼 / 성운 / **은하수의 밤**. 속성은 T3 얼음 · T4 번개 · T5 어둠 · T6 비전 · T7 공허.
+- `WEAPON_MOTIONS.gun` — 스왑 `cross`(0.48s) · 사격 `recoil`(0.2s, release 0.02) · 스킬 `galaxy`(1.35s) · 반동 kick.
+- `WEAPON_IMPACTS.gun` = `bullet`(금빛 탄흔·작은 고리·가벼운 흔들림/impactBullet) +
+  `WEAPON_IMPACT_OVERRIDES.gun_relic` = `galaxy`(보라 별가루 28 · 이중 고리 · impactGalaxy).
+- `WEAPON_ULTIMATES.galaxyNight` — 무기 `gun_relic` · 반경 42m · 쿨다운 150초 · 별 120개 나선 · 고리 4겹.
+- `CLASSES.gunmaster` — 건마스터 · `family: 'gun'` · 대표 무기 `gun_relic` · 패시브 무기 피해 ×1.12 · 이동 ×1.04.
+- 수량은 **무기 75종(코어 74)** = 7계열 × 7등급(49) + 제작 전용 24 + 유물 지팡이 1 + 꿈나무 1.
+  제작 레시피 **41종**(계열 자동 활 7 + 쌍권총 7 포함) · 작업대 **74종** · 계열 탭 **11개**.
+
+**뷰모델 (`client/src/player/weaponRig.js`)**
+- `buildDualPistols()` — 좌우 두 자루(슬라이드·배럴·그립·방아쇠울·가늠쇠). 3티어 이상 룬 고리, 5티어 이상 장식.
+- `gun_relic` 은 은하수 전용 — 회전하는 성운 원반 · 토러스 후광 · 36개 별 `THREE.Points` · 총구 섬광 오브.
+- `group.userData.muzzles = [왼총구, 오른총구]` · `muzzleAt(index)` 가 인덱스에 따라 번갈아 반환한다.
+  기존 `muzzlePosition` 은 `muzzleAt(0)` 으로 유지된다.
+
+**사격 (`client/src/main.js`)**
+- `_attack()` 의 `kind === 'gun'` 분기 → `_gunAttack(weapon)`. `_onWeaponRelease` 는 총을 근접 판정에서 제외한다.
+- 한 번에 **두 발** — `muzzleAt(0)`/`muzzleAt(1)` 에서 각각 스폰, 좌우 `spread` 0.005(유물)/0.011, 속도 96 · 반경 0.42 · 사거리 46.
+- 피해 = `weapon.damage` × 직업 배율 × 장비/마법부여/아르카나 배율(반올림). 탄약을 쓰지 않는다.
+- 쿨다운은 `_gunReadyAt` 하나로 묶어 두 발이 같은 리듬으로 나간다. 스폰이 실패하면 쿨다운을 걸지 않는다.
+- 발사음은 `gunshot`/`gunshotGalaxy`, 뷰모델 모션은 `silent` 로 겹치는 사격음을 막는다.
+- 명중 시 `impacts.hit({ weaponId })` + `triggerRecoil()` + HUD 히트마커. 유물은 `power 1.25`, 일반은 0.9.
+
+**임팩트 (`client/src/player/impacts.js` · `client/src/audio.js`)**
+- `KIND_DEFAULTS.bullet`/`star` 추가. `hit()` 의 `bullet` 은 탄흔 + 작은 고리, `galaxy` 는 별가루 + 공허 + 교차 고리 2겹.
+- `skill()` 의 `galaxy` 는 4겹 확장 고리 · 별 120 · 안쪽으로 빨려드는 공허 · 성스러운 반짝임.
+- 효과음 `gunshot` · `gunshotGalaxy` · `impactBullet` · `impactGalaxy` · `ultimateGalaxy`.
+
+**HUD (`client/src/ui/hud.js` · `styles.css`)**
+- `.hud-weaponskill` — 장착 무기의 **[키캡] + 라벨(무기 스킬/기본 공격) + 이름 + 쿨다운**.
+- `game.weaponSkill()` 이 유일한 데이터원 — `{ key, label, name, weaponId, ultimate, kind, cooldown, readyIn, ready }`.
+  키는 사용자 키 설정의 궁극기 키(기본 `R`), 궁극기가 없으면 `좌클릭 · 기본 공격 · 무기 이름 · 연사`.
+- 맨손은 `null` 로 칩을 숨긴다. 쿨다운 중에는 `13초` 처럼 남은 초와 `is-cooling`, 유물 쌍권총은 `is-relic` 강조.
+- 장착 알림에도 `· R 무기 스킬 은하수의 밤` 을 덧붙인다.
+
+**검사**
+- `tools/smoke.mjs` 936/936 — 75종·10계열·7직업·쌍권총 7티어·은하수 임팩트·레시피·배선 문자열.
+- `tools/headless.mjs` 578/578 — 뷰모델 두 총구·좌우 간격·bullet/galaxy 임팩트·은하수 궁극기.
+- `tools/ui-dom-smoke.mjs` 339/339 — HUD 무기 스킬(키/이름/쿨다운/은하수 강조/숨김)·74종/11탭·7직업 카드.
+- `tools/base-bugtest.mjs` 80/80 — 활·쌍권총 T1~T7 제단 레시피 분리.
+- 실전 브라우저 `.tmp/gun-live.mjs` 20/20 — 은하수의 밤 장착·두 총구 dx 0.404·2발 사격·실제 명중 2회·쿨다운·HUD R/이름/150초·
+  건마스터 카드·페이지 예외 0.

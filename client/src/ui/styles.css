@@ -718,6 +718,78 @@ body {
   color: var(--c-danger);
 }
 
+/* 장착 무기 스킬 — 키캡 + 스킬 이름 + 쿨다운 */
+.hud-weaponskill {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 5px 13px 5px 7px;
+  border: 1px solid rgba(240, 196, 105, 0.28);
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(16, 20, 34, 0.88), rgba(24, 18, 44, 0.8));
+  box-shadow: var(--shadow-panel);
+  font-size: 12px;
+}
+
+.hud-weaponskill-key {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border: 1px solid rgba(240, 196, 105, 0.62);
+  border-radius: var(--radius-sm);
+  background: rgba(240, 196, 105, 0.14);
+  color: var(--c-gold);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.hud-weaponskill-body {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.16;
+}
+
+.hud-weaponskill-label {
+  color: var(--c-ink-dim);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+
+.hud-weaponskill-name {
+  color: var(--c-ink);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.hud-weaponskill-cool {
+  color: var(--c-ok);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.hud-weaponskill.is-cooling .hud-weaponskill-cool {
+  color: var(--c-gold);
+}
+
+.hud-weaponskill.is-relic {
+  border-color: rgba(155, 123, 255, 0.55);
+  box-shadow: 0 0 18px rgba(155, 123, 255, 0.24);
+}
+
+.hud-weaponskill.is-relic .hud-weaponskill-key {
+  border-color: rgba(155, 123, 255, 0.65);
+  background: rgba(155, 123, 255, 0.2);
+  color: #d9c8ff;
+}
+
+.hud-weaponskill.is-relic .hud-weaponskill-name {
+  color: #e6dcff;
+}
+
 .hud-prompt {
   display: inline-flex;
   gap: 8px;

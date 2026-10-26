@@ -146,10 +146,10 @@ const EXTRA_RECIPES = [
   { weaponId: DREAM_TREE.id, table: 'garden_of_dreams', tier: 8, desc: '행복의 끝 — 꿈나무. 저주를 풀어 모두를 자유롭게 한다.' }
 ];
 
-// ── 계열별 티어 제작(계약 §4.45) — 활은 "그 티어의 활"을 그 티어 제단에서 만든다 ──
+// ── 계열별 티어 제작(계약 §4.45) — 활·쌍권총은 "그 티어의 무기"를 그 티어 제단에서 만든다 ──
 // 자동 생성 무기(계열 × 등급)를 그대로 레시피로 쓴다. 제작 전용 무기 뒤에 붙여
 // RECIPES_BY_TABLE 의 첫 레시피(제작 전용)가 유지된다.
-export const FAMILY_FORGE_FAMILIES = ['bow'];
+export const FAMILY_FORGE_FAMILIES = ['bow', 'gun'];
 
 export const FAMILY_TIER_RECIPES = WEAPONS.filter(
   (w) => FAMILY_FORGE_FAMILIES.includes(w.family) && !w.craftOnly && !w.secret

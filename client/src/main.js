@@ -27,7 +27,8 @@ import {
   FIST_WEAPON_ID,
   weaponOrFist,
   ARROW_ORDER_DESC,
-  arrowById
+  arrowById,
+  weaponImpact
 } from './data.js';
 import { CRAFTING_TABLE_BY_ID } from './crafting.js';
 import { fairyWingById } from './data.js';
@@ -39,7 +40,7 @@ import { characterPayload, createCharacterStore, sanitizeCharacter, sanitizeRemo
 import { WeaponRig, buildWeaponMesh } from './player/weaponRig.js';
 import { currentNickname } from './profile.js';
 import { arrivalPoint, destinationById } from './travel.js';
-import { consume as keyConsume, isDown as keyDown } from './keys.js';
+import { consume as keyConsume, isDown as keyDown, keyCodes, keyLabel } from './keys.js';
 import { SummonQueue } from './systems/summon-queue.js';
 import { Arcana, hasArcanaTable } from './systems/arcana.js';
 import { ENDLESS_UNLOCK_WAVE, isEndlessUnlocked, recordWave, recordCelestialKill, unlockEndless } from './progress.js';
@@ -2512,7 +2513,9 @@ class Game {
         const motion = WEAPON_MOTIONS[weapon.family]?.swap;
         const style = motion?.style ?? '기본';
         const dur = motion?.duration ?? 0;
-        this.notify(`${weapon.name} (${weapon.gradeName}) — 스왑 ${style} ${dur}s`, 'success');
+        const ult = weapon.ultimate ? ultimateById(weapon.ultimate) : null;
+        const skill = ult ? ` · ${this._ultimateKeyLabel()} 무기 스킬 ${ult.name}` : '';
+        this.notify(`${weapon.name} (${weapon.gradeName}) — 스왑 ${style} ${dur}s${skill}`, 'success');
       }
     }
     this._refreshPanels();
@@ -2564,6 +2567,11 @@ class Game {
       this._castSpell();
       return true;
     }
+    if (weapon.kind === 'gun') {
+      // 쌍권총 — 두 자루를 동시에 쏜다(탄환은 투사체가 명중 판정을 맡는다).
+      this._gunAttack(weapon);
+      return true;
+    }
     if (weapon.kind === 'bow') {
       // 활 — 화살 1발 소모, 쿨다운마다 즉시 발사(모션은 연출)
       this._bowAttack(weapon);
@@ -2584,7 +2592,7 @@ class Game {
   _onWeaponRelease() {
     const weapon = this.staff?.weapon ?? null;
     // 활은 발사 시점에 이미 화살이 나갔다 — 놓는 순간 근접 판정이 겹치면 안 된다.
-    if (!weapon || weapon.kind === 'ranged' || weapon.kind === 'bow') return null;
+    if (!weapon || weapon.kind === 'ranged' || weapon.kind === 'bow' || weapon.kind === 'gun') return null;
     return this._meleeStrike(weapon);
   }
 
@@ -2639,6 +2647,74 @@ class Game {
     }
     if (hurt > 0) this._shake = Math.min(0.6, (this._shake ?? 0) + 0.03 * hurt);
     return { hits: hits.length, saved, hurt };
+  }
+
+  /**
+   * 쌍권총 — 두 자루의 총구에서 탄환을 한 발씩 동시에 쏜다.
+   * 명중 판정·피해는 투사체가 처리하고, 여기서는 발사체/색/임팩트만 정한다.
+   * 탄은 소모품이 아니다(활과 다른 점).
+   */
+  _gunAttack(weapon) {
+    const now = Number(this.clock?.elapsedTime) || 0;
+    if (now < (this._gunReadyAt ?? 0)) return false;
+    const dir = this.player?.aimDirection;
+    if (!dir || !this.projectiles?.spawn) return false;
+
+    const gearDamage = 1 + (Number(this._mergedGearBonus()?.damagePct) || 0);
+    const ench = this.enchant?.bonusFor?.(weapon.id) ?? null;
+    const enchantMult = Number(ench?.damageMult) || 1;
+    const arcanaMult = Number(this.arcana?.mult?.('playerDamage')) || 1;
+    const power = Math.max(
+      1,
+      Math.round((Number(weapon.damage) || 1) * (this.classes?.weaponDamageMult ?? 1) * gearDamage * enchantMult * arcanaMult)
+    );
+    const tracer = weaponImpact(weapon.id)?.tracer ?? weapon.color ?? 0xffd27a;
+    const right = new THREE.Vector3(-dir.z, 0, dir.x);
+    if (right.lengthSq() < 1e-6) right.set(1, 0, 0);
+    else right.normalize();
+    const spread = weapon.id === 'gun_relic' ? 0.005 : 0.011;
+    const fallbackOrigin = this.staff?.muzzlePosition ?? this.player?.eyePosition;
+    if (!fallbackOrigin) return false;
+    const element = ench?.element ?? weapon.element ?? null;
+
+    let shots = 0;
+    for (let i = 0; i < 2; i += 1) {
+      const sign = i === 0 ? -1 : 1;
+      const origin = this.staff?.muzzleAt?.(i) ?? fallbackOrigin;
+      const shotDir = dir.clone().addScaledVector(right, sign * spread).normalize();
+      const res = this.projectiles.spawn({
+        origin: origin.clone ? origin.clone() : origin,
+        direction: shotDir,
+        speed: 96,
+        damage: power,
+        element,
+        behavior: 'projectile',
+        radius: 0.42,
+        range: Math.max(12, Number(weapon.range) || 46),
+        color: tracer,
+        owner: 'player',
+        pierce: Math.max(0, Math.floor(Number(weapon.pierce) || 0)),
+        aoe: 0,
+        scale: weapon.id === 'gun_relic' ? 0.85 : 0.6,
+        silent: true,
+        onHit: (enemy) => {
+          this.impacts?.hit?.(enemy?.position ?? origin, {
+            weaponId: weapon.id,
+            power: weapon.id === 'gun_relic' ? 1.25 : 0.9
+          });
+          this.staff?.triggerRecoil?.(weapon.id === 'gun_relic' ? 0.9 : 0.55);
+          this.ui?.hud?.hitMarker?.();
+        }
+      });
+      if (res) shots += 1;
+    }
+    if (shots === 0) return false;
+
+    this._gunReadyAt = now + Math.max(0.1, Number(weapon.cooldown) || 0.34);
+    this.staff?.triggerAttack?.({ silent: true });
+    this.audio?.play?.(weapon.id === 'gun_relic' ? 'gunshotGalaxy' : 'gunshot', { family: 'gun' });
+    this._shake = Math.min(0.35, (this._shake ?? 0) + 0.03);
+    return true;
   }
 
   /**
@@ -2755,6 +2831,53 @@ class Game {
     }
     if (special.quote) this.notify(special.quote, 'gacha');
     if (special.chime) this.audio?.play?.('salvation');
+  }
+
+  /** 무기 스킬의 현재 키 라벨(사용자 키 설정 반영) */
+  _ultimateKeyLabel() {
+    try {
+      const codes = keyCodes('ultimate');
+      return (Array.isArray(codes) && codes.length ? keyLabel(codes[0]) : '') || 'R';
+    } catch {
+      return 'R';
+    }
+  }
+
+  /**
+   * HUD 무기 스킬 표시용 — 장착한 무기의 스킬 키·이름·쿨다운.
+   * 궁극기가 없는 무기는 '좌클릭 기본 공격'을 돌려준다(빈칸을 만들지 않는다).
+   */
+  weaponSkill() {
+    const weapon = this.staff?.weapon ?? null;
+    if (!weapon || weapon.fist) return null;
+    const key = this._ultimateKeyLabel();
+    const ult = weapon.ultimate ? ultimateById(weapon.ultimate) : null;
+    const now = Number(this.clock?.elapsedTime) || 0;
+    if (!ult) {
+      return {
+        key: '좌클릭',
+        label: '기본 공격',
+        name: weapon.name,
+        weaponId: weapon.id,
+        ultimate: null,
+        kind: 'basic',
+        cooldown: 0,
+        readyIn: 0,
+        ready: true
+      };
+    }
+    const readyAt = Number(this._ultReadyAt) || 0;
+    return {
+      key,
+      label: '무기 스킬',
+      name: ult.name,
+      weaponId: weapon.id,
+      ultimate: ult.id,
+      kind: ult.kind,
+      cooldown: Number(ult.cooldown) || 0,
+      readyIn: Math.max(0, readyAt - now),
+      ready: now >= readyAt
+    };
   }
 
   /** R — 무기 궁극기. 유물 지팡이(시간 정지/창세)는 기존 유물 스킬로 위임한다. */

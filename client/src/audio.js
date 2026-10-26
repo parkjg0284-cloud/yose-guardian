@@ -279,6 +279,13 @@ const SFX = {
         this._tone({ freq: 2349.3, glideTo: 1567.98, type: 'square', dur: 0.055, gain: 0.03 * v, attack: 0.001, when: t + 0.34 });
         this._bell({ freq: 2793, dur: 0.5, gain: 0.022 * v, when: t + 0.36, send: 0.5 });
         break;
+      case 'gun': // dual draw: two slides racked, then a metallic settle
+        this._noise({ freq: 1800, sweepTo: 900, type: 'bandpass', q: 1.8, dur: 0.08, gain: 0.06 * v, attack: 0.002 });
+        this._tone({ freq: 320, glideTo: 180, type: 'square', dur: 0.07, gain: 0.045 * v, attack: 0.001 });
+        this._noise({ freq: 2200, sweepTo: 1100, type: 'bandpass', q: 1.8, dur: 0.07, gain: 0.05 * v, when: t + 0.11 });
+        this._tone({ freq: 260, glideTo: 150, type: 'square', dur: 0.06, gain: 0.035 * v, when: t + 0.11 });
+        this._bell({ freq: 2093, dur: 0.3, gain: 0.018 * v, when: t + 0.2, send: 0.35 });
+        break;
       case 'dream': // bloom: petals opening, soft pentatonic chimes drifting apart
         this._chord({ freqs: [523.25, 587.33, 783.99, 880], dur: 1.2, gain: 0.026 * v, attack: 0.18, send: 0.7 });
         this._tone({ freq: 659.25, glideTo: 987.77, type: 'sine', dur: 1.0, gain: 0.032 * v, attack: 0.22, send: 0.6 });
@@ -341,6 +348,49 @@ const SFX = {
     const p = 1 + this._rng.range(-0.07, 0.07);
     this._noise({ freq: 5200, type: 'highpass', dur: 0.035, gain: 0.07 * v });
     this._tone({ freq: 1500 * p, glideTo: 900, type: 'square', dur: 0.05, gain: 0.033 * v, attack: 0.001 });
+  },
+
+  // ── guns (dual pistols) ────────────────────────────────────
+  gunshot(o = {}) { // crack + low push + slide cycle
+    const v = o.volume ?? 1;
+    const p = 1 + this._rng.range(-0.04, 0.04);
+    this._noise({ freq: 3600, sweepTo: 700, type: 'bandpass', q: 0.8, dur: 0.075, gain: 0.15 * v, attack: 0.001, send: 0.22 });
+    this._tone({ freq: 210 * p, glideTo: 70, type: 'square', dur: 0.075, gain: 0.11 * v, attack: 0.001 });
+    this._tone({ freq: 130, glideTo: 52, type: 'sine', dur: 0.1, gain: 0.09 * v, attack: 0.001 });
+    this._noise({ freq: 2400, type: 'highpass', dur: 0.02, gain: 0.05 * v });
+    this._tone({ freq: 1200, glideTo: 700, type: 'triangle', dur: 0.045, gain: 0.025 * v, attack: 0.001, when: this._now() + 0.09 });
+  },
+  gunshotGalaxy(o = {}) { // 별가루가 섞인 사격 — 총성 뒤에 작은 종소리
+    const v = o.volume ?? 1;
+    this.gunshot({ volume: v * 0.92 });
+    const t = this._now();
+    this._bell({ freq: 2637, dur: 0.5, gain: 0.022 * v, when: t + 0.02, send: 0.55 });
+    this._tone({ freq: 1046.5, glideTo: 2093, type: 'sine', dur: 0.22, gain: 0.018 * v, attack: 0.01, when: t + 0.03, send: 0.5 });
+  },
+  impactBullet(o = {}) { // dry hit on armor
+    const v = o.volume ?? 1;
+    const p = 1 + this._rng.range(-0.08, 0.08);
+    this._noise({ freq: 4300, type: 'highpass', dur: 0.03, gain: 0.085 * v });
+    this._tone({ freq: 900 * p, glideTo: 380, type: 'square', dur: 0.045, gain: 0.04 * v, attack: 0.001 });
+    this._noise({ freq: 900, type: 'bandpass', q: 1.6, dur: 0.05, gain: 0.035 * v, when: this._now() + 0.012, send: 0.18 });
+  },
+  impactGalaxy(o = {}) { // star dust burst
+    const v = o.volume ?? 1;
+    const t = this._now();
+    this._noise({ freq: 1200, sweepTo: 5200, type: 'bandpass', q: 1.4, dur: 0.18, gain: 0.06 * v, send: 0.4 });
+    [1567.98, 2093, 2637].forEach((f, i) => this._bell({ freq: f, dur: 0.55, gain: 0.018 * v, when: t + i * 0.03, send: 0.6 }));
+    this._tone({ freq: 330, glideTo: 660, type: 'triangle', dur: 0.3, gain: 0.03 * v, attack: 0.02, send: 0.4 });
+  },
+  ultimateGalaxy(o = {}) { // 은하수의 밤 — 밤하늘이 내려앉는 소리
+    const v = o.volume ?? 1;
+    const t = this._now();
+    this._noise({ freq: 280, sweepTo: 4200, type: 'bandpass', q: 1.2, dur: 1.3, gain: 0.06 * v, attack: 0.25, send: 0.6 });
+    this._chord({ freqs: [130.81, 164.81, 196, 261.63, 329.63], dur: 3.4, gain: 0.05 * v, attack: 0.35, send: 0.7 });
+    [1046.5, 1318.5, 1567.98, 2093, 2637].forEach((f, i) => {
+      this._bell({ freq: f, dur: 2.0, gain: 0.022 * v, when: t + 0.18 + i * 0.16, send: 0.75 });
+    });
+    this._tone({ freq: 220, glideTo: 55, type: 'sine', dur: 2.8, gain: 0.11 * v, attack: 0.15, send: 0.4 });
+    this._noise({ freq: 6400, type: 'highpass', dur: 0.3, gain: 0.03 * v, when: t + 0.8 });
   },
 
   // ── relic ultimates ─────────────────────────────────────────
