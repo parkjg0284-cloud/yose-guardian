@@ -1294,6 +1294,7 @@ class Game {
   // ── 조작
   selectTurret(typeId) {
     if (!TURRET_BY_ID[typeId]) return;
+    if (this.demolish.active) this.setDemolish(false);
     this.build.typeId = typeId;
     this.build.active = true;
     // 새로 고른 건물은 플레이어가 보는 쪽을 향해 시작한다(X 로 45°씩 회전).
@@ -3158,6 +3159,7 @@ class Game {
     }
 
     if (actionPressed('build')) {
+      if (!this.build.active && this.demolish.active) this.setDemolish(false);
       this.build.active = !this.build.active;
       if (this.build.active) {
         this.build.yaw = Number(this.player?.yaw) || 0;
