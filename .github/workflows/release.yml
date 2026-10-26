@@ -94,7 +94,7 @@ jobs:
 
             ### 게임 다운로드 — 런처 exe (권장)
 
-            **[YoseGuardian-Launcher.exe](https://github.com/parkjg0284-cloud/yose-guardian/releases/latest/download/YoseGuardian-Launcher.exe)** 하나만 받으면 됩니다 (약 654KB).
+            **[YoseGuardian-Launcher.exe](https://github.com/parkjg0284-cloud/yose-guardian/releases/latest/download/YoseGuardian-Launcher.exe)** 하나만 받으면 됩니다 (약 655KB).
 
             1. 내려받기 → **더블클릭**
             2. 창에서 **[게임 다운로드 & 설치]** 한 번
@@ -103,7 +103,7 @@ jobs:
             | 상태 | 버튼 |
             | --- | --- |
             | 설치 전 | **게임 다운로드 & 설치** |
-            | 새 버전이 있을 때 | **업데이트 (v1.6.0 → v1.7.0)** |
+            | 새 버전이 있을 때 | **업데이트 (v1.7.0 → v1.8.0)** |
             | 이미 최신 | 버튼이 사라지고 **[게임 시작]** 만 남음 |
 
             - 인터넷이 없으면 파일 안에 든 게임으로 설치됩니다.

@@ -699,4 +699,12 @@ npm install 이 실패한다
     [검증] -Zip 매개변수 + YOSE_ZIP 환경 변수로 무인 설치 검사 (build-launcher [8/8])
     [주의] downloader.ps1 편집 후 UTF-8 BOM 유지 — 없으면 PowerShell 5.1 이 한글을 못 읽는다
 
+  [43] 런처 창 버튼 배치 (v1.8.0)
+
+    [배치] 1줄 주요: [게임 다운로드 & 설치](파랑 220x42) · [게임 시작](초록 160x42)
+           2줄 보조: [설치 파일 선택] [선택 초기화] [설치 폴더 열기] ... [닫기]
+           최신 버전이면 설치 버튼을 숨기고 [게임 시작] 을 왼쪽 220px 로 크게
+    [주의] 창을 띄우기 전 Control.Visible 은 항상 false — 배치 판단은 $script:installShown 사용
+    [검사] -DumpControls <파일> 로 좌표·문구를 창 없이 덤프해 확인
+
   끝.

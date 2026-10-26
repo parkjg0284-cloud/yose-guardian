@@ -344,82 +344,97 @@ $script:bar.Location = New-Object System.Drawing.Point(24, 146)
 $script:bar.Size = New-Object System.Drawing.Size(560, 16)
 $form.Controls.Add($script:bar)
 
-$installBtn = New-Object System.Windows.Forms.Button
-$installBtn.Text = $installLabel
-$installBtn.Location = New-Object System.Drawing.Point(24, 172)
-$installBtn.Size = New-Object System.Drawing.Size(176, 34)
-$form.Controls.Add($installBtn)
+# 주요/보조 버튼 — 색·크기·커서를 한 곳에서 만든다
+function New-FlatButton([string]$text, [int]$x, [int]$y, [int]$w, [int]$h, [bool]$primary, [System.Drawing.Color]$back) {
+  $b = New-Object System.Windows.Forms.Button
+  $b.Text = $text
+  $b.Location = New-Object System.Drawing.Point($x, $y)
+  $b.Size = New-Object System.Drawing.Size($w, $h)
+  $b.FlatStyle = 'Flat'
+  $b.Font = New-Object System.Drawing.Font('Malgun Gothic', $(if ($primary) { 10 } else { 9 }), $(if ($primary) { [System.Drawing.FontStyle]::Bold } else { [System.Drawing.FontStyle]::Regular }))
+  if ($primary) {
+    $b.BackColor = $back
+    $b.ForeColor = [System.Drawing.Color]::White
+    $b.FlatAppearance.BorderSize = 0
+    $b.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::FromArgb([Math]::Min(255, $back.R + 14), [Math]::Min(255, $back.G + 12), [Math]::Min(255, $back.B + 12))
+  } else {
+    $b.BackColor = [System.Drawing.Color]::FromArgb(233, 236, 242)
+    $b.ForeColor = [System.Drawing.Color]::FromArgb(44, 48, 56)
+    $b.FlatAppearance.BorderSize = 1
+    $b.FlatAppearance.BorderColor = [System.Drawing.Color]::FromArgb(203, 210, 220)
+    $b.FlatAppearance.MouseOverBackColor = [System.Drawing.Color]::FromArgb(220, 225, 234)
+  }
+  $b.Cursor = [System.Windows.Forms.Cursors]::Hand
+  return $b
+}
 
-$selectBtn = New-Object System.Windows.Forms.Button
-$selectBtn.Text = '설치 파일 선택'
-$selectBtn.Location = New-Object System.Drawing.Point(208, 172)
-$selectBtn.Size = New-Object System.Drawing.Size(150, 34)
-$form.Controls.Add($selectBtn)
+$blue = [System.Drawing.Color]::FromArgb(47, 111, 235)
+$green = [System.Drawing.Color]::FromArgb(46, 158, 91)
 
-$playBtn = New-Object System.Windows.Forms.Button
-$playBtn.Text = $playLabel
-$playBtn.Location = New-Object System.Drawing.Point(366, 172)
-$playBtn.Size = New-Object System.Drawing.Size(110, 34)
-$form.Controls.Add($playBtn)
+# 1줄 — 주요 동작(설치/시작) 크게
+$installBtn = New-FlatButton $installLabel 24 170 220 42 $true $blue
+$playBtn = New-FlatButton $playLabel 256 170 160 42 $true $green
 
-$openBtn = New-Object System.Windows.Forms.Button
-$openBtn.Text = '설치 폴더 열기'
-$openBtn.Location = New-Object System.Drawing.Point(24, 212)
-$openBtn.Size = New-Object System.Drawing.Size(150, 30)
-$form.Controls.Add($openBtn)
-
-$resetBtn = New-Object System.Windows.Forms.Button
-$resetBtn.Text = '선택 초기화'
-$resetBtn.Location = New-Object System.Drawing.Point(182, 212)
-$resetBtn.Size = New-Object System.Drawing.Size(110, 30)
+# 2줄 — 보조 동작
+$selectBtn = New-FlatButton '설치 파일 선택' 24 222 150 32 $false $blue
+$resetBtn = New-FlatButton '선택 초기화' 182 222 110 32 $false $blue
+$openBtn = New-FlatButton '설치 폴더 열기' 300 222 130 32 $false $blue
+$closeBtn = New-FlatButton '닫기' 480 222 116 32 $false $blue
 $resetBtn.Enabled = $false
-$form.Controls.Add($resetBtn)
+$form.Controls.AddRange(@($installBtn, $playBtn, $selectBtn, $resetBtn, $openBtn, $closeBtn))
 
-$closeBtn = New-Object System.Windows.Forms.Button
-$closeBtn.Text = '닫기'
-$closeBtn.Location = New-Object System.Drawing.Point(480, 212)
-$closeBtn.Size = New-Object System.Drawing.Size(116, 30)
-$form.Controls.Add($closeBtn)
+$tip = New-Object System.Windows.Forms.ToolTip
+$tip.SetToolTip($selectBtn, '내려받아 둔 game.zip 을 직접 골라 설치합니다 (오프라인·이전 판)')
+$tip.SetToolTip($resetBtn, '다시 최신 릴리스 자동 다운로드로 돌아갑니다')
+$tip.SetToolTip($playBtn, '설치된 게임을 실행합니다')
+$tip.SetToolTip($openBtn, '설치 폴더를 엽니다')
 
 $script:logBox = New-Object System.Windows.Forms.TextBox
 $script:logBox.Multiline = $true
 $script:logBox.ReadOnly = $true
 $script:logBox.ScrollBars = 'Vertical'
-$script:logBox.Location = New-Object System.Drawing.Point(24, 250)
-$script:logBox.Size = New-Object System.Drawing.Size(560, 246)
+$script:logBox.Location = New-Object System.Drawing.Point(24, 268)
+$script:logBox.Size = New-Object System.Drawing.Size(560, 228)
 $script:logBox.BackColor = [System.Drawing.Color]::FromArgb(255, 255, 255)
 $script:logBox.ForeColor = [System.Drawing.Color]::FromArgb(44, 48, 56)
 $script:logBox.Font = New-Object System.Drawing.Font('Consolas', 9)
+$form.Controls.Add($script:logBox)
 $form.Controls.Add($script:logBox)
 
 $script:latestTag = ''
 
 # 버튼 표시/문구 — 설치 전 install · 새 버전 update · 최신이면 버튼 삭제(done)
+if ($null -eq $script:installShown) { $script:installShown = $false }
 function Update-InstallButton([string]$latestTag) {
   if ($latestTag) { $script:latestTag = $latestTag }
   $st = Get-InstallState $script:latestTag
   switch ($st.mode) {
     'install' {
+      $script:installShown = $true
       $installBtn.Visible = $true
       $installBtn.Text = $installLabel
       $script:status.Text = if ($script:isLauncher) { '아직 설치되지 않았습니다 — [게임 다운로드 & 설치] 를 누르세요' } else { '아직 설치되지 않았습니다 — [최신 버전 설치] 를 누르세요' }
     }
     'update' {
+      $script:installShown = $true
       $installBtn.Visible = $true
       $installBtn.Text = ('업데이트 (' + $st.installed + ' → ' + $st.latest + ')')
       $script:status.Text = ('새 버전이 있습니다 — 지금 ' + $st.installed + ', 최신 ' + $st.latest)
     }
     default {
+      $script:installShown = $false
       $installBtn.Visible = $false
       $script:status.Text = ('최신 버전입니다 (' + $st.latest + ') — 설치 완료')
     }
   }
   if ($script:selectedZip) {
+    $script:installShown = $true
     $installBtn.Visible = $true
     $installBtn.Text = '선택한 파일 설치'
     $script:status.Text = ('선택한 파일로 설치합니다 — ' + (Split-Path $script:selectedZip -Leaf))
   }
   $script:info.Text = '설치 위치: ' + $app + $(if ($st.installed) { '  (설치 ' + $st.installed + ')' } else { '' })
+  Update-Layout
   return $st
 }
 
@@ -436,6 +451,21 @@ function Update-FileLabel {
     $script:fileLine.ForeColor = [System.Drawing.Color]::FromArgb(92, 99, 110)
     if ($resetBtn) { $resetBtn.Enabled = $false }
   }
+}
+
+# 주요 버튼 위치 — [설치] 가 보이면 나란히, 최신이면 [시작] 하나를 크게
+# (창을 띄우기 전에는 Visible 이 항상 false 라서 상태 변수로 판단한다)
+function Update-Layout {
+  if ($script:installShown) {
+    $installBtn.Location = New-Object System.Drawing.Point(24, 170)
+    $installBtn.Size = New-Object System.Drawing.Size(220, 42)
+    $playBtn.Location = New-Object System.Drawing.Point(256, 170)
+    $playBtn.Size = New-Object System.Drawing.Size(160, 42)
+  } else {
+    $playBtn.Location = New-Object System.Drawing.Point(24, 170)
+    $playBtn.Size = New-Object System.Drawing.Size(220, 42)
+  }
+  $form.Refresh()
 }
 
 Write-Log ('설치 위치: ' + $app)
@@ -464,6 +494,8 @@ $installBtn.Add_Click({
       $script:status.Text = ('설치 완료 — 지금 ' + (Get-InstalledVersion) + ', 최신 ' + $st.latest)
     }
     $script:info.Text = '설치 위치: ' + $app + '  (설치 ' + (Get-InstalledVersion) + ')'
+    Update-Layout
+    if ($st.mode -eq 'done') { $playBtn.Focus() }
     Write-Log ('· 설치 완료 — 버전 ' + (Get-InstalledVersion))
     [System.Windows.Forms.MessageBox]::Show('설치가 끝났습니다. 지금 게임을 시작합니다.', $appName) | Out-Null
     if (Start-Game) { Write-Log ('· 게임을 시작했습니다') }
@@ -496,8 +528,10 @@ $selectBtn.Add_Click({
   }
   $script:selectedZip = $path
   Update-FileLabel
+  $script:installShown = $true
   $installBtn.Visible = $true
   $installBtn.Text = '선택한 파일 설치'
+  Update-Layout
   $script:status.Text = ('선택한 파일로 설치합니다 — ' + (Split-Path $path -Leaf))
   Write-Log ('· 설치 파일 선택: ' + $path)
 }.GetNewClosure())
