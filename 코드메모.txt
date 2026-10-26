@@ -707,4 +707,15 @@ npm install 이 실패한다
     [주의] 창을 띄우기 전 Control.Visible 은 항상 false — 배치 판단은 $script:installShown 사용
     [검사] -DumpControls <파일> 로 좌표·문구를 창 없이 덤프해 확인
 
+  [44] 관리자 콘솔 — 화면 배율 · 관리자 계정 전용 (v1.8.1)
+
+    [배율] styles.css 16) 구역 — vh/vw clamp 로 해상도에 따라 글꼴·여백·폭이 함께 커진다
+           폭 min(1600px, max(1150px, 62vw)) · 로그 글꼴 clamp(12px, 1.3vh, 22px)
+           입력 글꼴 clamp(13px, 1.55vh, 24px) · 1080p 14/17px → 4K 22/24px
+    [전용] 일반 계정에는 DOM 자체를 만들지 않는다(console.js _build 의 isAdmin 게이트)
+           키 입력도 main.js 에서 isAdmin 일 때만 toggle — 일반 계정은 안내 토스트도 없다
+           로그아웃하면 panels.js 가 revoke() 로 닫고 DOM 제거 · 다시 관리자면 open 이 새로 만든다
+    [검사] tools/ui-dom-smoke — 비관리자 DOM 0개 · lazy build · revoke 3종
+           .tmp/console-scale-check.mjs — Chrome headless 로 1366/1600/1920/2560/3840 측정 17개 통과
+
   끝.

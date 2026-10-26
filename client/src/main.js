@@ -2774,8 +2774,8 @@ class Game {
     const input = this.input;
     const pressed = (code) => input.consumePressed?.(code);
     const actionPressed = (action) => keyConsume(input, action);
-    // 관리자 콘솔 — 관리자 계정으로 로그인했을 때만 열린다(콘솔 내부에서 한 번 더 검사).
-    if (actionPressed('admin')) this.ui.admin?.toggle?.();
+    // 관리자 콘솔 — 관리자 계정에만 반응한다. 일반 계정은 키를 눌러도 아무 일도 없다(콘솔 내부에서 한 번 더 검사).
+    if (actionPressed('admin') && this.ui.admin?.isAdmin?.()) this.ui.admin.toggle?.();
     if (actionPressed('travel')) {
       // 지어 둔 포탈이 가까이 있으면 바로 그 지형으로 — 없으면 세계 포탈 목록
       const built = this._nearbyPortal(9);

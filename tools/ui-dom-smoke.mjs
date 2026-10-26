@@ -2048,13 +2048,18 @@ if (consoleMod?.AdminConsole) {
     ui: { panels: { refresh: () => { refreshed.count += 1; } } }
   };
 
-  // 비관리자 — 열리지 않는다
+  // 비관리자 — 열리지 않고, 화면에 아무것도 만들지 않는다
   const guest = attempt('AdminConsole constructs (비관리자)', () => new consoleMod.AdminConsole({ game: cgame, user: { role: 'user' } }));
   ok('비관리자는 열리지 않는다', guest?.open() === false && guest?.isOpen === false);
-  ok('비관리자 안내 토스트', notices.some(([t]) => String(t).includes('관리자 전용')));
+  ok('비관리자 콘솔은 DOM 을 만들지 않는다', documentStub.body.querySelectorAll('[data-role="admin-console"]').length === 0);
+  ok('비관리자에게는 안내도 띄우지 않는다(조용히 무시)', notices.length === 0, JSON.stringify(notices));
   ok('비관리자 토글도 false', guest?.toggle() === false);
   const guestBlocked = guest?.submit('/돈 100000');
   ok('비관리자 명령은 거부', guestBlocked?.ok === false && eco.gold === 300, String(guestBlocked?.message ?? ''));
+  // 앱 시작 뒤 관리자로 로그인하면 그때 DOM 을 만든다(lazy build)
+  guest.user = { role: 'admin' };
+  ok('나중에 관리자가 되면 open 시 콘솔 생성', guest?.open() === true && Boolean(guest?.root));
+  guest?.close?.();
   guest?.dispose();
   const guestRootsLeft = documentStub.body.querySelectorAll('[data-role="admin-console"]').length;
 
@@ -2109,6 +2114,17 @@ if (consoleMod?.AdminConsole) {
   ok('빈 입력은 무시', adminConsole.submit('   ') === null);
 
   ok('update() 무예외', (() => { try { adminConsole.update(1 / 60); return true; } catch { return false; } })());
+
+  // 로그아웃(revoke) — 닫히고 DOM 에서 사라진다. 다시 관리자로 로그인하면 open 이 새로 만든다.
+  adminConsole.open();
+  adminConsole.revoke();
+  ok('revoke — 닫히고 DOM 제거', adminConsole.isOpen === false && adminConsole.root === null && documentStub.body.querySelectorAll('[data-role="admin-console"]').length === 0);
+  adminConsole.user = { role: 'user' };
+  ok('revoke 후 일반 계정은 다시 안 열린다', adminConsole.open() === false && adminConsole.root === null);
+  adminConsole.user = { role: 'admin' };
+  ok('다시 관리자면 새로 열린다', adminConsole.open() === true && Boolean(adminConsole.root));
+  adminConsole.close();
+
   adminConsole.dispose();
   ok('dispose 후 DOM 제거 + 안전', adminConsole.root === null && adminConsole.open() === false);
 }

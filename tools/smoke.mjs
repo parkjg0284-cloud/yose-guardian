@@ -1421,12 +1421,12 @@ check(
   const consoleSrc = readFileSync(new URL('../client/src/ui/console.js', import.meta.url), 'utf8');
   const mainSrcA = readFileSync(new URL('../client/src/main.js', import.meta.url), 'utf8');
   const cssSrc = readFileSync(new URL('../client/src/ui/styles.css', import.meta.url), 'utf8');
-  check('콘솔 UI — 관리자 게이트', consoleSrc.includes('isAdminUser(this.user ?? auth?.user ?? null)') && consoleSrc.includes('관리자 전용 콘솔입니다'));
+  check('콘솔 UI — 관리자 게이트(일반 계정엔 DOM·안내 없음)', consoleSrc.includes('isAdminUser(this.user ?? auth?.user ?? null)') && consoleSrc.includes('if (!this.isAdmin()) return;') && consoleSrc.includes('if (!this.isAdmin()) return false;'));
   check('콘솔 UI — Enter 실행 · Escape 닫기 · ↑↓ 기록', consoleSrc.includes("key === 'Enter'") && consoleSrc.includes("key === 'Escape'") && consoleSrc.includes("key === 'ArrowUp'"));
   // 사용자 요청(H-97): 관리자 콘솔 버튼·키·안내를 모두 없앴다.
-  check('main — 관리자 콘솔 토글이 있다(관리자 계정 전용)', mainSrcA.includes("actionPressed('admin')"));
+  check('main — 관리자 콘솔 토글이 있다(관리자 계정 전용)', mainSrcA.includes("actionPressed('admin')") && mainSrcA.includes('this.ui.admin?.isAdmin?.()'));
   check('main — 관리자 계정 안내 문구가 있다', mainSrcA.includes('_adminHint()') && mainSrcA.includes('관리자 계정 —'));
-  check('스타일 — 관리자 콘솔 CSS', cssSrc.includes('.hud-console {') && cssSrc.includes('.hud-console-input'));
+  check('스타일 — 관리자 콘솔 CSS · 화면 배율 대응', cssSrc.includes('.hud-console {') && cssSrc.includes('.hud-console-input') && cssSrc.includes('bottom: clamp(84px, 11vh, 160px)') && cssSrc.includes('font-size: clamp(13px, 1.55vh, 24px)'));
 }
 
   // ────────────────────────────────────────── 요정의 날개 (장비 · 비행)
@@ -2996,6 +2996,7 @@ section('메뉴 버튼 → 창 닫고 패널 · 설정에서 로그인/회원가
   check('관리자 콘솔 키가 있다(관리자 전용)', keysSrc.includes("id: 'admin'"));
   check('관리자 키는 관리자에게만 보인다', panelSrc.includes("action.id === 'admin' && !safe(() => auth.isAdmin, false)"));
   check('설정의 관리자 구역은 관리자에게만 보인다', panelSrc.includes("if (safe(() => auth.isAdmin, false)) {") && panelSrc.includes("'admin-console'"));
+  check('로그아웃하면 관리자 콘솔을 닫고 DOM 에서 지운다', panelSrc.includes('ui?.admin?.revoke?.()') && readFileSync(new URL('../client/src/ui/console.js', import.meta.url), 'utf8').includes('revoke() {'));
   // v1.0.9 회귀: main.js 가 safe() 를 쓰면서 정의하지 않아 부팅이 죽었다.
   check('main — safe 헬퍼가 정의돼 있다', mainSrc.includes('const safe = (fn'));
   check('tools — boot-check 가 있다', Boolean(readFileSync(new URL('./boot-check.mjs', import.meta.url), 'utf8').includes('boot-check')));

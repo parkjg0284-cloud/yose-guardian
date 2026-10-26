@@ -3051,24 +3051,27 @@ body {
 }
 
 /* ------------------------------------------------- 16) 관리자 콘솔 (AdminConsole) */
-/* 관리자 계정(role=admin)만 ` 또는 / 로 연다. 게임 HUD 위에 뜨는 입력 줄. */
+/* 관리자 계정(role=admin)에만 생긴다. 게임 HUD 위에 뜨는 입력 줄.
+   화면 배율 — 720p 는 작게, 1080p·1440p·4K 로 갈수록 글꼴·여백·폭이 함께 커진다(vh/vw clamp).
+   폭은 화면의 60% 를 기본으로 하고, 아주 큰 화면에서도 1600px 를 넘지 않는다. */
 .hud-console {
   position: fixed;
   left: 50%;
-  bottom: 96px;
+  bottom: clamp(84px, 11vh, 160px);
   transform: translateX(-50%);
-  width: min(760px, calc(100vw - 40px));
-  max-height: 46vh;
+  width: min(1600px, max(1150px, 62vw));
+  max-height: min(56vh, 720px);
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 10px 12px;
-  border-radius: 12px;
+  gap: clamp(4px, 0.65vh, 10px);
+  padding: clamp(9px, 1.15vh, 20px) clamp(12px, 1.5vw, 28px);
+  border-radius: clamp(10px, 1.2vh, 18px);
   background: rgba(8, 12, 22, 0.92);
   border: 1px solid rgba(240, 196, 105, 0.42);
   box-shadow: 0 12px 34px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(240, 196, 105, 0.12) inset;
   z-index: 60;
   font-family: var(--font-ui);
+  font-size: clamp(12px, 1.3vh, 20px);
   backdrop-filter: blur(6px);
 }
 
@@ -3077,12 +3080,12 @@ body {
 
 .hud-console-log {
   overflow-y: auto;
-  max-height: 30vh;
+  max-height: clamp(96px, 27vh, 520px);
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: clamp(1px, 0.25vh, 5px);
   font-family: var(--font-mono);
-  font-size: 12px;
+  font-size: clamp(12px, 1.3vh, 22px);
   line-height: 1.45;
 }
 
@@ -3093,7 +3096,7 @@ body {
 .hud-console-line.is-dim { color: var(--c-ink-faint); }
 
 .hud-console-hint {
-  font-size: 11px;
+  font-size: clamp(11px, 1.15vh, 17px);
   color: var(--c-gold-dim);
   line-height: 1.4;
 }
@@ -3101,21 +3104,22 @@ body {
 .hud-console-row {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: clamp(6px, 0.9vw, 14px);
   border-top: 1px solid rgba(240, 196, 105, 0.22);
-  padding-top: 7px;
+  padding-top: clamp(5px, 0.75vh, 12px);
 }
 
 .hud-console-caret { color: var(--c-gold); font-family: var(--font-mono); font-weight: 700; }
 
 .hud-console-input {
   flex: 1;
+  min-width: 0;
   background: transparent;
   border: none;
   outline: none;
   color: var(--c-ink);
   font-family: var(--font-mono);
-  font-size: 13px;
+  font-size: clamp(13px, 1.55vh, 24px);
   letter-spacing: 0.02em;
 }
 

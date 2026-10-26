@@ -841,6 +841,8 @@ export class PanelManager {
         break;
       case 'auth-logout':
         auth.logout();
+        // 관리자 콘솔은 관리자 계정 전용 — 로그아웃하면 즉시 닫고 DOM 에서도 지운다.
+        this.game?.ui?.admin?.revoke?.();
         this.state.auth.message = '로그아웃했습니다.';
         this._toast('로그아웃했습니다', 'info');
         this._refreshAccount();

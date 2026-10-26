@@ -54,6 +54,8 @@ export class AdminConsole {
   /* --------------------------------------------------------------- DOM */
   _build() {
     if (typeof document === 'undefined' || !document.body) return;
+    // 관리자 계정에만 DOM 을 만든다 — 일반 계정 화면에는 콘솔 요소가 아예 생기지 않는다.
+    if (!this.isAdmin()) return;
     const root = document.createElement('div');
     root.className = 'hud-console';
     root.dataset.role = 'admin-console';
@@ -155,11 +157,12 @@ export class AdminConsole {
   }
 
   open() {
-    if (this._disposed || !this.root) return false;
-    if (!this.isAdmin()) {
-      this.game?.notify?.('관리자 전용 콘솔입니다 (계정 role: admin)', 'warn');
-      return false;
-    }
+    if (this._disposed) return false;
+    // 관리자 계정에만 — 일반 계정은 키를 눌러도 조용히 무시한다(안내 토스트도 띄우지 않는다).
+    if (!this.isAdmin()) return false;
+    // 앱 시작 뒤에 관리자로 로그인한 경우를 위해, 처음 열 때 DOM 을 만든다.
+    if (!this.root) this._build();
+    if (!this.root) return false;
     this._open = true;
     this.root.hidden = false;
     this.root.classList.add('is-open');
@@ -257,16 +260,22 @@ export class AdminConsole {
     /* 예약 — 지금은 매 프레임 할 일이 없다 */
   }
 
-  dispose() {
-    if (this._disposed) return;
-    this._disposed = true;
-    this._open = false;
+  /** 관리자 권한이 사라졌을 때(로그아웃) — 닫고 DOM 도 지운다. 다시 관리자가 되면 open 이 새로 만든다. */
+  revoke() {
+    this.close();
     const parent = this.root?.parentNode ?? this.root?.parent ?? null;
     if (parent && typeof parent.removeChild === 'function') parent.removeChild(this.root);
     else this.root?.remove?.();
     this.root = null;
     this.input = null;
     this.logRoot = null;
+    this.hintRoot = null;
+  }
+
+  dispose() {
+    if (this._disposed) return;
+    this._disposed = true;
+    this.revoke();
   }
 }
 
