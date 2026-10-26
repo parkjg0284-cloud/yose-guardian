@@ -227,6 +227,13 @@ export class HUD {
     this._chip(topbar, 'wings', '🪶', 'hud-stat-wings', '요정의 날개 — 착용하면 하늘을 납니다');
     hud.appendChild(topbar);
 
+    /* --- 하단 중앙: 철거 모드 --- */
+    const demolish = el('div', 'hud-demolish');
+    this._reg('demolish', demolish);
+    this._reg('demolishTitle', demolish.appendChild(el('b', 'hud-demolish-title', '🔨 철거 모드')));
+    this._reg('demolishSub', demolish.appendChild(el('span', 'hud-demolish-sub', '건물을 조준하고 좌클릭 · 재료 25% 환불')));
+    hud.appendChild(demolish);
+
     /* --- 우상단: 현재 지역(티어 지역 · 히든 지역) --- */
     const regionRow = el('div', 'hud-region');
     this._reg('regionGlyph', regionRow.appendChild(el('span', 'hud-region-glyph', '🏰')));
@@ -370,6 +377,49 @@ export class HUD {
   setCrosshair(prefs) {
     this._crosshairPrefs = applyCrosshair(this.crosshair, prefs) ?? this._crosshairPrefs;
     return this._crosshairPrefs;
+  }
+
+  /**
+   * 철거 모드 HUD — active/target/allowed.
+   *  · 조준선은 붉게 바뀌고, 대상이 있으면 이름·티어와 25% 환불 안내를 보여 준다.
+   *  · 동료 건물(allowed=false)은 철거 대신 이유를 보여 준다.
+   */
+  setDemolish(state = {}) {
+    const active = state.active === true;
+    // 조준선 색은 applyCrosshair 가 인라인 변수로 넣으므로 CSS 클래스만으로는 안 바뀐다.
+    //  철거 모드에 들어갈 때만 적색을 덧씌우고, 끝나면 사용자가 고른 색으로 되돌린다.
+    if (active !== (this._demolishOn === true)) {
+      this._demolishOn = active;
+      applyCrosshair(this.crosshair, active ? { ...this._crosshairPrefs, color: 'red' } : this._crosshairPrefs);
+    }
+    this.crosshair?.classList.toggle('is-demolish', active);
+    const box = this._refs.demolish;
+    if (!box) return this;
+    const target = state.target ?? null;
+    const allowed = state.allowed !== false;
+    box.classList.toggle('is-on', active);
+    box.classList.toggle('is-blocked', active && Boolean(target) && !allowed);
+    const name = target?.type?.name ?? target?.type?.id ?? '건물';
+    const tier = Number(target?.tier) || 1;
+    const title = this._refs.demolishTitle;
+    const sub = this._refs.demolishSub;
+    if (title) {
+      title.textContent = !active
+        ? '🔨 철거 모드'
+        : target && !allowed
+          ? `⛔ ${name} — 동료 건물`
+          : target
+            ? `🔨 ${name} · T${tier}`
+            : '🔨 철거 모드 — 건물을 조준하세요';
+    }
+    if (sub) {
+      sub.textContent = !active
+        ? '건물을 조준하고 좌클릭 · 재료 25% 환불'
+        : target && !allowed
+          ? '멀티플레이에서는 내가 지은 건물만 철거할 수 있습니다'
+          : '좌클릭 철거 — 재료 25% 환불 · Z 취소';
+    }
+    return this;
   }
 
   /* --------------------------------------------------------------- 공개 API */

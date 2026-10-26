@@ -299,6 +299,7 @@ class Game {
     this._handTarget = null;
     this._dt = 0;
     this.build = { active: false, typeId: TURRETS[0]?.id, ghost: null, list: TURRETS.filter((t) => t.category !== 'portal'), yaw: 0 };
+    this.demolish = { active: false, target: null, lastKey: '', allowed: true };
     this._shake = 0;
       // R 홀드 연속 회전 상태(§4.37)
       this._rotateHold = false;
@@ -543,6 +544,7 @@ class Game {
 
     // 패널
     this.ui.panels.on('build:select', ({ typeId }) => this.selectTurret(typeId));
+    this.ui.panels.on('demolish:start', () => this.setDemolish(true));
     this.ui.panels.on('gacha:pull', ({ times }) => this.pullGacha(times));
     this.ui.panels.on('gacha:craft', ({ recipeId, id }) => this.craftRecipe(recipeId ?? id));
     this.ui.panels.on('seed:pick', ({ seed }) => this.start({ mode: this.mode, seed, difficulty: this.difficulty }));
@@ -1118,6 +1120,7 @@ class Game {
     this.player.respawn?.(this.player.position.clone());
 
     this.build = { active: false, typeId: TURRETS[0]?.id, ghost: null, list: TURRETS.filter((t) => t.category !== 'portal'), yaw: 0 };
+    this.demolish = { active: false, target: null, lastKey: '', allowed: true };
     this.playTime = 0;
     this._playTimeAcc = 0;
     this._autosaveAcc = 0;
@@ -1301,6 +1304,108 @@ class Game {
     // 고른 포탑을 패널 카드에도 반영하고(단축키·휠 경로), 건설창은 닫아 바로 설치하게 한다.
     this.ui?.panels?.markBuildSelected?.(typeId);
     this._closeBuildPanel();
+  }
+
+  /**
+   * 철거 모드 — 조준선 중앙의 내 건물을 좌클릭으로 철거한다.
+   *  · 포탑·시설을 가리지 않고 같은 규칙(투자 재료의 25% 환불)을 쓴다.
+   *  · 멀티에서는 내가 지은 건물만 — 서버도 소유자/방장만 허용한다.
+   */
+  setDemolish(on = true) {
+    const next = Boolean(on);
+    if (next === this.demolish.active) return next;
+    this.demolish.active = next;
+    this.demolish.target = null;
+    this.demolish.lastKey = '';
+    if (next) {
+      if (this.build.active) {
+        this.build.active = false;
+        this._updateGhost();
+      }
+      if (this.ui?.panels?.isOpen?.()) this.ui.panels.close();
+      this._syncPointerLock?.();
+      this.notify('철거 모드 — 건물을 조준하고 좌클릭 (재료 25% 환불 · Z 취소)', 'warn');
+    }
+    this.ui?.hud?.setDemolish?.({ active: next, target: null, allowed: true });
+    return next;
+  }
+
+  _canDemolish(turret) {
+    if (!turret || turret.destroyed) return false;
+    if (!this.multiplayer) return true;
+    return String(turret.ownerId ?? '') === String(net.id || 'local');
+  }
+
+  /** 조준선(화면 중앙)에 걸린 건물 — 자식 메시에서 userData.turret 을 찾는다. */
+  _findTurretAtCrosshair(maxDist = 10) {
+    if (!this.camera || !this.towers?.length) return null;
+    this._demolishRay ||= new THREE.Raycaster();
+    this._demolishRay.far = Math.max(2, Number(maxDist) || 10);
+    this._demolishRay.setFromCamera(new THREE.Vector2(0, 0), this.camera);
+    const meshes = [];
+    for (const t of this.towers) if (t?.mesh && !t.destroyed) meshes.push(t.mesh);
+    if (!meshes.length) return null;
+    const hits = this._demolishRay.intersectObjects(meshes, true);
+    for (const hit of hits) {
+      let obj = hit.object;
+      while (obj && !obj.userData?.turret) obj = obj.parent;
+      if (obj?.userData?.turret) return obj.userData.turret;
+    }
+    return null;
+  }
+
+  _updateDemolishTarget() {
+    if (!this.demolish.active) return;
+    if (this.state !== 'playing') {
+      this.setDemolish(false);
+      return;
+    }
+    const target = this._findTurretAtCrosshair();
+    const allowed = target ? this._canDemolish(target) : true;
+    const key = target ? `${target.id}:${allowed ? 1 : 0}` : '';
+    if (key === this.demolish.lastKey) return;
+    this.demolish.lastKey = key;
+    this.demolish.target = target;
+    this.demolish.allowed = allowed;
+    this.ui?.hud?.setDemolish?.({ active: true, target, allowed });
+  }
+
+  _refundText(refund) {
+    if (!refund) return '환불 없음';
+    const parts = [];
+    if (Number(refund.gold) > 0) parts.push(`골드 ${Math.floor(refund.gold)}`);
+    if (Number(refund.wood) > 0) parts.push(`목재 ${Math.floor(refund.wood)}`);
+    for (const [id, n] of Object.entries(refund.minerals || {})) {
+      if (Number(n) <= 0) continue;
+      const name = MINERAL_TYPES.find((m) => m.id === id)?.name || id;
+      parts.push(`${name} ${Math.floor(n)}`);
+    }
+    return parts.length ? parts.join(' · ') : '환불 없음';
+  }
+
+  _tryDemolish() {
+    if (!this.demolish.active) return false;
+    const turret = this.demolish.target ?? this._findTurretAtCrosshair();
+    if (!turret) {
+      this.notify('철거할 건물을 조준선 중앙에 맞추세요', 'warn');
+      this.audio?.play?.('error');
+      return true;
+    }
+    if (!this._canDemolish(turret)) {
+      this.notify('멀티플레이에서는 내가 지은 건물만 철거할 수 있습니다', 'warn');
+      this.audio?.play?.('error');
+      return true;
+    }
+    const name = turret.type?.name ?? '건물';
+    const refund = this.turrets?.sell?.(turret.id);
+    if (!refund) return true;
+    net.sendTurretSell(turret.id);
+    this.demolish.target = null;
+    this.demolish.lastKey = '';
+    this.ui?.hud?.setDemolish?.({ active: true, target: null, allowed: true });
+    this.ui?.panels?.refresh?.();
+    this.notify(`${name} 철거 — 재료 25% 환불 (${this._refundText(refund)})`, 'success');
+    return true;
   }
 
   /**
@@ -3066,6 +3171,7 @@ class Game {
       // 건설 패널을 열면 커서가 보여야 목록을 클릭할 수 있다.
       this._syncPointerLock();
     }
+    if (actionPressed('demolish')) this.setDemolish(!this.demolish.active);
     if (actionPressed('craft')) this.togglePanel('craft');
     if (actionPressed('recipes')) this.togglePanel('recipes');
     if (actionPressed('interact')) {
@@ -3130,8 +3236,16 @@ class Game {
 
     this._updateGhost();
 
+    if (!input.mouse?.left) this._demolishClick = false;
     if (input.mouse?.left) {
-      if (this.build.active && this.input.consumeMouse) {
+      if (this.demolish.active) {
+        // 한 번 누를 때 한 채만 철거한다 — 누르고 있어도 매 프레임 반복하지 않는다.
+        if (!this._demolishClick) {
+          this._demolishClick = true;
+          if (this.input.consumeMouse) this.input.consumeMouse();
+          this._tryDemolish();
+        }
+      } else if (this.build.active && this.input.consumeMouse) {
         const consumed = this.input.consumeMouse();
         if (consumed?.left) this._tryPlace();
       } else if (this.build.active) {
@@ -4015,6 +4129,7 @@ class Game {
     }
 
     this._handleKeys(dt);
+    this._updateDemolishTarget();
     this._updatePerformance(dt);
 
     const frozen = this.state === 'paused' || this.state === 'gameover' || document.hidden;

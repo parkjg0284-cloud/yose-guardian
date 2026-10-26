@@ -864,3 +864,43 @@
 .menu-card.menu-help { padding: 14px 20px 16px; }
 .menu-card.menu-help .help-grid { margin-top: 12px; }
 .menu-card.menu-tab .tab-actions { margin-top: 12px; }
+
+/* ── 철거 모드 (v1.13.0) — 조준선은 붉게, 대상·25% 환불은 하단 중앙에 ── */
+#crosshair.is-demolish {
+  --ch-color: #ff6b5e;
+  --ch-glow: rgba(255, 107, 94, 0.65);
+}
+#crosshair.is-demolish .crosshair-line,
+#crosshair.is-demolish .crosshair-dot {
+  box-shadow: 0 0 8px var(--ch-glow);
+}
+.hud-demolish {
+  position: fixed;
+  left: 50%;
+  bottom: 88px;
+  z-index: 26;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  max-width: min(92vw, 560px);
+  padding: 10px 16px;
+  border: 1px solid rgba(255, 107, 94, 0.55);
+  border-radius: 10px;
+  background: rgba(28, 10, 10, 0.86);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 18px rgba(255, 107, 94, 0.18) inset;
+  pointer-events: none;
+  transform: translateX(-50%);
+  text-align: center;
+}
+.hud-demolish.is-on { display: flex; }
+.hud-demolish-title { color: #ffd9d4; font-size: 14px; letter-spacing: 0.02em; }
+.hud-demolish-sub { color: #ffb3aa; font-size: 12px; }
+.hud-demolish.is-blocked { border-color: rgba(255, 190, 90, 0.65); background: rgba(34, 24, 8, 0.9); }
+.hud-demolish.is-blocked .hud-demolish-title,
+.hud-demolish.is-blocked .hud-demolish-sub { color: #ffd28a; }
+@media (max-width: 720px) {
+  .hud-demolish { bottom: 72px; padding: 8px 12px; }
+  .hud-demolish-title { font-size: 13px; }
+  .hud-demolish-sub { font-size: 11px; }
+}

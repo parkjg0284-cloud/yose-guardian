@@ -230,7 +230,7 @@ try {
   if (t1) {
     const invested = attackDef.cost.gold;
     const sold = turrets.sell(t1.id);
-    check('판매 환불 70%', Boolean(sold), JSON.stringify(sold));
+    check('철거 환불 25%', Boolean(sold) && sold.gold === Math.floor(invested * 0.25), `${JSON.stringify(sold)} (기대 ${Math.floor(invested * 0.25)})`);
     check('판매 후 개수 감소', turrets.turrets.length === placed - 1, `${turrets.turrets.length}기`);
     turrets.place(attackDef.id, placeAt(0, 34), 'local');
   }
@@ -1118,7 +1118,16 @@ try {
   check('전선은 포탑 상한과 따로 센다', facTurrets.turrets.filter((t) => t.type.kind === 'cable').length === laidCables);
   // 부족(브라운아웃) — 전선을 팔아 끊으면 그 망의 채굴기가 멈춘다
   const cut = facTurrets.turrets.filter((t) => t.type.kind === 'cable')[0];
-  if (cut) facTurrets.sell(cut.id);
+  if (cut) {
+    const cutGoldBefore = facEco.gold;
+    const cutInvested = cut.investedCost.gold;
+    const cutSold = facTurrets.sell(cut.id);
+    check(
+      '시설물 철거 환불 25%',
+      Boolean(cutSold) && facEco.gold - cutGoldBefore === Math.floor(cutInvested * 0.25),
+      `${JSON.stringify(cutSold)} · 골드 ${cutGoldBefore} → ${facEco.gold}`
+    );
+  }
   facTurrets.updatePower(true);
   check('전선을 하나 끊으면 전기가 끊긴다', farDrill?.powered === false, JSON.stringify(farDrill?.powerNet));
 

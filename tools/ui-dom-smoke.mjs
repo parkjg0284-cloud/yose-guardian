@@ -285,8 +285,9 @@ console.log('\n== panels.js ==');
 const panelsMod = await import(ui('panels.js'));
 ok('PanelManager exported', typeof panelsMod.PanelManager === 'function');
 ok('PANEL_IDS has 18 ids (enchant · recipes · travel · arcana 추가)', panelsMod.PANEL_IDS.length === 18 && panelsMod.PANEL_IDS.includes('recipes') && panelsMod.PANEL_IDS.includes('travel') && panelsMod.PANEL_IDS.includes('arcana'), panelsMod.PANEL_IDS.join(','));
-ok('KEYBINDS has 27 rows (U 친구 추가 · Ctrl 앉기 · X/R 건물 회전 · V 날개 · H 시점 · O 전체화면)', panelsMod.KEYBINDS.length === 27, panelsMod.KEYBINDS.map((k) => k[0]).join(','));
+ok('KEYBINDS has 28 rows (U 친구 추가 · Ctrl 앉기 · X/R 건물 회전 · Z 철거 · V 날개 · H 시점 · O 전체화면)', panelsMod.KEYBINDS.length === 28, panelsMod.KEYBINDS.map((k) => k[0]).join(','));
 ok('KEYBINDS — 친구(U)', panelsMod.KEYBINDS.some(([k, d]) => k === 'U' && d === '친구'));
+ok('KEYBINDS — 철거(Z)', panelsMod.KEYBINDS.some(([k, d]) => k === 'Z' && String(d).includes('25%')));
 ok('KEYBINDS — 앉기(Ctrl) · R 유지 회전 항목 존재', panelsMod.KEYBINDS.some((k) => k[0] === 'Ctrl') && panelsMod.KEYBINDS.some((k) => k[0] === 'R (유지)'));
 const pm = attempt('PanelManager constructs (builds #panel-root)', () => new panelsMod.PanelManager({ game }));
 
@@ -919,6 +920,17 @@ if (pm) {
     root.dispatch('click', { target: card, preventDefault() {}, stopPropagation() {} });
     return pm.current === null && pm.hasOpen() === false && pm.state.build.selected === card.dataset.type;
   });
+  attempt('건설 패널 — 철거 모드 버튼이 이벤트를 보낸다', () => {
+    const seen = [];
+    const off = pm.on('demolish:start', () => seen.push(true));
+    pm.open('build');
+    const root = documentStub.getElementById('panel-root');
+    const btn = root.querySelectorAll('[data-act]').find((e) => e.dataset.act === 'build-demolish');
+    if (!btn) return false;
+    root.dispatch('click', { target: btn, preventDefault() {}, stopPropagation() {} });
+    off();
+    return seen.length === 1 && pm.current === null;
+  });
   attempt('포탑 선택 이벤트는 그대로 방출된다(건설 모드 배선 유지)', () => {
     const seen = [];
     const off = pm.on('build:select', (d) => seen.push(d?.typeId));
@@ -1130,6 +1142,15 @@ const menu = attempt('MainMenu constructs (builds #menu-root)', () => new menuMo
     '싱글 화면 — [불러오기] 가 카드 안에 있다',
     soloLoads.some((b) => b.dataset.mode === 'solo'),
     `modes=${soloLoads.map((b) => b.dataset.mode).join(',')}`
+  );
+  const seedRowLoads = documentStub
+    .getElementById('menu-root')
+    .querySelector('.solo-seedrow')
+    ?.querySelectorAll('[data-act="menu-load"]') ?? [];
+  ok(
+    '싱글 화면 — [불러오기] 가 시드 선택 줄에 있다',
+    seedRowLoads.some((b) => b.dataset.mode === 'solo'),
+    `seedRow=${seedRowLoads.length}`
   );
   menu.show('main');
   menu._heroAct('multi');
@@ -1540,6 +1561,25 @@ ok(
 hudGame.storageSummary = () => ({ count: 0, gold: 0, wood: 0, capacity: 0, powered: 0 });
 hud.update(0.1);
 ok('HUD 📦 칩 — 저장고 없으면 is-empty', hud._refs.storageChip.classList.contains('is-empty') === true, hud._refs.storage.textContent);
+hud.setDemolish({ active: true, target: { type: { name: '저장고' }, tier: 4 }, allowed: true });
+ok(
+  'HUD 철거 모드 — 대상·25% 환불·조준선 강조',
+  hud._refs.demolish.classList.contains('is-on') &&
+    String(hud._refs.demolishTitle.textContent).includes('저장고') &&
+    String(hud._refs.demolishSub.textContent).includes('25%') &&
+    (hud.crosshair?.classList.contains('is-demolish') ?? true),
+  `${hud._refs.demolishTitle.textContent} / ${hud._refs.demolishSub.textContent}`
+);
+hud.setDemolish({ active: true, target: { type: { name: '저장고' }, tier: 4 }, allowed: false });
+ok(
+  'HUD 철거 모드 — 동료 건물은 차단 안내',
+  hud._refs.demolish.classList.contains('is-blocked') &&
+    String(hud._refs.demolishTitle.textContent).includes('동료') &&
+    String(hud._refs.demolishSub.textContent).includes('내가 지은'),
+  `${hud._refs.demolishTitle.textContent} / ${hud._refs.demolishSub.textContent}`
+);
+hud.setDemolish({ active: false });
+ok('HUD 철거 모드 — 종료 시 숨김', hud._refs.demolish.classList.contains('is-on') === false);
 
 // Round C — 🏹 화살 칩(활 계열 소모품 · economy.totalArrows())
 const prevHudArrowEco = hudGame.economy;

@@ -2697,6 +2697,9 @@ section('마법부여 — 모든 무기 속성 부여 · 맨손 시작');
   check('turrets.js — yaw 저장/복원 + rotate API', turretSrc.includes('setYaw(') && /toJSON\(\) \{[\s\S]{0,420}?yaw: num\(this\.yaw, 0\)/.test(turretSrc) && turretSrc.includes('rotate(turretId'));
   check('net.js — turret:rotate 전송', netSrc.includes('sendTurretRotate'));
   check('server — turret:rotate 릴레이', serverSrc.includes("socket.on('turret:rotate'") && serverSrc.includes("type: 'turret:rotate'"));
+  check('turrets.js — 포탑·시설 철거 환불 25%', turretSrc.includes('export const SELL_REFUND = 0.25') && turretSrc.includes('sell(turretId)'));
+  check('main.js — 철거 모드(조준 레이캐스트·25% 환불·멀티 전송)', mainSrc.includes('setDemolish(') && mainSrc.includes('_findTurretAtCrosshair(') && mainSrc.includes('_tryDemolish(') && mainSrc.includes('sendTurretSell('));
+  check('panels.js — 건설 패널 철거 버튼', panelSrc.includes("'build-demolish'") && panelSrc.includes("'demolish:start'"));
 }
 
 // ────────────────────────────────────────── 캐릭터 · 앉기 · 로그인 전환 · 부드러운 회전
@@ -2902,7 +2905,7 @@ section('점프 우선 · 키 변경 (계약 §4.56 · §4.55)');
   check('keys — 무결성 검사(변경·중복 거부·ESC 고정·복원)', validateKeyData().length === 0, validateKeyData().join(' · ') || '전부 통과');
   check('keys — 기본값은 기존 하드코딩과 같다', keyCodes('jump').join(',') === 'Space' && keyCodes('forward').join(',') === 'KeyW,ArrowUp' && keyCodes('sit').join(',') === 'ControlLeft,ControlRight' && keyLabel('KeyP') === 'P');
   check('keys — ESC 는 바꿀 수 없다', setKey('jump', 'Escape', { persist: false }).ok === false && keyCodes('jump').join(',') === 'Space');
-  check('keys — 29개 동작이 모두 라벨/그룹을 가진다', KEY_ACTIONS.length === 29 && KEY_ACTIONS.every((a) => a.label && a.group && a.def.length > 0), KEY_ACTIONS.length + '개');
+  check('keys — 30개 동작이 모두 라벨/그룹을 가진다', KEY_ACTIONS.length === 30 && KEY_ACTIONS.every((a) => a.label && a.group && a.def.length > 0), KEY_ACTIONS.length + '개');
     check('keys — 시점 전환 동작이 있다(H 키)', (KEY_ACTIONS.find((a) => a.id === 'camera')?.def ?? []).includes('KeyH') === true, JSON.stringify((KEY_ACTIONS.find((a) => a.id === 'camera')?.def) ?? []));
   resetAllKeys({ persist: false });
 }

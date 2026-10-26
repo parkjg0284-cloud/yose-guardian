@@ -16,6 +16,7 @@ export const KEY_ACTIONS = [
   { id: 'ultimate', label: '무기 궁극기 · 건물 회전(누르는 동안)', group: '전투', def: ['KeyR'] },
   { id: 'swapWeapon', label: '무기 교체', group: '전투', def: ['KeyQ'] },
   { id: 'rotate', label: '건물 45° 회전 (달리기 키와 함께 = 반대 방향)', group: '전투', def: ['KeyX'] },
+  { id: 'demolish', label: '철거 모드 (좌클릭으로 건물 철거 · 재료 25% 환불)', group: '전투', def: ['KeyZ'] },
   { id: 'inventory', label: '인벤토리', group: '창', def: ['KeyI'] },
   { id: 'craft', label: '제작', group: '창', def: ['KeyC'] },
   { id: 'weapons', label: '무기', group: '창', def: ['Tab'] },

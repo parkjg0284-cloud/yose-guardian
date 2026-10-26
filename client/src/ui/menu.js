@@ -738,6 +738,13 @@ export class MainMenu {
     seedGallery.type = 'button';
     seedGallery.dataset.act = 'menu-seeds';
     seedRow.appendChild(seedGallery);
+    // 저장한 게임 이어하기 — 시드를 고르는 이 줄에서 바로 불러온다(사용자 요청).
+    const seedLoad = h('button', 'btn ghost btn-ghost solo-load', '📂 불러오기');
+    seedLoad.type = 'button';
+    seedLoad.dataset.act = 'menu-load';
+    seedLoad.dataset.mode = 'solo';
+    seedLoad.title = '저장한 게임을 이어서 합니다';
+    seedRow.appendChild(seedLoad);
     seedBox.appendChild(seedRow);
     start.appendChild(seedBox);
 
@@ -770,13 +777,6 @@ export class MainMenu {
     solo.type = 'button';
     solo.dataset.act = 'menu-start';
     acts.appendChild(solo);
-    // 저장한 게임 이어하기 — 플레이 화면 안에 둔다(사용자 요청).
-    const loadSolo = h('button', 'btn ghost btn-ghost solo-load', '📂 불러오기');
-    loadSolo.type = 'button';
-    loadSolo.dataset.act = 'menu-load';
-    loadSolo.dataset.mode = 'solo';
-    loadSolo.title = '저장한 게임을 이어서 합니다';
-    acts.appendChild(loadSolo);
     start.appendChild(acts);
 
     if (safe(() => this.game?.state) === 'paused') {

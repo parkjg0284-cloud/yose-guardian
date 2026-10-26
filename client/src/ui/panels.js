@@ -198,6 +198,7 @@ export const KEYBINDS = [
   ['B', '건설'],
   ['Ctrl', '앉기 (누르는 동안)'],
   ['X', '건물 45° 회전 (Shift+X 반대)'],
+  ['Z', '철거 모드 (좌클릭 철거 · 재료 25% 환불)'],
   ['R (유지)', '조준한 건물 부드럽게 회전'],
   ['E', '부여대 · 🔮 마법부여'],
   ['J', '업적'],
@@ -659,6 +660,10 @@ export class PanelManager {
       case 'build-cat':
         this.state.build.category = d.cat || 'attack';
         this._render('build');
+        break;
+      case 'build-demolish':
+        this.emit('demolish:start');
+        this.close();
         break;
       case 'build-tier':
         this.state.build.tier = Number(d.tier) || 0;
@@ -1186,6 +1191,10 @@ export class PanelManager {
     const st = this.state.build;
     body.textContent = '';
     body.appendChild(row('보유 자원', `골드 ${fmt(g?.economy?.gold ?? 0)} · 목재 ${fmt(g?.economy?.wood ?? 0)}`));
+    const demolishBtn = h('button', 'btn ghost btn-ghost build-demolish', '🔨 철거 모드 — 조준한 포탑·시설 철거 (재료 25% 환불 · Z)');
+    demolishBtn.type = 'button';
+    demolishBtn.dataset.act = 'build-demolish';
+    body.appendChild(demolishBtn);
     const sel = st.selected ? TURRET_BY_ID[st.selected] : null;
     body.appendChild(row('선택한 포탑', sel ? `${sel.name} · 사거리 ${num(sel.range)} m` : '없음 (카드 클릭 또는 1~9)'));
     if (sel) body.appendChild(row('설명', sel.desc || '-'));

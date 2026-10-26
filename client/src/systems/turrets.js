@@ -29,7 +29,7 @@ export const TURRET_AIM = Object.freeze({ turnRate: 4.5, holdTime: 1.6 });
 const wrapPi = (a) => Math.atan2(Math.sin(num(a, 0)), Math.cos(num(a, 0)));
 export const MAX_SLOPE = 0.6;
 export const MAX_TIER = 7;
-export const SELL_REFUND = 0.7;
+export const SELL_REFUND = 0.25;
 const OBSTACLE_CLEARANCE = 1.2;
 /** 주변 자원 재탐색 간격(초) — 건물이 늘어도 프레임 비용이 고정되게 한다 */
 const RESCAN_INTERVAL = 0.25;
@@ -1772,7 +1772,7 @@ export class TurretSystem {
     return { ok: true, yaw: value, degrees: turret.yawDegrees, turret };
   }
 
-  /** 70% 환불 후 철거. */
+  /** 건물을 철거하고 투자 재료의 25%를 돌려준다(포탑·시설 공통). */
   sell(turretId) {
     const turret = this.find(turretId);
     if (!turret) return null;

@@ -786,3 +786,15 @@ npm install 이 실패한다
   [검증] smoke 951/951 · headless 578/578 · ui-dom 342/342 · mp 37/37 · e2e 94/94 · pages 12/0
          실전 브라우저 조준선 12/12 · 세이브 9/9 · 최적화 13/13(적 120기 · 드로콜 603 · 삼각형 212,740 · 자동 60%)
   끝.
+[49] 포탑·시설 철거 25% 환불 · 시드 선택창 불러오기 (v1.13.0)
+  [요청] 포탑·시설물 철거 · 철거 시 재료 25% 환불 · 불러오기를 시드 선택창에 · 멀티플레이 철거 · GitHub 업로드
+  · 철거 — Z(키 설정 demolish, KeyZ) 토글 · 건설 패널 [🔨 철거 모드] 버튼
+    조준선 중앙 10m 레이캐스트 · 포탑·시설 공통 TurretSystem.turrets · 좌클릭 _tryDemolish()
+    sell() SELL_REFUND 0.25 → 골드·목재·광물 floor(투자×0.25), 원격은 removeRemote 라 환불 없음
+    HUD .hud-demolish 대상 이름/티어 · 25% 안내 · 동료 건물 차단 · 조준선 적색(종료 시 원래 색)
+  · 멀티 — 클라이언트는 ownerId===net.id 만 · 서버 Room.removeTurret 소유자/방장만 · turret:sell 1회 중계
+  · 시드 — .solo-seedrow 에 [📂 불러오기](menu-load, mode=solo) · 하단 중복 버튼 제거
+  · 문서 — README 기능/조작(Z) · docs 배지 v1.13.0 · 특징 카드 '철거 · 시드 불러오기'
+  [검증] smoke 954/954 · headless 579/579 · ui-dom 348/348 · mp 37/37
+         실전 브라우저 .tmp/demolish-live.mjs 17/17 — 작업대 162g·40w·철1·구리1, 포탑 15g·3w, 조준선 적색/원복, Z 토글, HUD/조준선 원복, 예외 0
+  끝.
