@@ -2158,3 +2158,18 @@ GitHub 에 이미 올라가 있으면 다시 올리지 않는다.
 - `tools/ui-dom-smoke.mjs` 349/349 — 난이도 버튼 5개, 캐릭터 카드 9개.
 - `tools/character-bugtest.mjs` 71/71 — 외형 9종.
 - `npm run verify` — **2,286개 통과**(빌드 포함). `cmd-lint` 13/13, 멀티 38/38.
+
+---
+
+## §4.84 초대 링크·초대코드 참가 수정 (v1.19.1)
+
+- `client/src/utils/invite.js` 의 `resolveShareOrigin` 은 `publicUrl`(서버 `PUBLIC_URL`) → 현재 비루프백 origin →
+  같은 protocol 의 LAN URL 순으로 고른다. 루프백(`localhost`·`127.0.0.1`)은 초대 링크의 기준으로 쓰지 않는다.
+- `main.js` 의 `createInviteCode` 는 `/api/net` 을 먼저 `await` 하고, 새 코드를 `saveLastCode` 로 저장한 뒤
+  `setShareInfo({ address, code, link })` 로 **방금 만든 링크**를 UI 에 넘긴다. 메뉴의 링크는 `share.link` 를 그대로 표시한다.
+- `lobby.js` 의 참가 실패 안내는 현재 서버 주소와 "같은 서버인지"를 함께 표시한다. 초대코드는 서버 인스턴스 범위이므로
+  다른 서버에 접속한 친구는 코드만으로 참가할 수 없다.
+- 공개 서버는 `PORT=9685`·`PUBLIC_URL=<터널 주소>` 로 운용한다. 터널을 재시작하면 주소가 바뀌므로 `.env` 의
+  `PUBLIC_URL` 과 새 초대 링크를 갱신한다. 기존 링크는 새 주소로 자동 이전되지 않는다.
+- 검사: `tools/smoke.mjs` 981/981(공유 주소 우선순위·저장 순서), `tools/ui-dom-smoke.mjs` 351/351(표시 링크·같은 서버 안내),
+  `tools/lan-guest-check.mjs` 9/9(공개 경로 생성·참가·시작).
