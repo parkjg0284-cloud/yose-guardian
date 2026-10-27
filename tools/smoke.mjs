@@ -1155,9 +1155,9 @@ section('멀티플레이 공유 주소 (다른 사람도 링크로 참가)');
     'resolveShareOrigin — PUBLIC_URL(터널)이 있으면 localhost/LAN 대신 공개 주소',
     resolveShareOrigin({
       origin: 'http://localhost:3001',
-      lanUrls: ['https://donor-ltd-stability-arising.trycloudflare.com', 'http://192.168.0.12:3001'],
-      publicUrl: 'https://donor-ltd-stability-arising.trycloudflare.com'
-    }) === 'https://donor-ltd-stability-arising.trycloudflare.com'
+      lanUrls: ['https://play.example.com', 'http://192.168.0.12:3001'],
+      publicUrl: 'https://play.example.com'
+    }) === 'https://play.example.com'
   );
   check(
     'resolveShareOrigin — LAN 주소도 없으면 지금 주소 유지(같은 PC 전용)',
