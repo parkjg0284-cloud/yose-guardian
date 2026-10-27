@@ -278,6 +278,14 @@ export class Lobby {
       this.emit('joined', { code: c, state: this.room, auto });
     } else {
       this.error = String(res?.error || '참가하지 못했습니다');
+      // 방을 못 찾는 경우는 코드 오타보다 **서로 다른 서버**에 접속한 경우가 많다.
+      // 그때는 지금 서버 주소를 함께 보여 줘야 원인을 찾을 수 있다.
+      if (/찾을 수 없습니다/.test(this.error)) {
+        const server = this._shareOrigin();
+        this.error += server
+          ? ` — 친구와 같은 서버인지 확인하세요 (지금 서버: ${server})`
+          : ' — 친구와 같은 서버인지 확인하세요';
+      }
       this.view = 'entry';
       this.emit('join-failed', { code: c, error: this.error });
     }
@@ -448,7 +456,8 @@ export class Lobby {
   _shareOrigin() {
     return resolveShareOrigin({
       origin: safe(() => globalThis.location?.origin, ''),
-      lanUrls: safe(() => netInfo.urls(), []) || []
+      lanUrls: safe(() => netInfo.urls(), []) || [],
+      publicUrl: safe(() => netInfo.data?.publicUrl, null)
     });
   }
 
@@ -795,9 +804,13 @@ export class Lobby {
     }
     join.appendChild(joinActs);
 
-    const err = el('div', 'lobby-hint', this.error || '친구에게 받은 코드를 입력하면 바로 참가됩니다');
+    const err = el('div', 'lobby-hint', this.error || '같은 서버에 접속한 친구의 코드만 참가됩니다 — 친구의 초대 링크나 서버 주소로 먼저 접속하세요');
     err.dataset.role = 'join-error';
     join.appendChild(err);
+    // 초대코드는 서버(방장이 켠 곳) 안에서만 찾는다. 친구가 자기 PC 의 서버에 코드를 넣으면
+    // 방을 찾지 못하므로, 지금 접속 중인 서버 주소를 같이 보여 준다.
+    const server = this._shareOrigin();
+    join.appendChild(el('div', 'lobby-hint', `지금 서버: ${server || '확인 중…'} — 친구도 이 서버에 접속해야 코드가 통합니다.`));
     join.appendChild(row('초대 링크', this.state.code ? this._link() : '—'));
     if (this.state.code && this._linkIsLocalOnly()) {
       join.appendChild(el('div', 'lobby-hint warn', '이 주소는 이 PC 전용입니다 — 다른 기기에서 참가하려면 서버 PC 의 LAN 주소로 접속하세요.'));

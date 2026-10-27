@@ -2,7 +2,7 @@
 // #menu-root 안에 타이틀 화면을 그리고, 시작/멀티/설정/도움말/로그인 이벤트만 발행한다.
 import { VERSION, MODES, DIFFICULTIES, SEED_GALLERY, FRAME_PRESETS } from '../data.js';
 import { normalizeSeed } from '../utils/rng.js';
-import { INVITE_CODE_LENGTH, isValidInviteCode, inviteLink, loadLastCode, normalizeInviteCode } from '../utils/invite.js';
+import { INVITE_CODE_LENGTH, isValidInviteCode, loadLastCode, normalizeInviteCode } from '../utils/invite.js';
 import { auth, roomList } from '../net.js';
 import { NICKNAME_MAX, currentNickname, nicknameFor, setNickname } from '../profile.js';
 import { ENDLESS_UNLOCK_WAVE, isEndlessUnlocked } from '../progress.js';
@@ -913,7 +913,22 @@ export class MainMenu {
       multiActs.appendChild(again);
     }
     multi.appendChild(multiActs);
-    multi.appendChild(h('span', 'multi-link', `초대 링크 · ${loadLastCode() ? inviteLink(loadLastCode()) : '—'}`));
+    // 화면에 보이는 링크도 **방금 만든 공유 링크(_share.link)** 를 그대로 쓴다.
+    // 예전에는 loadLastCode() 로 다시 만들었기 때문에 (1) 이전 방 코드가 보이거나
+    // (2) localhost 주소가 보여 다른 사람이 열 수 없는 링크를 복사하는 일이 있었다.
+    const shareLink = String(share.link || '');
+    const linkEl = h('a', 'multi-link', `초대 링크 · ${shareLink || '—'}`);
+    linkEl.dataset.role = 'share-link';
+    if (shareLink) {
+      linkEl.href = shareLink;
+      linkEl.target = '_blank';
+      linkEl.rel = 'noopener noreferrer';
+      linkEl.title = '새 탭에서 초대 링크 열기';
+    } else {
+      linkEl.classList.add('is-empty');
+      linkEl.removeAttribute?.('href');
+    }
+    multi.appendChild(linkEl);
     // ④ 열린 방 — 같은 서버에 접속한 사람끼리 코드 없이 참가 (멀티 한 창 안에)
     const roomsBlock = h('div', 'multi-block multi-block-wide');
     const roomsHead = h('div', 'multi-block-head');

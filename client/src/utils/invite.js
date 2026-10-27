@@ -96,12 +96,17 @@ export function isLoopbackOrigin(origin) {
 
 /**
  * 남에게 보낼 초대 링크의 기준 주소를 고른다.
+ *  - 서버가 PUBLIC_URL(터널·도메인)을 알려주면 그것을 가장 먼저 쓴다(모두가 열 수 있는 주소).
  *  - 지금 접속한 주소가 localhost 가 아니면 그대로 쓴다(터널·도메인·LAN 접속).
  *  - localhost 라면 서버가 알려준 LAN 주소를 쓴다(protocol 이 같으면 우선).
  *  - LAN 주소도 없으면 어쩔 수 없이 지금 주소를 쓴다(같은 PC 전용).
  */
-export function resolveShareOrigin({ origin = null, lanUrls = null, protocol = null } = {}) {
+export function resolveShareOrigin({ origin = null, lanUrls = null, protocol = null, publicUrl = null } = {}) {
   const current = trimSlash(origin == null ? safeOrigin() : String(origin));
+  // 서버가 PUBLIC_URL(터널·도메인)을 알고 있으면 그것이 **모두에게 열리는 주소**다.
+  // localhost 에서 초대할 때 LAN 주소를 고르면 인터넷 너머 친구는 링크를 열 수 없다.
+  const pub = trimSlash(publicUrl == null ? '' : String(publicUrl));
+  if (pub) return pub;
   if (!isLoopbackOrigin(current)) return current;
   const urls = (Array.isArray(lanUrls) ? lanUrls : []).map((u) => trimSlash(String(u ?? ''))).filter(Boolean);
   if (!urls.length) return current;

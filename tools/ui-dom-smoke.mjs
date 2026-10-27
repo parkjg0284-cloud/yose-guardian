@@ -1411,13 +1411,33 @@ if (menu) {
     return kinds === 'address,link';
   });
   attempt('setShareInfo 가 만든 주소·코드를 화면에 보여준다', () => {
-    menu.setShareInfo({ address: 'http://192.168.0.10:3001', code: 'K7F2', link: 'http://192.168.0.10:3001/?code=K7F2' });
+    menu.setShareInfo({ address: 'http://192.168.0.10:3001', code: 'K7F2', link: 'http://192.168.0.10:3001/?room=K7F2' });
     menu.show('main');
     menu._heroAct('multi');
     const root = documentStub.getElementById('menu-root');
     const addr = root.querySelector('[data-role="share-address"]');
     const code = root.querySelector('[data-role="share-code"]');
     return Boolean(addr?.textContent?.includes('192.168.0.10')) && Boolean(code?.textContent?.includes('K7F2'));
+  });
+  attempt('초대 링크 표시가 방금 만든 링크와 같다(옛 코드·localhost 금지)', () => {
+    // 예전 버그: loadLastCode() 로 다시 만들어 이전 방 코드가 보이거나, localhost 링크가 보였다.
+    menu.setShareInfo({ address: 'http://192.168.0.10:3001', code: 'OLD1', link: 'http://192.168.0.10:3001/?room=OLD1' });
+    menu.setShareInfo({ address: 'http://192.168.0.10:3001', code: 'K7F2', link: 'http://192.168.0.10:3001/?room=K7F2' });
+    menu.show('main');
+    menu._heroAct('multi');
+    const root = documentStub.getElementById('menu-root');
+    const link = root.querySelector('[data-role="share-link"]');
+    const addr = root.querySelector('[data-role="share-address"]');
+    const text = String(link?.textContent ?? '');
+    const href = String(link?.href ?? '');
+    return (
+      text.includes('K7F2') &&
+      href.includes('room=K7F2') &&
+      String(addr?.textContent ?? '').includes('192.168.0.10') &&
+      !text.includes('OLD1') &&
+      !text.includes('localhost') &&
+      !text.includes('127.0.0.1')
+    );
   });
   // 회귀: 메뉴의 설정/협동/로그인은 패널을 "한 번만" 토글해야 한다.
   // (emit + togglePanel 이중 호출 → 열리자마자 닫히고 메뉴까지 숨겨 빈 화면이 되던 버그)
@@ -2092,6 +2112,7 @@ const bad = await lobby.join('ZZZZ');
 ok('없는 코드 → 실패', bad.ok === false && String(bad.error).includes('찾을 수 없습니다'), String(bad.error));
 ok('실패 후 entry 로 복귀', lobby.view === 'entry');
 ok('실패 사유가 화면에 표시', String(lobbyRoot.querySelector('[data-role="join-error"]')?.textContent ?? '').includes('찾을 수 없습니다'));
+ok('방을 못 찾으면 같은 서버인지 안내', String(lobbyRoot.querySelector('[data-role="join-error"]')?.textContent ?? '').includes('같은 서버'));
 
 calls.length = 0;
 lobby.open({ code: 'k7f2', auto: true });

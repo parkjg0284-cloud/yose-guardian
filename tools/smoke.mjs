@@ -1152,6 +1152,14 @@ section('멀티플레이 공유 주소 (다른 사람도 링크로 참가)');
       'https://game.example.com'
   );
   check(
+    'resolveShareOrigin — PUBLIC_URL(터널)이 있으면 localhost/LAN 대신 공개 주소',
+    resolveShareOrigin({
+      origin: 'http://localhost:3001',
+      lanUrls: ['https://donor-ltd-stability-arising.trycloudflare.com', 'http://192.168.0.12:3001'],
+      publicUrl: 'https://donor-ltd-stability-arising.trycloudflare.com'
+    }) === 'https://donor-ltd-stability-arising.trycloudflare.com'
+  );
+  check(
     'resolveShareOrigin — LAN 주소도 없으면 지금 주소 유지(같은 PC 전용)',
     resolveShareOrigin({ origin: 'http://localhost:3001', lanUrls: [] }) === 'http://localhost:3001' &&
       resolveShareOrigin({ origin: 'http://localhost:3001' }) === 'http://localhost:3001'
@@ -1173,6 +1181,8 @@ section('멀티플레이 배선 계약 (로비 → /api/net → LAN 링크)');
   const mpServer = readFileSync(new URL('../server/index.js', import.meta.url), 'utf8');
   const mpNet = readFileSync(new URL('../client/src/net.js', import.meta.url), 'utf8');
   const mpLobby = readFileSync(new URL('../client/src/ui/lobby.js', import.meta.url), 'utf8');
+  const mpMenu = readFileSync(new URL('../client/src/ui/menu.js', import.meta.url), 'utf8');
+  const mpMain = readFileSync(new URL('../client/src/main.js', import.meta.url), 'utf8');
   const mpDev = readFileSync(new URL('../tools/dev.mjs', import.meta.url), 'utf8');
 
   check(
@@ -1193,6 +1203,15 @@ section('멀티플레이 배선 계약 (로비 → /api/net → LAN 링크)');
     mpLobby.includes('_linkIsLocalOnly()') && mpLobby.includes("dataset.role = 'link-hint'")
   );
   check('로비를 열 때 공유 주소를 받아 다시 그린다', /_loadShareUrls\(\)/.test(mpLobby) && mpLobby.includes('netInfo.load()'));
+  check(
+    '초대코드 생성 — 새 코드를 저장하고 공유 주소를 먼저 받는다',
+    /if \(code\) saveLastCode\(code\)/.test(mpMain) &&
+      /await safe\(\(\) => netInfo\.load\(\), null\)[\s\S]{0,200}inviteLink/.test(mpMain)
+  );
+  check(
+    '메인 화면 초대 링크 = 방금 만든 공유 링크(loadLastCode 재생성 금지)',
+    mpMenu.includes('const shareLink = String(share.link') && !mpMenu.includes('inviteLink(loadLastCode())')
+  );
   check(
     'dev 런처가 공유 주소·방화벽·터널 안내를 출력',
     mpDev.includes('localShareUrls(') && mpDev.includes('netsh advfirewall') && mpDev.includes('cloudflared tunnel')

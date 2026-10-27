@@ -65,7 +65,7 @@ import { PanelManager } from './ui/panels.js';
 import { FPSMonitor, applyFramePreset } from './ui/fps.js';
 import { MainMenu } from './ui/menu.js';
 import { Lobby } from './ui/lobby.js';
-import { codeFromUrl, inviteLink, resolveShareOrigin } from './utils/invite.js';
+import { codeFromUrl, inviteLink, resolveShareOrigin, saveLastCode } from './utils/invite.js';
 import { playCutscene } from './ui/cutscene.js';
 import { net, auth, cloudSave, leaderboard, statsApi, netInfo, normalizeServerAddress, setApiBase } from './net.js';
 import { BARE_HAND, harvestHint, harvestNode, pickHarvestNode } from './systems/gathering.js';
@@ -3610,7 +3610,13 @@ class Game {
   /** 남에게 알려줄 내 서버 주소 — 서버가 알려준 LAN 주소를 우선 쓴다(초대 링크와 같은 규칙). */
   _shareOrigin() {
     const origin = typeof location !== 'undefined' ? location.origin : '';
-    return resolveShareOrigin({ origin, lanUrls: safe(() => netInfo.urls(), []) || [] }) || origin;
+    return (
+      resolveShareOrigin({
+        origin,
+        lanUrls: safe(() => netInfo.urls(), []) || [],
+        publicUrl: safe(() => netInfo.data?.publicUrl, null)
+      }) || origin
+    );
   }
 
   /** [🌐 주소 만들기] — 친구가 접속할 내 서버 주소를 만들어 메뉴에 보여준다. */
@@ -3649,8 +3655,16 @@ class Game {
       return null;
     }
     const code = res.code || res.state?.code || '';
-    const link = code ? inviteLink(code, this._shareOrigin()) : '';
-    this.ui?.menu?.setShareInfo?.({ code, link });
+    // 최근 코드/링크가 이전 방의 코드로 남지 않게 **새 코드를 즉시 저장**한다.
+    // (저장하지 않으면 메인 화면의 '최근 코드'와 초대 링크가 옛 방을 가리켜 참가가 실패한다)
+    if (code) saveLastCode(code);
+    // 초대 링크를 만들기 전에 서버가 알려준 공유 주소를 먼저 받는다.
+    // 이걸 건너뛰면 localhost 에서 만든 링크가 `http://127.0.0.1:3001` 로 굳어
+    // **친구 PC 에서는 절대 열 수 없는 링크**가 된다(초대 링크 참가 실패의 원인).
+    await safe(() => netInfo.load(), null);
+    const address = this._shareOrigin();
+    const link = code ? inviteLink(code, address) : '';
+    this.ui?.menu?.setShareInfo?.({ address, code, link });
     this.notify(`초대코드 ${code} 를 만들었습니다 — [초대 링크 복사] 로 보내세요`, 'success');
     return code;
   }
