@@ -3607,7 +3607,7 @@ class Game {
     return ok;
   }
 
-  /** 남에게 알려줄 내 서버 주소 — 서버가 알려준 LAN 주소를 우선 쓴다(초대 링크와 같은 규칙). */
+  /** 남에게 알려줄 내 서버 주소 — 서버의 PUBLIC_URL(터널) → LAN 주소 순으로 고른다(초대 링크와 같은 규칙). */
   _shareOrigin() {
     const origin = typeof location !== 'undefined' ? location.origin : '';
     return (

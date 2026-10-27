@@ -452,7 +452,7 @@ export class Lobby {
     return `${nick} · 서버 연결 대기 (${safe(() => net.lastError, '') || '오프라인'})`;
   }
 
-  /** 초대 링크의 기준 주소 — localhost 면 서버가 알려준 LAN 주소를 쓴다 */
+  /** 초대 링크의 기준 주소 — 서버의 PUBLIC_URL(터널) → LAN 주소 순으로 고른다 */
   _shareOrigin() {
     return resolveShareOrigin({
       origin: safe(() => globalThis.location?.origin, ''),
