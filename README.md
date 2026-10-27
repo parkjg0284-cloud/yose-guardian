@@ -7,6 +7,8 @@
 [![License](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 > 🌐 **웹사이트:** https://parkjg0284-cloud.github.io/yose-guardian/ — 다운로드 · 스크린샷 · 조작을 한눈에
+>
+> 💬 **디스코드:** https://discord.gg/BSCgjrmTEx — 업데이트 소식 · 파티 모집 · 버그 제보
 
 ---
 

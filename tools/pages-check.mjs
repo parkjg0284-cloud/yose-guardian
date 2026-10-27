@@ -140,6 +140,7 @@ const info = await evalJs(`(() => {
     imgs,
     launcher: links.filter((h) => h.includes('YoseGuardian-Launcher.exe')).length,
     repo: links.filter((h) => h.includes('github.com/parkjg0284-cloud/yose-guardian')).length,
+    discord: links.filter((h) => h.includes('discord.gg/BSCgjrmTEx')).length,
     scrollW: document.documentElement.scrollWidth,
     innerW: window.innerWidth,
     bodyH: document.body.getBoundingClientRect().height,
@@ -157,6 +158,7 @@ const badImgs = (info?.imgs || []).filter((i) => !i.ok);
 check('스크린샷 로드', (info?.imgs || []).length >= 2 && badImgs.length === 0, badImgs.map((i) => i.src).join(',') || `${info?.imgs?.length}장`);
 check('런처 다운로드 링크', (info?.launcher || 0) >= 1, `links=${info?.launcher}`);
 check('GitHub 링크', (info?.repo || 0) >= 3, `links=${info?.repo}`);
+check('디스코드 초대 링크', (info?.discord || 0) >= 3, `links=${info?.discord}`);
 check('가로 넘침 없음', (info?.scrollW || 0) <= (info?.innerW || 0) + 1, `${info?.scrollW} <= ${info?.innerW}`);
 check('콘솔 오류 없음', errors.length === 0, errors[0] || '');
 

@@ -48,6 +48,11 @@
   nav.links a{text-decoration:none; opacity:.9}
   nav.links a:hover{color:var(--gold); opacity:1}
   nav.links .gh{border:1px solid rgba(255,255,255,.16); padding:7px 12px; border-radius:999px}
+  nav.links .dc{
+    border:1px solid rgba(124,134,255,.55); padding:7px 12px; border-radius:999px;
+    background:rgba(88,101,242,.16); color:#dfe2ff; font-weight:700;
+  }
+  nav.links .dc:hover{background:rgba(88,101,242,.3); border-color:#8b95ff}
   @media (max-width:760px){ nav.links a:not(.gh){display:none} }
 
   /* ── 히어로 */
@@ -77,6 +82,12 @@
   .btn.primary:hover{transform:translateY(-2px); box-shadow:0 16px 36px rgba(201,154,76,.36)}
   .btn.ghost{border:1px solid rgba(255,255,255,.16); color:#e7e9ef; background:rgba(255,255,255,.03)}
   .btn.ghost:hover{background:rgba(255,255,255,.07); transform:translateY(-2px)}
+  .btn.discord{
+    background:linear-gradient(180deg,#7c86ff,#5865f2); color:#fff;
+    box-shadow:0 12px 30px rgba(88,101,242,.3), inset 0 1px 0 rgba(255,255,255,.22);
+  }
+  .btn.discord:hover{transform:translateY(-2px); box-shadow:0 16px 36px rgba(88,101,242,.42)}
+  .btn.discord .dc-mark{display:inline-block; width:17px; height:17px; margin-right:6px; vertical-align:-3px}
   ul.facts{display:flex; flex-wrap:wrap; gap:10px 18px; list-style:none; margin:26px 0 0; padding:0; color:#aeb4c0; font-size:13px}
   ul.facts li{display:flex; align-items:center; gap:7px}
   ul.facts li::before{content:""; width:5px; height:5px; border-radius:50%; background:var(--gold2)}
@@ -167,6 +178,7 @@
       <a href="#features">게임 소개</a>
       <a href="#updates">업데이트</a>
       <a href="#controls">조작</a>
+      <a class="dc" href="https://discord.gg/BSCgjrmTEx" target="_blank" rel="noopener noreferrer">디스코드 ↗</a>
       <a class="gh" href="https://github.com/parkjg0284-cloud/yose-guardian">GitHub ↗</a>
     </nav>
   </div>
@@ -191,6 +203,10 @@
           <a class="btn ghost" href="https://github.com/parkjg0284-cloud/yose-guardian/releases/latest">
             모든 파일 보기
             <small>Setup · Downloader · game.zip</small>
+          </a>
+          <a class="btn discord" href="https://discord.gg/BSCgjrmTEx" target="_blank" rel="noopener noreferrer">
+            <span><svg class="dc-mark" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.865-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.058a.082.082 0 0 0 .031.056c2.053 1.508 4.041 2.423 5.993 3.03a.078.078 0 0 0 .084-.028c.462-.63.873-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 12.99 12.99 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.372-.291a.074.074 0 0 1 .078-.01c3.928 1.793 8.18 1.793 12.061 0a.074.074 0 0 1 .079.009c.12.1.246.198.373.292a.077.077 0 0 1-.007.128 12.3 12.3 0 0 1-1.873.891.077.077 0 0 0-.04.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.029c1.961-.607 3.95-1.522 6.002-3.03a.077.077 0 0 0 .032-.055c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028ZM8.02 15.331c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.211 0 2.176 1.096 2.157 2.419 0 1.334-.956 2.419-2.157 2.419Zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.21 0 2.175 1.096 2.157 2.419 0 1.334-.946 2.419-2.157 2.419Z"/></svg>디스코드 서버</span>
+            <small>실시간 소통 · 파티 모집</small>
           </a>
         </div>
         <ul class="facts">
@@ -364,7 +380,8 @@
     <div>
       <a href="https://github.com/parkjg0284-cloud/yose-guardian">GitHub</a> ·
       <a href="https://github.com/parkjg0284-cloud/yose-guardian/releases/latest">Releases</a> ·
-      <a href="https://github.com/parkjg0284-cloud/yose-guardian#readme">README</a>
+      <a href="https://github.com/parkjg0284-cloud/yose-guardian#readme">README</a> ·
+      <a href="https://discord.gg/BSCgjrmTEx" target="_blank" rel="noopener noreferrer">디스코드</a>
     </div>
   </div>
 </footer>
