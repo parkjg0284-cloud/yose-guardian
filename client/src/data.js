@@ -216,10 +216,10 @@ export const POWER = Object.freeze({
    * 전기를 쓰는 것은 **생산 시설**뿐이다 — 채굴기·저장고·소환문.
    * 작업대·마법부여대는 수동 시설, 컨베이어벨트는 기계식이라 전기가 필요 없다(0kW).
    */
-  draw: Object.freeze({ autominer: 3, storage: 2, spawner: 4, workbench: 0, enchanter: 0 })
+  draw: Object.freeze({ autominer: 3, storage: 2, spawner: 4, workbench: 0, enchanter: 0, factory: 3 })
 });
 
-// ──────────────────────────────────────────────── 포탑 (공격47·회복7·채굴7·벌목7·시설)
+// ──────────────────────────────────────────────── 포탑 (공격47·회복7·채굴7·벌목7·시설33·공장56·포탈8)
 // ──────────────────────────────────────────────── 가죽 5종 (몬스터 사냥 보상)
 // 가죽은 광물처럼 인벤토리에 쌓이지만 **캐는 것이 아니라 몬스터를 잡아 얻는다.**
 // 지형 티어가 높은 지역의 몬스터일수록 상위 가죽(용 가죽·유물 가죽)을 떨군다.
@@ -377,7 +377,8 @@ export const TURRET_CATEGORIES = {
   heal: { id: 'heal', name: '회복탑', icon: '✚', desc: '주변 구조물·기지·아군을 회복시킨다.' },
   mining: { id: 'mining', name: '채굴탑', icon: '⛏', desc: '반경 내 광물을 자동으로 채굴한다.' },
   lumber: { id: 'lumber', name: '벌목탑', icon: '🪓', desc: '반경 내 나무를 자동으로 벌목한다.' },
-  facility: { id: 'facility', name: '시설', icon: '🏗', desc: '작업대·저장고·채굴기·컨베이어벨트·몬스터 소환문을 세운다.' }
+  facility: { id: 'facility', name: '시설', icon: '🏗', desc: '작업대·저장고·채굴기·컨베이어벨트·몬스터 소환문을 세운다.' },
+  factory: { id: 'factory', name: '공장', icon: '🏭', desc: '티어별 공장을 세워 골드·목재·광물을 자동 생산한다. 물통로는 주변 공장을 돕는다.' }
 };
 
 // 공격 계열 7종 — 계열별 이펙트/속성/색
@@ -639,6 +640,133 @@ const SPAWNER_TABLE = [
   { tier: 7, spawnInterval: 6, spawnCount: 4, hp: 1200, color: 0xff5252, cost: { gold: 96000, wood: 9600, minerals: tierMinerals(7, 13, 9) } }
 ];
 
+// ── 공장 8종 × 티어 7단계 ────────────────────────────────────────────────
+//  · 모든 공장은 전기를 쓰고, 전기가 없으면 생산이 멈춘다.
+//  · 물통로만 직접 생산하지 않고 **반경 안 공장의 생산 속도**를 높인다.
+//  · 산출물은 기존 경제(골드·목재·광물)로 들어가므로 별도 재화·저장 형식이 필요 없다.
+const FACTORY_TABLE = [
+  {
+    key: 'water', name: '물추출기', icon: '💧', color: 0x5fc4ff, element: 'water',
+    gold: 520, wood: 120, hp: 500, draw: 2,
+    outputs: [{ kind: 'gold', amount: 2.2, label: '물 판매' }],
+    desc: '지하수를 끌어올려 정수한 뒤 팔아 골드를 만든다.'
+  },
+  {
+    key: 'waterway', name: '물통로', icon: '🌊', color: 0x3fb6d9, element: 'water',
+    gold: 380, wood: 90, hp: 360, draw: 1,
+    factoryBoost: 0.12,
+    outputs: [],
+    desc: '물을 흘려보내 주변 공장의 기계를 식힌다 — 반경 안 공장 생산량을 높인다.'
+  },
+  {
+    key: 'clay', name: '점토·씨맛 제조기', icon: '🧱', color: 0xb57a4a, element: 'earth',
+    gold: 900, wood: 180, hp: 620, draw: 2,
+    outputs: [
+      { kind: 'mineral', id: 'clay', amount: 0.45, label: '점토' },
+      { kind: 'gold', amount: 0.9, label: '씨맛 특산품' }
+    ],
+    desc: '점토를 빚어 그릇을 만들고, 씨맛 특산품을 구워 골드로 바꾼다.'
+  },
+  {
+    key: 'mana', name: '마력 수정 공장', icon: '🔮', color: 0x66c9ff, element: 'arcane',
+    gold: 1800, wood: 360, hp: 780, draw: 3,
+    outputs: [
+      { kind: 'mineral', id: 'mana', amount: 0.1, label: '마나결정' },
+      { kind: 'gold', amount: 1.6, label: '마력 판매' }
+    ],
+    desc: '마력을 응축해 마나결정을 기르고, 남는 마력을 수정으로 팔아 골드를 만든다.'
+  },
+  {
+    key: 'alchemy', name: '연금술 공장', icon: '⚗️', color: 0x66d9d0, element: 'arcane',
+    gold: 2600, wood: 520, hp: 900, draw: 3,
+    outputs: [
+      { kind: 'mineral', id: 'quartz', amount: 0.3, label: '석영' },
+      { kind: 'gold', amount: 2.2, label: '비약 판매' }
+    ],
+    desc: '값싼 재료를 비약으로 바꿔 팔고, 결정화한 석영을 남긴다.'
+  },
+  {
+    key: 'abyss', name: '심연 에너지 공장', icon: '🌑', color: 0x8a5cff, element: 'shadow',
+    gold: 4200, wood: 840, hp: 1080, draw: 4,
+    outputs: [
+      { kind: 'mineral', id: 'abyss', amount: 0.06, label: '심연광석' },
+      { kind: 'gold', amount: 3.4, label: '심연 에너지 판매' }
+    ],
+    desc: '심연의 틈에서 에너지를 끌어와 심연광석으로 굳히고, 남는 에너지를 판다.'
+  },
+  {
+    key: 'ancient', name: '고대 마력로', icon: '🔥', color: 0xffa34a, element: 'fire',
+    gold: 6500, wood: 1300, hp: 1320, draw: 5,
+    outputs: [
+      { kind: 'mineral', id: 'arcanite', amount: 0.05, label: '비전수정' },
+      { kind: 'mineral', id: 'mana', amount: 0.12, label: '마나결정' },
+      { kind: 'gold', amount: 4.5, label: '고대 마력 판매' }
+    ],
+    desc: '고대의 마력로를 되살려 비전수정과 마나결정을 만들고 마력을 판다.'
+  },
+  {
+    key: 'purifier', name: '심연 정화기', icon: '✨', color: 0xd9c7ff, element: 'light',
+    gold: 8000, wood: 1600, hp: 1500, draw: 5,
+    outputs: [
+      { kind: 'mineral', id: 'mana', amount: 0.15, label: '정화 마나' },
+      { kind: 'mineral', id: 'abyss', amount: 0.04, label: '정화 심연광석' },
+      { kind: 'gold', amount: 5.2, label: '정화 에너지 판매' }
+    ],
+    desc: '심연 에너지를 정화해 안전한 마나와 광석으로 바꾸고, 정화 부산물을 판다.'
+  }
+];
+
+const factoryTurrets = [];
+for (const f of FACTORY_TABLE) {
+  for (let tier = 1; tier <= 7; tier += 1) {
+    const rateMult = Math.pow(1.5, tier - 1);
+    const isPipe = f.key === 'waterway';
+    const draw = isPipe ? 1 : Math.max(2, Math.round(Number(f.draw) + (tier - 1) * 0.8));
+    const range = isPipe ? 10 + tier * 2 : 10;
+    const boost = isPipe ? Math.round((Number(f.factoryBoost) + (tier - 1) * 0.035) * 1000) / 1000 : 0;
+    const outputs = (f.outputs ?? []).map((o) => ({
+      ...o,
+      amount: Math.round(Number(o.amount) * rateMult * 1000) / 1000
+    }));
+    const outputText = outputs
+      .map((o) => `${o.label} ${o.amount}/s`)
+      .join(' · ');
+    factoryTurrets.push({
+      id: `factory_${f.key}_t${tier}`,
+      name: tier === 1 ? f.name : `${f.name} T${tier}`,
+      factoryName: f.name,
+      factoryType: f.key,
+      category: 'factory',
+      tier,
+      kind: 'factory',
+      icon: f.icon,
+      effect: isPipe ? 'boost' : 'produce',
+      element: f.element,
+      color: f.color,
+      damage: 0,
+      range,
+      fireRate: 1,
+      hp: Math.round(f.hp * Math.pow(1.32, tier - 1)),
+      rate: 1,
+      outputs,
+      factoryBoost: boost,
+      draw,
+      storeRate: null,
+      capacity: 0,
+      drillPool: null,
+      drillRegion: false,
+      cost: {
+        gold: Math.round((f.gold * Math.pow(2.35, tier - 1)) / 10) * 10,
+        wood: Math.round((f.wood * Math.pow(2.1, tier - 1)) / 10) * 10,
+        minerals: tierMinerals(tier, 3 + tier, 1 + Math.floor(tier / 2))
+      },
+      desc: isPipe
+        ? `${f.desc} 반경 ${range}m 안 공장 생산 +${Math.round(boost * 100)}%. 전기 ${draw}kW.`
+        : `${f.desc} 초당 ${outputText} 생산. 전기 ${draw}kW 가 필요하다.`
+    });
+  }
+}
+
 const facilityTurrets = [
   ...FACILITY_TABLE.map((f) => ({
     id: f.id,
@@ -834,7 +962,7 @@ const portalTurrets = PORTAL_DESTS.map((d) => ({
 // 건설 목록에는 넣지 않는다 — 포탈은 제작 아이템으로만 얻는다.
 export const PORTAL_TURRETS = portalTurrets;
 
-export const TURRETS = [...attackTurrets, ...supportTurrets, ...facilityTurrets, ...portalTurrets];
+export const TURRETS = [...attackTurrets, ...supportTurrets, ...facilityTurrets, ...factoryTurrets, ...portalTurrets];
 export const TURRET_BY_ID = Object.fromEntries(TURRETS.map((t) => [t.id, t]));
 export function turretsByCategory(category) {
   return TURRETS.filter((t) => t.category === category);
@@ -2716,6 +2844,8 @@ export const STAT_LABELS = {
   miningTowers: '채굴탑 건설',
   lumberTowers: '벌목탑 건설',
   facilitiesBuilt: '시설 건설',
+  factoriesBuilt: '공장 건설',
+  factoryOutput: '공장 생산',
   monstersSpawned: '몬스터 소환',
   goldEarned: '골드 획득',
   goldSpent: '골드 사용',

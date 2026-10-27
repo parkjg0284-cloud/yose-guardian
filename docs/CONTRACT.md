@@ -2173,3 +2173,64 @@ GitHub 에 이미 올라가 있으면 다시 올리지 않는다.
   `PUBLIC_URL` 과 새 초대 링크를 갱신한다. 기존 링크는 새 주소로 자동 이전되지 않는다.
 - 검사: `tools/smoke.mjs` 981/981(공유 주소 우선순위·저장 순서), `tools/ui-dom-smoke.mjs` 351/351(표시 링크·같은 서버 안내),
   `tools/lan-guest-check.mjs` 9/9(공개 경로 생성·참가·시작).
+
+---
+
+## §4.85 공장 탭 · 티어별 공장 · 설치 제한 삭제 (v1.19.2)
+
+**카테고리**
+- `TURRET_CATEGORIES.factory` — 이름 `공장`, 아이콘 `🏭`. 건설 패널 카테고리 탭은 이 객체에서 자동 생성된다.
+- `TURRETS` 끝(포탈 앞)에 `factoryTurrets` 를 넣는다. 공장은 **8종 × T1~T7 = 56종**이다.
+  id 규칙은 `factory_<factoryType>_t<tier>` (예: `factory_water_t1`, `factory_purifier_t7`).
+- 모든 공장은 `category:'factory'`, `kind:'factory'`, `factoryType`, `tier`, `outputs`, `draw` 를 가진다.
+  산출물은 **기존 경제(골드·목재·광물)** 만 사용한다 — 새 재화/저장 형식을 만들지 않는다.
+
+**8종 생산표 (T1 기준 → 티어마다 ×1.5)**
+
+| factoryType | 이름 | 산출물 | 전기 |
+|---|---|---|---|
+| `water` | 물추출기 | 골드 2.2/s | 2kW |
+| `waterway` | 물통로 | 직접 생산 없음 · 반경 내 공장 +12% (티어마다 +3.5%) | 1kW |
+| `clay` | 점토·씨맛 제조기 | 점토 0.45/s + 골드 0.9/s(씨맛 특산품 판매) | 2kW |
+| `mana` | 마력 수정 공장 | 마나결정 0.1/s + 골드 1.6/s | 3kW |
+| `alchemy` | 연금술 공장 | 석영 0.3/s + 골드 2.2/s | 3kW |
+| `abyss` | 심연 에너지 공장 | 심연광석 0.06/s + 골드 3.4/s | 4kW |
+| `ancient` | 고대 마력로 | 비전수정 0.05/s + 마나결정 0.12/s + 골드 4.5/s | 5kW |
+| `purifier` | 심연 정화기 | 마나결정 0.15/s + 심연광석 0.04/s + 골드 5.2/s | 5kW |
+
+- 티어가 오르면 생산량 ×1.5, 체력 ×1.32, 비용(골드 ×2.35 · 목재 ×2.1 · 광물 등급)이 오른다.
+- 물통로는 `factoryBoost`(T1 0.12 → T7 0.33)와 `range`(T1 12m → T7 24m)를 가진다.
+  여러 물통로가 겹치면 합산하되 **최대 +150%** 로 제한한다.
+- 공장은 전기를 쓰는 소비 건물이다. `POWER.draw.factory = 3` 은 기본값이며 실제 값은 각 타입의 `draw` 다.
+  전력이 끊기면 `powered=false` 가 되어 생산/지원이 멈춘다.
+
+**시뮬레이션**
+- `Turret` 은 `factoryType`, `_factoryAcc`(산출물별 소수 누적), `_factoryBoost`, `_factoryPulse`,
+  `factoryProduced` 를 가진다. `update()` 는 `case 'factory': this._updateFactory(dt)` 로 분기한다.
+- `_updateFactory` 는 전력이 있을 때만 `dt × rate × amount × (1+boost)` 를 누적하고,
+  정수 단위가 되면 `_creditFactoryOutput` 으로 경제에 넣는다. 골드는 `addGold`, 광물은 `_creditMineral`
+  (컨베이어벨트 적재·통계 포함), 목재는 `addWood` 를 쓴다.
+- `_factoryAura()` 는 반경 안의 **전력이 공급된 물통로**의 `factoryBoost` 를 합산한다(0.5초마다 갱신).
+- `nextTierType` 은 `factory_<factoryType>_t<tier>` 를 반환한다. 업그레이드해도 `factoryType` 은 유지된다.
+- 모델은 공장 본체·양옆 탱크·굴뚝·마력 코어, 물통로는 누운 관과 연결 고리로 만든다.
+  전력이 있으면 코어가 회전/맥동하고, 없으면 느려진다.
+
+**건설 제한 삭제 — 모든 종류**
+- `client/src/systems/turrets.js` 의 `MAX_TURRETS`·`MAX_FACILITIES`·`MAX_CABLES` 상수와 모든 검사를 삭제한다.
+  `canPlace` 는 위치·기지 거리·지형·자원·중복만 검사하고, `placeRemote` 도 개수로 거부하지 않는다.
+- `structureCounts()` 는 `{ total, facilities, factories }` 를 **집계만** 한다.
+- `server/game/Room.js` 의 `MAX_TURRETS=256` 과 `placeTurret` 의 개수 거부를 삭제한다.
+- 건설 패널의 한도 표시는 `설치 현황 — 전체 n개 · 시설 n개 · 공장 n개 — 설치 제한 없음 (전선 별도)` 로 바꾼다.
+- 남기는 상한은 건설 개수와 무관한 안전 상한뿐이다 — `SPAWNER_MAX_ALIVE=90`, `MAX_ENEMIES=200`.
+
+**패널**
+- `_renderBuild` 의 `factory` 분기는 `factoryType` 별로 묶어 `🏭 이름 — T1~T7 · 7종` 섹션을 만든다.
+  티어 탭에서는 `T4 · 8종` 처럼 실제 범위만 표시한다.
+- 공장 카드는 생산량/전력/체력을, 물통로 카드는 지원 반경·보너스·중첩 상한을 보여준다.
+- `STAT_LABELS` 에 `factoriesBuilt:'공장 건설'`, `factoryOutput:'공장 생산'` 을 추가한다.
+
+**검사**
+- `tools/smoke.mjs` 987/987 — 공장 56종·8계열·물통로·전력, 서버 300개 수용, 상한 상수 부재.
+- `tools/headless.mjs` 603/603 — 물추출기 골드 생산, 물통로 +12%, T1→T2 승급, 60개 집계.
+- `tools/ui-dom-smoke.mjs` 354/354 — 공장 탭 56종/T4 8종, 설치 제한 없음 안내.
+- `tools/base-bugtest.mjs` 80/80 — 전선 5개 제한 없이 설치.

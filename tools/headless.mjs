@@ -389,7 +389,7 @@ try {
   check('T2 채굴탑 건설 재료에 은이 없다', Boolean(t2Mine) && !Object.prototype.hasOwnProperty.call(t2Mine.cost?.minerals ?? {}, 'silver'), JSON.stringify(t2Mine?.cost));
   check('T2 채굴탑은 골드·목재만 요구한다', Object.keys(t2Mine?.cost?.minerals ?? {}).length === 0, JSON.stringify(t2Mine?.cost));
 
-  // ── 건설 상한: 전체 50 · 시설 40 (전선 제외)
+  // ── 설치 제한 없음: 50개를 넘겨도 집계만 하고 막지 않는다(계약 §4.85)
   const capSys = new TurretSystem({
     scene,
     world: world2,
@@ -399,18 +399,12 @@ try {
     stats: supStats,
     rng: rng.fork('cap')
   });
-  const capFacilityDef = TURRETS.find((t) => t.kind === 'workbench');
   capSys.turrets.length = 0;
   for (let i = 0; i < 50; i++) capSys.turrets.push({ destroyed: false, type: { kind: 'attack', category: 'attack' } });
-  check('건물 상한 — 전체 50개 집계', capSys.structureCounts().total === 50, JSON.stringify(capSys.structureCounts()));
-  const overTotal = capSys.canPlace(attackDef.id, { x: 0, z: 0 });
-  check('건물 상한 — 51번째 전체 건물 거부', overTotal.ok === false && /50/.test(String(overTotal.reason)), overTotal.reason || '허용됨');
-  capSys.turrets.length = 0;
-  for (let i = 0; i < 40; i++) capSys.turrets.push({ destroyed: false, type: { kind: 'workbench', category: 'facility' } });
-  for (let i = 0; i < 5; i++) capSys.turrets.push({ destroyed: false, type: { kind: 'attack', category: 'attack' } });
-  check('시설 상한 — 40개 집계', capSys.structureCounts().facilities === 40, JSON.stringify(capSys.structureCounts()));
-  const overFacility = capSys.canPlace(capFacilityDef.id, { x: 0, z: 0 });
-  check('시설 상한 — 41번째 시설 거부', overFacility.ok === false && /40/.test(String(overFacility.reason)), overFacility.reason || '허용됨');
+  check('설치 제한 없음 — 전체 50개 집계', capSys.structureCounts().total === 50, JSON.stringify(capSys.structureCounts()));
+  for (let i = 0; i < 10; i++) capSys.turrets.push({ destroyed: false, type: { kind: 'factory', category: 'factory' } });
+  check('설치 제한 없음 — 공장 10개 집계', capSys.structureCounts().factories === 10 && capSys.structureCounts().total === 60, JSON.stringify(capSys.structureCounts()));
+  check('설치 제한 없음 — 시설/공장/전체를 따로 센다', capSys.structureCounts().facilities === 0, JSON.stringify(capSys.structureCounts()));
 } catch (err) {
   check('지원 포탑 시퀀스', false, err.message);
   console.error(err);
@@ -2964,6 +2958,47 @@ section('캐릭터 만들기 / 앉기·점프 / 부드러운 회전');
   check('스냅샷 동기화 — 내 건물은 유지', Boolean(smoothSys.find(sTurret.id)));
   check('원격 건물 철거', smoothSys.removeRemote('peer-2') === true && !smoothSys.find('peer-2'));
   check('원격이 아닌 건물은 removeRemote 거부', smoothSys.removeRemote(sTurret.id) === false && Boolean(smoothSys.find(sTurret.id)));
+}
+
+// ───────────────────────────── 12. 공장 생산·물통로·승급 (계약 §4.85)
+section('공장 — 생산 · 물통로 · 티어 승급');
+{
+  const fEco = new Economy({
+    gold: 10000000,
+    wood: 1000000,
+    minerals: Object.fromEntries(MINERAL_TYPES.map((m) => [m.id, 9999]))
+  });
+  const fSys = new TurretSystem({
+    scene: new THREE.Scene(),
+    economy: fEco,
+    rng: rng.fork('factory')
+  });
+  const gen = fSys.place('facility_generator_t7', { x: 0, z: 0 }, 'local');
+  const water = fSys.place('factory_water_t1', { x: 5, z: 0 }, 'local');
+  fSys.updatePower(true);
+  check('공장 건설 + 전력 공급', Boolean(gen) && Boolean(water) && water.powered === true, `powered=${water?.powered}`);
+  const goldBefore = fEco.gold;
+  for (let i = 0; i < 20; i++) fSys.update(0.5, {});
+  check(
+    '물추출기 — 골드 자동 생산',
+    water.factoryProduced > 0 && fEco.gold > goldBefore,
+    `+${water.factoryProduced} · ${goldBefore} → ${fEco.gold}`
+  );
+  const pipe = fSys.place('factory_waterway_t1', { x: 2, z: 4 }, 'local');
+  fSys.updatePower(true);
+  for (let i = 0; i < 4; i++) fSys.update(0.5, {});
+  check(
+    '물통로 — 주변 공장 생산 보너스',
+    Boolean(pipe) && pipe.powered === true && water._factoryBoost > 0,
+    `boost=${(water._factoryBoost * 100).toFixed(1)}%`
+  );
+  const t1Amount = water.type.outputs[0].amount;
+  const upgraded = fSys.upgrade(water.id);
+  check(
+    '공장 승급 — T1 → T2 생산량 증가',
+    upgraded === true && water.typeId === 'factory_water_t2' && water.type.outputs[0].amount > t1Amount,
+    `${water.typeId} ${t1Amount} → ${water.type.outputs[0].amount}/s`
+  );
 }
 
 console.log(`\n${'═'.repeat(58)}`);

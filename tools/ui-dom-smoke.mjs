@@ -796,6 +796,33 @@ if (pm) {
       picks.some((b) => b.dataset.type === 'facility_spawner_t4')
     );
   });
+  attempt('건설 패널 — 🏭 공장 탭 56종(8종 × T1~T7)', () => {
+    pm.state.build.category = 'factory';
+    pm.state.build.tier = 0;
+    pm.open('build');
+    const root = documentStub.getElementById('panel-root');
+    const picks = root.querySelectorAll('[data-act="build-pick"]');
+    return (
+      picks.length === 56 &&
+      picks.some((b) => b.dataset.type === 'factory_water_t1') &&
+      picks.some((b) => b.dataset.type === 'factory_waterway_t7') &&
+      picks.some((b) => b.dataset.type === 'factory_purifier_t7')
+    );
+  });
+  attempt('건설 패널 — 공장 티어 탭(T4 = 8종)', () => {
+    pm.state.build.category = 'factory';
+    pm.state.build.tier = 4;
+    pm.open('build');
+    const root = documentStub.getElementById('panel-root');
+    const picks = root.querySelectorAll('[data-act="build-pick"]');
+    return picks.length === 8 && picks.every((b) => b.dataset.type.endsWith('_t4'));
+  });
+  attempt('건설 패널 — 설치 제한 없음 안내', () => {
+    pm.state.build.category = 'factory';
+    pm.open('build');
+    const root = documentStub.getElementById('panel-root');
+    return String(root.textContent).includes('설치 제한 없음');
+  });
   attempt('제작 패널 — 제작대 선택 변경 (T5 용광로)', () => {
     game.craftingTableBuilt = () => true;
     pm.open('craft');

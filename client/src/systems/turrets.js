@@ -9,11 +9,7 @@ import { regionAt } from '../world/regions.js';
 import { regionColor } from '../travel.js';
 import { beltAccept, beltAdvance, beltCapacity, beltLoad, beltNeighbor, beltReceiver } from './conveyors.js';
 
-export const MAX_TURRETS = 50;
-/** 시설(작업대·저장고·채굴기·벨트·소환문 등)만의 상한 — 전체 50개 안에서 40개까지 */
-export const MAX_FACILITIES = 40;
-/** 전선은 포탑 상한과 따로 센다(배선 때문에 건물을 못 세우면 곤란하다) */
-export const MAX_CABLES = 160;
+/** 건설 상한 없음 — 모든 종류를 개수 제한 없이 세울 수 있다(계약 §4.85). */
 export const MIN_BASE_DISTANCE = 4;
 export const MIN_TURRET_DISTANCE = 3;
 /** 컨베이어벨트 물류 보너스 상한(겹쳐 놓아도 이 이상은 오르지 않는다) */
@@ -407,6 +403,51 @@ function buildTurretObject(type, ghost = false) {
       tip.scale.setScalar(0.4);
       head.add(tip);
     }
+  } else if (type.category === 'factory') {
+    const isPipe = type.factoryType === 'waterway';
+    if (isPipe) {
+      // 물통로 — 낮게 누운 관 + 연결 고리
+      const pipe = new THREE.Mesh(GEO.arm(), metal);
+      pipe.scale.set(1.8, 1.2, 3.2);
+      pipe.position.y = 0.82;
+      group.add(pipe);
+      for (const z of [-1.1, 1.1]) {
+        const ring = new THREE.Mesh(GEO.ring(), accent);
+        ring.rotation.x = -Math.PI / 2;
+        ring.scale.setScalar(0.72);
+        ring.position.set(0, 0.84, z);
+        group.add(ring);
+      }
+      head.position.y = 1.25;
+      const valve = new THREE.Mesh(GEO.gem(), accent);
+      valve.scale.setScalar(0.8);
+      head.add(valve);
+    } else {
+      // 공장 — 본체 탱크 + 굴뚝 + 회전하는 마력 코어
+      const body = new THREE.Mesh(GEO.plinth(), metal);
+      body.scale.set(1.75, 1.85, 1.55);
+      body.position.y = 1.0;
+      group.add(body);
+      for (const x of [-0.82, 0.82]) {
+        const tank = new THREE.Mesh(GEO.tower(), stone);
+        tank.scale.set(0.52, 1.15, 0.52);
+        tank.position.set(x, 0.9, -0.18);
+        group.add(tank);
+      }
+      const chimney = new THREE.Mesh(GEO.tower(), stone);
+      chimney.scale.set(0.34, 1.9, 0.34);
+      chimney.position.set(0.55, 2.0, 0.35);
+      group.add(chimney);
+      head.position.y = 2.15;
+      const core = new THREE.Mesh(GEO.gem(), accent);
+      core.scale.setScalar(1.0);
+      head.add(core);
+      const ring = new THREE.Mesh(GEO.ring(), accent);
+      ring.rotation.x = -Math.PI / 2;
+      ring.scale.setScalar(0.85);
+      ring.position.y = -0.25;
+      head.add(ring);
+    }
   } else if (type.category === 'portal') {
     // 포탈 — 기둥 2개 + 떠 있는 고리 + 안쪽 빛판 (지형 색)
     for (const side of [-1, 1]) {
@@ -547,6 +588,13 @@ export class Turret {
     this._spawnTimer = null;
     this._spawnPhase = 0;
     this._spawnPulse = 0;
+    /** 공장 생산 누적(산출물별 소수점) · 물통로 보너스 · 생산 펄스 */
+    this.factoryType = type.factoryType ?? null;
+    this._factoryAcc = {};
+    this._factoryBoost = 0;
+    this._factoryBoostT = -1;
+    this._factoryPulse = 0;
+    this.factoryProduced = 0;
     this._animT = 0;
     this.invested = invested ?? {
       gold: normalizeCost(type.cost).gold,
@@ -686,6 +734,9 @@ export class Turret {
     this.category = type.category;
     this.tier = type.tier;
     this.family = type.family ?? this.family;
+    this.factoryType = type.factoryType ?? this.factoryType ?? null;
+    this._factoryAcc = {};
+    this._factoryBoostT = -1;
     this.damage = num(type.damage);
     this.range = num(type.range, 20);
     this.fireRate = num(type.fireRate, 1);
@@ -830,6 +881,9 @@ export class Turret {
         break;
       case 'facility':
         this._updateFacility(step, ctx);
+        break;
+      case 'factory':
+        this._updateFactory(step, ctx);
         break;
       case 'portal':
         // 포탈은 상호작용(N)으로 이동한다 — 스스로 할 일은 회전 연출뿐
@@ -1051,6 +1105,73 @@ export class Turret {
       return;
     }
     // 작업대: 대기(무기 제작은 제작 패널에서)
+  }
+
+  // ── 공장: 산출물 생산 + 물통로 지원 ────────────────────────────────
+  /** 주변 물통로의 생산 보너스 합(최대 150%) */
+  _factoryAura() {
+    const list = this.system?.turrets;
+    if (!Array.isArray(list)) return 0;
+    let sum = 0;
+    for (const t of list) {
+      if (t === this || t.destroyed || t.powered === false) continue;
+      if (t.type?.factoryType !== 'waterway') continue;
+      const d = Math.hypot(t.position.x - this.position.x, t.position.z - this.position.z);
+      if (d > num(t.range, 10)) continue;
+      sum += num(t.type?.factoryBoost, 0);
+    }
+    return Math.min(1.5, sum);
+  }
+
+  _creditFactoryOutput(out, whole) {
+    if (whole <= 0 || !out) return;
+    const system = this.system;
+    if (out.kind === 'gold') {
+      system?.economy?.addGold?.(whole);
+      system?.stats?.track?.('goldEarned', whole);
+    } else if (out.kind === 'wood') {
+      system?.economy?.addWood?.(whole);
+      system?.stats?.track?.('woodChopped', whole);
+    } else if (out.kind === 'mineral' && out.id) {
+      this._creditMineral(out.id, whole, true);
+    } else {
+      return;
+    }
+    this.factoryProduced = num(this.factoryProduced) + whole;
+    system?.stats?.track?.('factoryOutput', whole);
+  }
+
+  /** 공장 — 전기가 있으면 산출물을 조금씩 쌓았다가 정수 단위로 경제에 넣는다. */
+  _updateFactory(dt) {
+    this._factoryPulse = Math.max(0, num(this._factoryPulse) - dt * 1.8);
+    if (this.powered === false) return;
+    if (this.type?.factoryType === 'waterway') {
+      this._factoryPulse = Math.max(num(this._factoryPulse), 0.25);
+      return;
+    }
+    this._factoryBoostT = num(this._factoryBoostT, -1) - dt;
+    if (this._factoryBoostT <= 0) {
+      this._factoryBoost = this._factoryAura();
+      this._factoryBoostT = 0.5;
+    }
+    const outputs = Array.isArray(this.type?.outputs) ? this.type.outputs : [];
+    if (!outputs.length) return;
+    const rate = num(this.type?.rate, 1);
+    const mult = Math.max(0, 1 + num(this._factoryBoost));
+    this._factoryAcc = this._factoryAcc ?? {};
+    let produced = 0;
+    for (const out of outputs) {
+      const amount = Math.max(0, num(out?.amount));
+      if (amount <= 0) continue;
+      const key = `${out.kind}:${out.id ?? ''}`;
+      this._factoryAcc[key] = num(this._factoryAcc[key]) + dt * rate * amount * mult;
+      const whole = Math.floor(this._factoryAcc[key]);
+      if (whole <= 0) continue;
+      this._factoryAcc[key] -= whole;
+      this._creditFactoryOutput(out, whole);
+      produced += whole;
+    }
+    if (produced > 0) this._factoryPulse = 0.5;
   }
 
   /** 자원을 실어 나르는 시설인지(벨트 보너스를 받는 쪽) */
@@ -1457,6 +1578,12 @@ export class Turret {
         this.head.scale.setScalar(pulse);
       } else this.head.position.y = 1.5 + Math.sin(this._animT * 1.4) * 0.04;
     }
+    if (this.head && this.category === 'factory') {
+      const isPipe = this.type?.factoryType === 'waterway';
+      this.head.rotation.y += dt * (this.powered === false ? 0.2 : isPipe ? 0.8 : 1.8);
+      this.head.position.y = (isPipe ? 1.25 : 2.15) + Math.sin(this._animT * 1.8) * 0.05;
+      this.head.scale.setScalar(1 + num(this._factoryPulse) * 0.18);
+    }
     const base = this._baseScale ?? 1;
     this.mesh.scale.setScalar(base * (1 + this.hitFlash * 0.25));
   }
@@ -1559,16 +1686,18 @@ export class TurretSystem {
     return n;
   }
 
-  /** 전선을 뺀 전체 건물 수와 그중 시설 수 — 건설 상한(50/40)의 단일 계산. */
+  /** 설치 제한 없이 전체·시설·공장 수를 집계한다(전선은 별도). */
   structureCounts() {
     let total = 0;
     let facilities = 0;
+    let factories = 0;
     for (const t of this.turrets) {
       if (!t || t.destroyed || t.type?.kind === 'cable') continue;
       total += 1;
       if (t.type?.category === 'facility') facilities += 1;
+      else if (t.type?.category === 'factory') factories += 1;
     }
-    return { total, facilities };
+    return { total, facilities, factories };
   }
 
   canPlace(typeId, position) {
@@ -1577,20 +1706,6 @@ export class TurretSystem {
     if (!position || !Number.isFinite(Number(position.x)) || !Number.isFinite(Number(position.z))) {
       return { ok: false, reason: '위치가 올바르지 않습니다' };
     }
-    const cableCount = this.turrets.filter((t) => !t.destroyed && t.type?.kind === 'cable').length;
-    if (type.kind === 'cable') {
-      // 전선은 따로 센다(배선 때문에 건물을 못 세우면 곤란하다)
-      if (cableCount >= MAX_CABLES) return { ok: false, reason: `전선은 최대 ${MAX_CABLES}개까지 깔 수 있습니다` };
-    } else {
-      const counts = this.structureCounts();
-      if (counts.total >= MAX_TURRETS) {
-        return { ok: false, reason: `건물은 최대 ${MAX_TURRETS}개까지 세울 수 있습니다(전선 제외)` };
-      }
-      if (type.category === 'facility' && counts.facilities >= MAX_FACILITIES) {
-        return { ok: false, reason: `시설은 최대 ${MAX_FACILITIES}개까지 세울 수 있습니다(전체 ${MAX_TURRETS}개 안)` };
-      }
-    }
-
     const x = Number(position.x);
     const z = Number(position.z);
     const world = this.world;
@@ -1711,6 +1826,7 @@ export class TurretSystem {
     else if (type.category === 'mining') st?.track?.('miningTowers', 1);
     else if (type.category === 'lumber') st?.track?.('lumberTowers', 1);
     else if (type.category === 'facility') st?.track?.('facilitiesBuilt', 1);
+    else if (type.category === 'factory') st?.track?.('factoriesBuilt', 1);
     this.maxTurrets = Math.max(this.maxTurrets, this.structureCounts().total);
     st?.set?.('maxTurrets', this.maxTurrets);
     this.updatePower(true); // 새 건물의 전력 상태를 즉시 반영
@@ -1730,13 +1846,6 @@ export class TurretSystem {
     if (existing) return existing;
     const type = TURRET_BY_ID[entry.typeId];
     if (!type) return null;
-    if (type.kind === 'cable') {
-      if (this.turrets.filter((t) => !t.destroyed && t.type?.kind === 'cable').length >= MAX_CABLES) return null;
-    } else {
-      const counts = this.structureCounts();
-      if (counts.total >= MAX_TURRETS) return null;
-      if (type.category === 'facility' && counts.facilities >= MAX_FACILITIES) return null;
-    }
     const y = num(entry.y, num(this.world?.getHeight?.(num(entry.x), num(entry.z)), 0));
     const turret = new Turret({
       id,
@@ -1851,6 +1960,9 @@ export class TurretSystem {
     if (turret.category === 'attack') return TURRET_BY_ID[`atk_${turret.family}_t${tier}_${turret.slot}`] ?? null;
     if (turret.category === 'facility' && turret.type?.kind) {
       return TURRET_BY_ID[`facility_${turret.type.kind}_t${tier}`] ?? null;
+    }
+    if (turret.category === 'factory' && turret.factoryType) {
+      return TURRET_BY_ID[`factory_${turret.factoryType}_t${tier}`] ?? null;
     }
     return TURRET_BY_ID[`${turret.category}_t${tier}`] ?? null;
   }

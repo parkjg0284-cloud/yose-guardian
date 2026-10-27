@@ -5,7 +5,7 @@ import * as THREE from 'three';
 import { createRNG } from '../client/src/utils/rng.js';
 import { createWorld } from '../client/src/world/world.js';
 import { Economy } from '../client/src/systems/economy.js';
-import { TurretSystem, MAX_CABLES } from '../client/src/systems/turrets.js';
+import { TurretSystem } from '../client/src/systems/turrets.js';
 import { TURRETS, MINERAL_TYPES, mineralsForRegionTier, POWER, TURRET_DAMAGE_SCALE, TOWER_TIER_SCALE, WEAPONS, ARROW_TIERS, ARROW_BY_ID, ARROW_ORDER_DESC, arrowDamageMult, weaponById, WEAPON_ULTIMATE_BY_ID } from '../client/src/data.js';
 import { FAMILY_TIER_RECIPES, CRAFTING_TABLE_BY_ID } from '../client/src/crafting.js';
 import { CraftingSystem } from '../client/src/systems/crafting.js';
@@ -93,7 +93,7 @@ check('전선을 따라 34m 떨어진 채굴기에 전기가 간다', farDrill.p
 const beforeFar = drilled();
 tick(12);
 check('먼 채굴기도 채굴한다', drilled() > beforeFar, `+${drilled() - beforeFar}개`);
-check('전선은 포탑 상한과 별개로 센다', MAX_CABLES === 160 && turrets.turrets.filter((t) => t.type.kind === 'cable').length === 5);
+check('전선 5개를 설치 제한 없이 깐다', turrets.turrets.filter((t) => t.type.kind === 'cable').length === 5);
 check('발전기 바로 옆 전선이 없으면 끊긴다', (() => {
   const solo = turrets.place(idOf('autominer'), at(700, 700), 'local');
   turrets.place('facility_cable', at(720, 700), 'local'); // 20m 떨어진 전선 — 연결 불가

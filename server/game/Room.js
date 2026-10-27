@@ -4,7 +4,6 @@ import { CHAT_MAX, S2C, TICK_HZ, TICK_MS, clampNum, normalizeDifficulty, normali
 
 const MAP_HALF = 2500;
 const BASE_MAX_HP = 4100;
-const MAX_TURRETS = 256;
 const MAX_ENEMIES = 200;
 const MAX_CHAT_LOG = 50;
 /** 접속이 끊겨도 이 시간 동안은 자리를 비워 둔다 — 그 안에 돌아오면 이어서 한다. */
@@ -295,7 +294,6 @@ export class Room {
     if (!turret || typeof turret !== 'object') return { entry: null, created: false, error: '건물 정보가 없습니다' };
     const turretId = sanitizeText(turret.id ?? turret.turretId, 32) || `t${++this._turretSeq}`;
     if (this.turrets.has(turretId)) return { entry: this.turrets.get(turretId), created: false };
-    if (this.turrets.size >= MAX_TURRETS) return { entry: null, created: false, error: '건물이 너무 많습니다' };
     const entry = {
       id: turretId,
       typeId: sanitizeText(turret.typeId, 32) || 'unknown',

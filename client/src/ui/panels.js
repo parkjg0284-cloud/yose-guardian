@@ -2,7 +2,6 @@
 // 계약 §4.13: PanelManager 는 #panel-root 안에 11개 패널을 한 번만 만들고,
 // 이후에는 .open 클래스 토글 + 내용 갱신만 한다. game 컨텍스트는 항상 방어적으로 읽는다.
 import { CHARACTER_SKIN_BY_ID } from '../character.js';
-import { MAX_TURRETS, MAX_FACILITIES } from '../systems/turrets.js';
 import {
   TURRETS,
   TURRET_CATEGORIES,
@@ -1195,8 +1194,8 @@ export class PanelManager {
     const st = this.state.build;
     body.textContent = '';
     body.appendChild(row('보유 자원', `골드 ${fmt(g?.economy?.gold ?? 0)} · 목재 ${fmt(g?.economy?.wood ?? 0)}`));
-    const counts = safe(() => g?.turrets?.structureCounts?.(), null) || { total: 0, facilities: 0 };
-    body.appendChild(row('건설 한도', `전체 ${fmt(counts.total)}/${MAX_TURRETS} · 시설 ${fmt(counts.facilities)}/${MAX_FACILITIES} (전선 별도)`));
+    const counts = safe(() => g?.turrets?.structureCounts?.(), null) || { total: 0, facilities: 0, factories: 0 };
+    body.appendChild(row('설치 현황', `전체 ${fmt(counts.total)}개 · 시설 ${fmt(counts.facilities)}개 · 공장 ${fmt(counts.factories ?? 0)}개 — 설치 제한 없음 (전선 별도)`));
     const demolishBtn = h('button', 'btn ghost btn-ghost build-demolish', '🔨 철거 모드 — 조준한 포탑·시설 철거 (재료 25% 환불 · Z)');
     demolishBtn.type = 'button';
     demolishBtn.dataset.act = 'build-demolish';
@@ -1283,6 +1282,30 @@ export class PanelManager {
       }
       if (shown > 0) return;
     }
+    if (st.category === 'factory') {
+      body.appendChild(sectionTitle('🏭 공장 — 티어별 생산 시설'));
+      body.appendChild(row('안내', '공장은 전기가 필요합니다. 물통로를 공장 옆에 두면 생산량이 늘어납니다.'));
+      const groups = new Map();
+      for (const t of list) {
+        const key = t.factoryType || 'factory';
+        if (!groups.has(key)) groups.set(key, { title: `${t.icon || '🏭'} ${t.factoryName || t.name}`, rows: [] });
+        groups.get(key).rows.push(t);
+      }
+      let index = 0;
+      for (const group of groups.values()) {
+        const first = group.rows[0];
+        const last = group.rows[group.rows.length - 1];
+        const tierRange = first.tier === last.tier ? `T${first.tier}` : `T${first.tier}~T${last.tier}`;
+        body.appendChild(sectionTitle(`${group.title} — ${tierRange} · ${group.rows.length}종`));
+        const cards = grid();
+        for (const t of group.rows) {
+          cards.appendChild(this._turretCard(t, index));
+          index += 1;
+        }
+        body.appendChild(cards);
+      }
+      return;
+    }
 
     const cards = grid();
     list.forEach((t, i) => cards.appendChild(this._turretCard(t, i)));
@@ -1348,6 +1371,22 @@ export class PanelManager {
       card.appendChild(row('전력', powerText));
       card.appendChild(row('사거리', num(t.range)));
       card.appendChild(row('체력', fmt(t.hp)));
+    } else if (t.category === 'factory') {
+      const outs = (Array.isArray(t.outputs) ? t.outputs : [])
+        .map((o) => {
+          const label = o.kind === 'gold' ? '골드' : o.kind === 'wood' ? '목재' : (MINERAL_BY_ID[o.id]?.name || o.label || o.id);
+          return `${label} ${Math.round(num(o.amount) * 1000) / 1000}/s`;
+        })
+        .join(' · ');
+      card.appendChild(row('생산', outs || '직접 생산 없음'));
+      if (t.factoryType === 'waterway') {
+        card.appendChild(row('공장 지원', `반경 ${num(t.range)}m 안 공장 생산 +${Math.round(num(t.factoryBoost) * 100)}%`));
+        card.appendChild(row('연결', '여러 물통로를 겹치면 최대 +150%'));
+      } else {
+        card.appendChild(row('전력', `${num(t.draw)}kW 소비`));
+        card.appendChild(row('사거리', num(t.range)));
+        card.appendChild(row('체력', fmt(t.hp)));
+      }
     } else {
       card.appendChild(row(t.category === 'mining' ? '채굴' : '벌목', `${num(t.rate ?? t.fireRate)}/s`));
       card.appendChild(row('사거리', num(t.range)));

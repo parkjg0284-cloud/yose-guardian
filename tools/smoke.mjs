@@ -126,6 +126,7 @@ import { readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parsePort, readEnvPort, writeEnvPort } from '../server/port-config.js';
+import { Room } from '../server/game/Room.js';
 import { validateProfileData, sanitizeNickname, isValidNickname, nicknameFor, setNickname, currentNickname, NICKNAME_MAX } from '../client/src/profile.js';
 import { validateKeyData, keyCodes, keyLabel, setKey, resetAllKeys, KEY_ACTIONS } from '../client/src/keys.js';
 import { validateRecipeData, recipeCount, recipeTerrains, recipesFor, RECIPE_KINDS } from '../client/src/recipes.js';
@@ -267,7 +268,7 @@ function section(title) {
 // ─────────────────────────────────────── 1. 데이터 무결성
 section('데이터 무결성');
 check('VERSION 존재', typeof VERSION === 'string' && VERSION.length > 0, VERSION);
-check('포탑 109종 (공격47·지원21·시설33·포탈8)', TURRETS.length === 109, `${TURRETS.length}종`);
+check('포탑 165종 (공격47·지원21·시설33·공장56·포탈8)', TURRETS.length === 165, `${TURRETS.length}종`);
 check('포탈 8종 (기지 + T1~T7)', turretsByCategory('portal').length === 8, `${turretsByCategory('portal').length}종`);
 check('포탈마다 목적지가 있다', turretsByCategory('portal').every((t) => typeof t.portalDest === 'string' && t.portalDest.length > 0), turretsByCategory('portal').map((t) => t.portalDest).join(','));
 check('공격형 47종', turretsByCategory('attack').length === 47, `${turretsByCategory('attack').length}종`);
@@ -725,11 +726,17 @@ check('채굴기 — 맨땅에서 지형 티어 광물 자동 채굴(drillRegion
     facilities.every((t) => t.cost.gold > 0 && t.cost.wood > 0 && t.hp > 0 && (t.kind === 'arcana' || Object.keys(t.cost.minerals).length > 0)),
     facilities.map((t) => `${t.name} ${t.cost.gold}G`).join(' · ')
   );
-  check('계열 합계 = 101 (공격47 + 지원21 + 시설33)', turretsByCategory('attack').length === 47 && turretsByCategory('heal').length + turretsByCategory('mining').length + turretsByCategory('lumber').length === 21 && facilities.length === 33);
+  const factoryDefs = turretsByCategory('factory');
+  check('공장 카테고리 등록', Boolean(TURRET_CATEGORIES.factory) && TURRET_CATEGORIES.factory.name === '공장', TURRET_CATEGORIES.factory?.name);
+  check('공장 56종 (8종 × T1~T7)', factoryDefs.length === 56 && [...new Set(factoryDefs.map((t) => t.factoryType))].length === 8 && factoryDefs.every((t) => t.tier >= 1 && t.tier <= 7), `${factoryDefs.length}종`);
+  check('공장마다 티어별 이름·생산량', factoryDefs.filter((t) => t.factoryType === 'water').sort((a, b) => a.tier - b.tier).every((t, i, a) => i === 0 || t.outputs[0].amount > a[i - 1].outputs[0].amount));
+  check('물통로 — 생산 없이 주변 공장 보너스', factoryDefs.filter((t) => t.factoryType === 'waterway').every((t) => t.outputs.length === 0 && t.factoryBoost > 0));
+  check('공장 전력 — 모두 소비', factoryDefs.every((t) => Number(t.draw) > 0));
+  check('계열 합계 = 157 (공격47 + 지원21 + 시설33 + 공장56)', turretsByCategory('attack').length === 47 && turretsByCategory('heal').length + turretsByCategory('mining').length + turretsByCategory('lumber').length === 21 && facilities.length === 33 && factoryDefs.length === 56);
   const t2MineDef = TURRET_BY_ID.mining_t2;
   check('T2 채굴탑 — 은이 빠지고 골드·목재만', Boolean(t2MineDef) && t2MineDef.cost.minerals.silver === undefined && Object.keys(t2MineDef.cost.minerals).length === 0, JSON.stringify(t2MineDef?.cost));
   const turretSrcLimits = readFileSync(new URL('../client/src/systems/turrets.js', import.meta.url), 'utf8');
-  check('건설 상한 — 전체 50 · 시설 40 (전선 별도)', turretSrcLimits.includes('export const MAX_TURRETS = 50;') && turretSrcLimits.includes('export const MAX_FACILITIES = 40;') && turretSrcLimits.includes('structureCounts()'));
+  check('설치 제한 삭제 — MAX_TURRETS/MAX_FACILITIES/MAX_CABLES 없음', !turretSrcLimits.includes('MAX_TURRETS') && !turretSrcLimits.includes('MAX_FACILITIES') && !turretSrcLimits.includes('MAX_CABLES') && turretSrcLimits.includes('structureCounts()'));
   const mineralSrc = readFileSync(new URL('../client/src/world/minerals.js', import.meta.url), 'utf8');
   const treeSrc = readFileSync(new URL('../client/src/world/trees.js', import.meta.url), 'utf8');
   check('자원 리스폰 — 광물 6초 · 나무 6초', /const RESPAWN_DELAY = 6;/.test(mineralSrc) && /const RESPAWN_DELAY = 6;/.test(treeSrc));
@@ -3360,6 +3367,18 @@ section('메뉴 버튼 → 창 닫고 패널 · 설정에서 로그인/회원가
   fpsMon.dispose();
   const mainPerfSrc = readFileSync(new URL('../client/src/main.js', import.meta.url), 'utf8');
   check('FPS·적응형 — 시뮬레이션 dt 대신 실제 프레임 시간', mainPerfSrc.includes('this._frameDt = rawDt;') && mainPerfSrc.includes('this._update(dt, rawDt);') && mainPerfSrc.includes('fps.update?.(frameDt)') && mainPerfSrc.includes('adaptive.update(perfDt, avg)') && mainPerfSrc.includes('this._qualityAcc = (this._qualityAcc ?? 0) + perfDt;'));
+}
+
+// ─────────────────────────────────────── 서버 설치 제한 없음 (계약 §4.85)
+{
+  const room = new Room({ code: 'CAPTEST' });
+  let created = 0;
+  for (let i = 0; i < 300; i++) {
+    const res = room.placeTurret(`cap-${i}`, { id: `cap-${i}`, typeId: 'factory_water_t1', x: i, z: 0 });
+    if (res.created) created += 1;
+  }
+  check('서버 설치 제한 없음 — 300개 공장 수용', created === 300 && room.turrets.size === 300, `${created}개`);
+  room.dispose();
 }
 
 console.log(`스모크 테스트 결과: ${pass}개 통과 / ${fail}개 실패 (총 ${pass + fail}개)`);
