@@ -60,7 +60,7 @@ const LOW_BAR_RATIO = 0.35; // 바 색 경고
 const BANNER_HOLD = 3; // 페이즈 전환 배너 유지 시간(초)
 const DAMAGE_FLASH_TIME = 0.5;
 const HIT_MARKER_TIME = 0.25;
-const DEFAULT_PROMPT = 'B 건설 · E 부여대 · I 인벤토리 · H 업적 · M 미니맵';
+const DEFAULT_PROMPT = 'B 건설 · E 부여대 · L 물 추출 · I 인벤토리 · H 업적 · M 미니맵';
 
 const PRESET_NAME_BY_ID = new Map(FRAME_PRESETS.map((p) => [p.id, p.name]));
 
@@ -219,6 +219,7 @@ export class HUD {
     this._chip(topbar, 'gold', '◆', 'hud-stat-gold', '골드');
     this._chip(topbar, 'wood', '❖', 'hud-stat-wood', '목재');
     this._chip(topbar, 'minerals', '✦', 'hud-stat-mineral', '광물 합계');
+    this._chip(topbar, 'water', '💧', 'hud-stat-water', '물 — 물탱크를 세우고 L 키로 지하수를 추출합니다');
     this._chip(topbar, 'leather', '🟫', 'hud-stat-leather', '가죽 — 지형 몬스터를 잡아 얻습니다');
     this._chip(topbar, 'arrows', '🏹', 'hud-stat-arrows', '화살 — 제작대(C)에서 묶음으로 만듭니다 (활 계열이 1발씩 소모)');
     this._chip(topbar, 'turrets', '⌗', 'hud-stat-turret', '건설한 포탑');
@@ -583,6 +584,20 @@ export class HUD {
     setText(this._refs.gold, fmt(num(eco?.gold ?? game?.gold, 0)));
     setText(this._refs.wood, fmt(num(eco?.wood ?? game?.wood, 0)));
     setText(this._refs.minerals, fmt(this._totalMinerals(eco)));
+    const water = typeof game?.waterSummary === 'function' ? game.waterSummary() : null;
+    if (water) {
+      const cap = num(water.capacity, 0);
+      const stored = Math.min(num(water.stored, 0), cap);
+      setText(this._refs.water, cap > 0 ? `${fmt(stored)}/${fmt(cap)}` : '—');
+      setClass(this._refs.waterChip, 'is-empty', cap <= 0);
+      setClass(this._refs.waterChip, 'is-full', cap > 0 && stored >= cap);
+      if (this._refs.waterChip) {
+        this._refs.waterChip.title =
+          cap > 0
+            ? `💧 물 ${fmt(stored)} / ${fmt(cap)}L — L 키로 ${fmt(num(water.amount, 20))}L 추출 · 물탱크 ${stored >= cap ? '가득 참' : '저장 중'}`
+            : '💧 물 — B 건설 → 🏗 시설 → 물탱크를 먼저 세우세요 (L 키로 지하수 추출)';
+      }
+    }
     setText(this._refs.leather, fmt(num(eco?.totalLeather?.() ?? game?.leatherTotal, 0)));
     const arrowTotal = num(eco?.totalArrows?.() ?? 0, 0);
     setText(this._refs.arrows, fmt(arrowTotal));

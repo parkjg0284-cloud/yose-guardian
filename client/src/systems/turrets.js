@@ -8,6 +8,7 @@ import { PowerGrid } from './power.js';
 import { regionAt } from '../world/regions.js';
 import { regionColor } from '../travel.js';
 import { beltAccept, beltAdvance, beltCapacity, beltLoad, beltNeighbor, beltReceiver } from './conveyors.js';
+import { waterCapacityOf } from './water.js';
 
 /** 건설 상한 없음 — 모든 종류를 개수 제한 없이 세울 수 있다(계약 §4.85). */
 export const MIN_BASE_DISTANCE = 4;
@@ -247,6 +248,38 @@ function buildTurretObject(type, ghost = false) {
       head.position.y = 2.15;
       const lock = new THREE.Mesh(GEO.gem(), accent);
       head.add(lock);
+    } else if (kind === 'water_tank') {
+      // 물탱크 — 원통 본체 + 금속 테 + 수위창 + 꼭지
+      const body = new THREE.Mesh(GEO.tower(), metal);
+      body.scale.set(1.55, 1.9, 1.55);
+      body.position.y = 1.05;
+      group.add(body);
+      for (const bandY of [0.45, 1.1, 1.75]) {
+        const band = new THREE.Mesh(GEO.ring(), stone);
+        band.rotation.x = Math.PI / 2;
+        band.scale.setScalar(1.62);
+        band.position.y = bandY;
+        group.add(band);
+      }
+      const cap = new THREE.Mesh(GEO.plinth(), metal);
+      cap.scale.set(1.25, 0.3, 1.25);
+      cap.position.y = 2.02;
+      group.add(cap);
+      // 수위창 — 파란 물이 보이는 앞면(재질을 복제해 이 탱크만 맥동시킨다)
+      const gauge = new THREE.Mesh(GEO.gem(), accent.clone());
+      gauge.scale.set(0.62, 1.25, 0.16);
+      gauge.position.set(0, 1.12, 0.79);
+      group.add(gauge);
+      const pipe = new THREE.Mesh(GEO.leg(), metal);
+      pipe.rotation.z = Math.PI / 2;
+      pipe.scale.set(0.28, 0.75, 0.28);
+      pipe.position.set(-1.0, 0.62, 0);
+      group.add(pipe);
+      head.position.y = 2.22;
+      const valve = new THREE.Mesh(GEO.ring(), accent);
+      valve.scale.setScalar(0.46);
+      head.add(valve);
+      head.userData.gauge = gauge;
     } else if (kind === 'autominer') {
       // 채굴기: 자립형 드릴 리그
       const rig = new THREE.Mesh(GEO.tower(), metal);
@@ -1553,6 +1586,12 @@ export class Turret {
         this.head.rotation.y += dt * 0.25;
         this.head.position.y = 2.15 + Math.sin(this._animT * 1.3) * 0.05;
         this.head.scale.setScalar(1 + Math.sin(this._animT * 2.1) * 0.04);
+      } else if (kind === 'water_tank') {
+        // 수위창이 천천히 맥동하고 꼭지가 돈다
+        const gauge = this.head?.userData?.gauge;
+        if (gauge) gauge.material.emissiveIntensity = 0.65 + Math.sin(this._animT * 2.2) * 0.25;
+        this.head.rotation.y += dt * 0.35;
+        this.head.position.y = 2.22 + Math.sin(this._animT * 1.1) * 0.04;
       } else if (kind === 'generator') {
         // 전력이 흐르면 회전자가 빨리 돈다
         const spin = this.powered === false ? 0.4 : 3.2;
@@ -1647,6 +1686,11 @@ export class TurretSystem {
     return this.turrets.length;
   }
 
+  /** 살아 있는 물탱크의 총 저장 용량(L) — 계약 §4.88 */
+  waterCapacity() {
+    return waterCapacityOf(this.turrets);
+  }
+
   countByTier(tier) {
     return this.turrets.filter((t) => t.tier === tier).length;
   }
@@ -1677,6 +1721,11 @@ export class TurretSystem {
       };
     }
     return best;
+  }
+
+  /** 건설/철거 시 게임 상태를 다시 계산해야 하는 시설(기사단 길드·물탱크) */
+  _isStructural(type) {
+    return type?.kind === 'knight_guild' || type?.kind === 'water_tank';
   }
 
   _notifyStructuresChanged() {
@@ -1850,7 +1899,7 @@ export class TurretSystem {
     this.maxTurrets = Math.max(this.maxTurrets, this.structureCounts().total);
     st?.set?.('maxTurrets', this.maxTurrets);
     this.updatePower(true); // 새 건물의 전력 상태를 즉시 반영
-    if (type.kind === 'knight_guild') this._notifyStructuresChanged();
+    if (this._isStructural(type)) this._notifyStructuresChanged();
     this.audio?.play?.('build');
     return turret;
   }
@@ -1882,7 +1931,7 @@ export class TurretSystem {
     this.turrets.push(turret);
     this.scene?.add?.(turret.mesh);
     this.updatePower(true);
-    if (type.kind === 'knight_guild') this._notifyStructuresChanged();
+    if (this._isStructural(type)) this._notifyStructuresChanged();
     return turret;
   }
 
@@ -1890,10 +1939,10 @@ export class TurretSystem {
   removeRemote(turretId) {
     const turret = this.find(turretId);
     if (!turret || !turret.remote) return false;
-    const wasGuild = turret.type?.kind === 'knight_guild';
+    const wasStructural = this._isStructural(turret.type);
     this._remove(turret);
     this.updatePower(true);
-    if (wasGuild) this._notifyStructuresChanged();
+    if (wasStructural) this._notifyStructuresChanged();
     return true;
   }
 
@@ -1955,9 +2004,9 @@ export class TurretSystem {
     }
     if (refund.gold > 0) this.economy?.addGold?.(refund.gold);
     if (refund.wood > 0) this.economy?.addWood?.(refund.wood);
-    const wasGuild = turret.type?.kind === 'knight_guild';
+    const wasStructural = this._isStructural(turret.type);
     this._remove(turret);
-    if (wasGuild) this._notifyStructuresChanged();
+    if (wasStructural) this._notifyStructuresChanged();
     this.audio?.play?.('sell');
     return { gold: refund.gold, wood: refund.wood, minerals: refund.minerals };
   }
@@ -1973,11 +2022,11 @@ export class TurretSystem {
     if (this.economy && typeof this.economy.canAfford === 'function' && !this.economy.canAfford(cost)) return false;
     if (this.economy && typeof this.economy.spend === 'function' && !this.economy.spend(cost)) return false;
     this._addInvested(turret, cost);
-    const wasGuild = turret.type?.kind === 'knight_guild';
+    const wasStructural = this._isStructural(turret.type);
     if (nextType) turret.applyType(nextType, { keepHpRatio: true });
     else turret.applyScaledTier(turret.tier + 1, nextScale);
     if (cost.gold > 0) this.stats?.track?.('goldSpent', cost.gold);
-    if (wasGuild || turret.type?.kind === 'knight_guild') this._notifyStructuresChanged();
+    if (wasStructural || this._isStructural(turret.type)) this._notifyStructuresChanged();
     this.audio?.play?.('upgrade');
     return true;
   }
@@ -2015,7 +2064,7 @@ export class TurretSystem {
 
   _onTurretDestroyed(turret, source) {
     this.destroyedCount += 1;
-    if (turret?.type?.kind === 'knight_guild') this._notifyStructuresChanged();
+    if (this._isStructural(turret?.type)) this._notifyStructuresChanged();
     this.audio?.play?.('explosion');
   }
 
@@ -2039,9 +2088,10 @@ export class TurretSystem {
     const ring = new THREE.Mesh(GEO.ring(), ringMat);
     ring.rotation.x = -Math.PI / 2;
     ring.position.y = 0.06;
-    ring.scale.setScalar(num(type.range, 20));
+    const previewRange = Math.max(0.8, num(type.range, 20));
+    ring.scale.setScalar(previewRange);
     root.add(ring);
-    root.userData.range = num(type.range, 20);
+    root.userData.range = previewRange;
     root.userData.typeId = typeId;
     return root;
   }

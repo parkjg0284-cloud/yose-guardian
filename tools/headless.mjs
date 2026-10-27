@@ -1080,6 +1080,15 @@ try {
     JSON.stringify(facTurrets.guildBonus())
   );
   check('기사단 길드 — 건설 콜백 발생', guildEvents >= 2, `${guildEvents}회`);
+  // ── 물탱크: 건설하면 용량이 생기고, 업그레이드하면 늘고, 파괴되면 0 이 된다
+  const tank1 = facTurrets.place('facility_water_tank_t1', placeAt(104, 50), 'local');
+  check('물탱크 T1 건설 · 용량 100L', Boolean(tank1) && tank1.type.kind === 'water_tank' && facTurrets.waterCapacity() === 100, `${facTurrets.waterCapacity()}L`);
+  facEco.addWater(80);
+  check('물 저장 — 경제에 80L', facEco.water === 80, `${facEco.water}L`);
+  check('물탱크 T1 → T2 업그레이드 · 용량 250L', facTurrets.upgrade(tank1.id) === true && tank1.tier === 2 && facTurrets.waterCapacity() === 250, `${facTurrets.waterCapacity()}L`);
+  tank1.takeDamage(tank1.maxHp + 1, 'test', null);
+  check('물탱크 파괴 — 용량 0L', facTurrets.waterCapacity() === 0, `${facTurrets.waterCapacity()}L`);
+
   if (guild2) guild2.takeDamage(guild2.maxHp + 1, 'test', null);
   check(
     '기사단 길드 파괴 — 이전 티어로 복귀',

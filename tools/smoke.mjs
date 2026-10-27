@@ -173,6 +173,7 @@ import {
   saveLastCode
 } from '../client/src/utils/invite.js';
 import { Economy } from '../client/src/systems/economy.js';
+import { WATER, extractWater, waterCapacityOf, clampWater, storedWater } from '../client/src/systems/water.js';
 import { WingSystem, wingCostText, wingFlightText, findWing } from '../client/src/systems/wings.js';
 import {
   LEATHER_TYPES,
@@ -268,7 +269,7 @@ function section(title) {
 // ─────────────────────────────────────── 1. 데이터 무결성
 section('데이터 무결성');
 check('VERSION 존재', typeof VERSION === 'string' && VERSION.length > 0, VERSION);
-check('포탑 158종 (공격47·지원21·시설40·공장42·포탈8)', TURRETS.length === 158, `${TURRETS.length}종`);
+check('포탑 165종 (공격47·지원21·시설47·공장42·포탈8)', TURRETS.length === 165, `${TURRETS.length}종`);
 check('포탈 8종 (기지 + T1~T7)', turretsByCategory('portal').length === 8, `${turretsByCategory('portal').length}종`);
 check('포탈마다 목적지가 있다', turretsByCategory('portal').every((t) => typeof t.portalDest === 'string' && t.portalDest.length > 0), turretsByCategory('portal').map((t) => t.portalDest).join(','));
 check('공격형 47종', turretsByCategory('attack').length === 47, `${turretsByCategory('attack').length}종`);
@@ -709,7 +710,7 @@ section('건설 시설 (작업대·저장고·채굴기)');
   check('기본 시설 4종 — 작업대·마법부여대·저장고·채굴기 (T1)', baseFour.length === 4 && baseFacilities.filter((t) => t.kind === 'storage').length === 7, baseFacilities.map((t) => t.name).join(' · '));
   check('컨베이어벨트 7종 (T1~T7)', facilities.filter((t) => t.kind === 'conveyor').length === 7 && facilities.filter((t) => t.kind === 'conveyor').every((t, i) => t.tier === i + 1));
   check('몬스터 소환문 7종 (T1~T7)', facilities.filter((t) => t.kind === 'spawner').length === 7 && facilities.filter((t) => t.kind === 'spawner').every((t, i) => t.tier === i + 1));
-  check('시설 합계 40종 (기본4 + 저장고7 + 발전기7 + 전선1 + 벨트7 + 소환문7 + 기사단 길드7)', facilities.length === 40, `${facilities.length}종`);
+  check('시설 합계 47종 (기본4 + 저장고7 + 물탱크7 + 발전기7 + 전선1 + 벨트7 + 소환문7 + 기사단 길드7)', facilities.length === 47, `${facilities.length}종`);
   const wbDef = facilities.find((t) => t.kind === 'workbench');
   const stDef = facilities.find((t) => t.kind === 'storage');
   const amDef = facilities.find((t) => t.kind === 'autominer');
@@ -732,7 +733,7 @@ check('채굴기 — 맨땅에서 지형 티어 광물 자동 채굴(drillRegion
   check('공장마다 티어별 이름·생산량', factoryDefs.filter((t) => t.factoryType === 'clay').sort((a, b) => a.tier - b.tier).every((t, i, a) => i === 0 || t.outputs[0].amount > a[i - 1].outputs[0].amount));
   check('물추출기·물통로 삭제 — 데이터/ID에 없음', !TURRET_BY_ID.factory_water_t1 && !TURRET_BY_ID.factory_waterway_t1 && !factoryDefs.some((t) => ['water', 'waterway'].includes(t.factoryType)));
   check('공장 전력 — 모두 소비', factoryDefs.every((t) => Number(t.draw) > 0));
-  check('계열 합계 = 150 (공격47 + 지원21 + 시설40 + 공장42)', turretsByCategory('attack').length === 47 && turretsByCategory('heal').length + turretsByCategory('mining').length + turretsByCategory('lumber').length === 21 && facilities.length === 40 && factoryDefs.length === 42);
+  check('계열 합계 = 157 (공격47 + 지원21 + 시설47 + 공장42)', turretsByCategory('attack').length === 47 && turretsByCategory('heal').length + turretsByCategory('mining').length + turretsByCategory('lumber').length === 21 && facilities.length === 47 && factoryDefs.length === 42);
   const t2MineDef = TURRET_BY_ID.mining_t2;
   check('T2 채굴탑 — 은이 빠지고 골드·목재만', Boolean(t2MineDef) && t2MineDef.cost.minerals.silver === undefined && Object.keys(t2MineDef.cost.minerals).length === 0, JSON.stringify(t2MineDef?.cost));
   const turretSrcLimits = readFileSync(new URL('../client/src/systems/turrets.js', import.meta.url), 'utf8');
@@ -828,6 +829,29 @@ check('채굴기 — 맨땅에서 지형 티어 광물 자동 채굴(drillRegion
   check('기사단 길드 — 최고 티어 T7 보너스', guilds[6].knightBonus.damage === 1.5 && guilds[6].knightBonus.damageTaken === 0.78 && guilds[6].knightBonus.moveSpeed === 1.15);
   check('기사단 길드 — 전기 불필요 · 비용 광물 실재', guilds.every((g) => Number(g.draw) === 0) && guilds.every((g) => Object.keys(g.cost.minerals).every((id) => MINERAL_TYPES.some((m) => m.id === id))));
   check('기사단 길드 승급 경로 (facility_knight_guild_t1..t7)', TURRET_BY_ID['facility_knight_guild_t1']?.kind === 'knight_guild' && TURRET_BY_ID['facility_knight_guild_t7']?.tier === 7);
+
+  // ── 물탱크 · 지하수 추출 기능 (v1.19.5)
+  const waterTanks = facilities.filter((t) => t.kind === 'water_tank').slice().sort((a, b) => a.tier - b.tier);
+  check('물탱크 7종 (T1~T7)', waterTanks.length === 7 && waterTanks.every((t, i) => t.tier === i + 1), `${waterTanks.length}종`);
+  check('물탱크 용량 단조 증가 (100 → 4000L)', waterTanks[0].waterCapacity === 100 && waterTanks[6].waterCapacity === 4000 && waterTanks.every((t, i, a) => i === 0 || t.waterCapacity > a[i - 1].waterCapacity), waterTanks.map((t) => t.waterCapacity).join(' → '));
+  check('물탱크 — 전기 불필요 · 승급 경로', waterTanks.every((t) => Number(t.draw) === 0) && TURRET_BY_ID.facility_water_tank_t1?.kind === 'water_tank' && TURRET_BY_ID.facility_water_tank_t7?.tier === 7);
+  const waterEco = new Economy();
+  check('물 — 탱크 없으면 추출 불가', extractWater({ economy: waterEco, capacity: 0, now: 0 }).reason === 'no_tank');
+  const waterFirst = extractWater({ economy: waterEco, capacity: 100, now: 0 });
+  check('물 — 1회 20L 추출', waterFirst.ok === true && waterFirst.gained === 20 && waterEco.water === 20, `${waterEco.water}L`);
+  check('물 — 연타 쿨다운', extractWater({ economy: waterEco, capacity: 100, now: 100, nextReadyAt: 800 }).reason === 'cooldown');
+  check('물 — 탱크 용량까지만 저장', extractWater({ economy: waterEco, capacity: 30, now: 900, amount: 50 }).gained === 10 && waterEco.water === 30, `${waterEco.water}L`);
+  check('물 — 가득 차면 실패', extractWater({ economy: waterEco, capacity: 30, now: 2000 }).reason === 'full');
+  check('물 — 탱크 철거 시 초과분 폐기', clampWater(waterEco, 10).stored === 10 && waterEco.water === 10);
+  const waterSave = waterEco.toJSON();
+  check('물 — 저장/복원 왕복', new Economy().fromJSON(waterSave).water === 10 && waterSave.water === 10);
+  check('물 — 탱크 용량 합산(파괴된 탱크 제외)', waterCapacityOf([
+    { type: waterTanks[0], destroyed: false },
+    { type: waterTanks[1], destroyed: false },
+    { type: waterTanks[2], destroyed: true },
+    { type: { kind: 'storage' } }
+  ]) === 350);
+  check('물 상수 — 20L · 0.8초', WATER.extractAmount === 20 && WATER.cooldownMs === 800 && storedWater(waterEco) === 10);
 }
 
 // ─────────────────────────────────────── 7-2. 작업대 = 전체 무기 제작
@@ -3061,8 +3085,9 @@ section('점프 우선 · 키 변경 (계약 §4.56 · §4.55)');
   check('keys — 무결성 검사(변경·중복 거부·ESC 고정·복원)', validateKeyData().length === 0, validateKeyData().join(' · ') || '전부 통과');
   check('keys — 기본값은 기존 하드코딩과 같다', keyCodes('jump').join(',') === 'Space' && keyCodes('forward').join(',') === 'KeyW,ArrowUp' && keyCodes('sit').join(',') === 'ControlLeft,ControlRight' && keyLabel('KeyP') === 'P');
   check('keys — ESC 는 바꿀 수 없다', setKey('jump', 'Escape', { persist: false }).ok === false && keyCodes('jump').join(',') === 'Space');
-  check('keys — 30개 동작이 모두 라벨/그룹을 가진다', KEY_ACTIONS.length === 30 && KEY_ACTIONS.every((a) => a.label && a.group && a.def.length > 0), KEY_ACTIONS.length + '개');
+  check('keys — 31개 동작이 모두 라벨/그룹을 가진다', KEY_ACTIONS.length === 31 && KEY_ACTIONS.every((a) => a.label && a.group && a.def.length > 0), KEY_ACTIONS.length + '개');
     check('keys — 시점 전환 동작이 있다(H 키)', (KEY_ACTIONS.find((a) => a.id === 'camera')?.def ?? []).includes('KeyH') === true, JSON.stringify((KEY_ACTIONS.find((a) => a.id === 'camera')?.def) ?? []));
+  check('keys — 지하수 추출 동작이 있다(L 키)', (KEY_ACTIONS.find((a) => a.id === 'water')?.def ?? []).includes('KeyL') === true, JSON.stringify((KEY_ACTIONS.find((a) => a.id === 'water')?.def) ?? []));
   resetAllKeys({ persist: false });
 }
 // ───────────────────────── H-57 조합법 도감(지형별)

@@ -766,7 +766,7 @@ if (pm) {
       msg.includes('보유 150발')
     );
   });
-  attempt('건설 패널 — 🏗 시설 탭 40종(기본·연성대·저장고·발전기·전선·벨트·소환문·기사단 길드)', () => {
+  attempt('건설 패널 — 🏗 시설 탭 47종(기본·연성대·저장고·물탱크·발전기·전선·벨트·소환문·기사단 길드)', () => {
     pm.state.build.category = 'facility';
     pm.state.build.tier = 0;
     pm.open('build');
@@ -774,24 +774,26 @@ if (pm) {
     const picks = root.querySelectorAll('[data-act="build-pick"]');
     const hasBelt = picks.some((b) => b.dataset.type === 'facility_conveyor_t1' && b.dataset.type !== 'facility_conveyor_t7');
     return (
-      picks.length === 40 &&
+      picks.length === 47 &&
       picks.some((b) => b.dataset.type === 'facility_workbench') &&
       picks.some((b) => b.dataset.type === 'facility_storage_t7') &&
+      picks.some((b) => b.dataset.type === 'facility_water_tank_t7') &&
       picks.some((b) => b.dataset.type === 'facility_generator_t1') &&
       picks.some((b) => b.dataset.type === 'facility_cable') &&
       picks.some((b) => b.dataset.type === 'facility_spawner_t7') &&
       picks.some((b) => b.dataset.type === 'facility_knight_guild_t7')
     );
   });
-  attempt('건설 패널 — 시설 티어 탭(T4 = 저장고·발전기·벨트·소환문·기사단 길드 각 1종)', () => {
+  attempt('건설 패널 — 시설 티어 탭(T4 = 저장고·물탱크·발전기·벨트·소환문·기사단 길드 각 1종)', () => {
     pm.state.build.category = 'facility';
     pm.state.build.tier = 4;
     pm.open('build');
     const root = documentStub.getElementById('panel-root');
     const picks = root.querySelectorAll('[data-act="build-pick"]');
     return (
-      picks.length === 5 &&
+      picks.length === 6 &&
       picks.some((b) => b.dataset.type === 'facility_storage_t4') &&
+      picks.some((b) => b.dataset.type === 'facility_water_tank_t4') &&
       picks.some((b) => b.dataset.type === 'facility_generator_t4') &&
       picks.some((b) => b.dataset.type === 'facility_conveyor_t4') &&
       picks.some((b) => b.dataset.type === 'facility_spawner_t4') &&
@@ -805,6 +807,15 @@ if (pm) {
     const root = documentStub.getElementById('panel-root');
     const text = root.textContent || '';
     return text.includes('기사단 강화') && text.includes('공격력 +6%') && text.includes('받는 피해 -3%') && text.includes('이동 +2%');
+  });
+  attempt('건설 패널 — 물탱크 카드에 저장 용량·L 키 안내', () => {
+    pm.state.build.category = 'facility';
+    pm.state.build.tier = 1;
+    pm.open('build');
+    const root = documentStub.getElementById('panel-root');
+    const card = root.querySelectorAll('[data-act="build-pick"]').find((b) => b.dataset.type === 'facility_water_tank_t1');
+    const text = card ? card.textContent || '' : '';
+    return Boolean(card) && text.includes('저장 용량') && text.includes('100L') && text.includes('L 키');
   });
   attempt('건설 패널 — 🏭 공장 탭 42종(6종 × T1~T7)', () => {
     pm.state.build.category = 'factory';
@@ -1629,6 +1640,16 @@ ok(
 hudGame.storageSummary = () => ({ count: 0, gold: 0, wood: 0, capacity: 0, powered: 0 });
 hud.update(0.1);
 ok('HUD 📦 칩 — 저장고 없으면 is-empty', hud._refs.storageChip.classList.contains('is-empty') === true, hud._refs.storage.textContent);
+hudGame.waterSummary = () => ({ stored: 20, capacity: 100, amount: 20, cooldownMs: 800, ratio: 0.2 });
+hud.update(0.1);
+ok(
+  'HUD 💧 칩 — 물 저장량/물탱크 용량 표시',
+  String(hud._refs.water.textContent) === '20/100' && String(hud._refs.waterChip.title).includes('L 키'),
+  `${hud._refs.water.textContent} / ${hud._refs.waterChip.title}`
+);
+hudGame.waterSummary = () => ({ stored: 0, capacity: 0, amount: 20, cooldownMs: 800, ratio: 0 });
+hud.update(0.1);
+ok('HUD 💧 칩 — 탱크 없으면 is-empty · — 표시', hud._refs.waterChip.classList.contains('is-empty') === true && String(hud._refs.water.textContent) === '—');
 hud.setDemolish({ active: true, target: { type: { name: '저장고' }, tier: 4 }, allowed: true });
 ok(
   'HUD 철거 모드 — 대상·25% 환불·조준선 강조',

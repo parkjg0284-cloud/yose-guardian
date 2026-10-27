@@ -49,6 +49,7 @@ import { ENDLESS_UNLOCK_WAVE, isEndlessUnlocked, recordWave, recordCelestialKill
 import { ImpactFX } from './player/impacts.js';
 import { ProjectileSystem } from './player/projectiles.js';
 import { Economy } from './systems/economy.js';
+import { WATER, extractWater as extractWaterLogic, clampWater } from './systems/water.js';
 import { AchievementSystem } from './systems/achievements.js';
 import { GachaSystem } from './systems/gacha.js';
 import { EnchantSystem } from './systems/enchant.js';
@@ -336,6 +337,9 @@ class Game {
     this.character = this.characterStore.load(currentNickname() || auth.user?.nickname || auth.user?.username || '');
     this.lastSnapshot = null;
     this.multiplayer = false;
+    // 물 — 물탱크 용량 캐시와 L 키 연타 방지 시각(계약 §4.88)
+    this._waterCapacity = 0;
+    this._waterNextAt = 0;
 
     this._initRenderer();
     this._initUI();
@@ -915,6 +919,8 @@ class Game {
 
     // 맨손 시작 — 첫 작업대(650 G·160 목재)와 첫 무기 제작(450 G·150 목재)을 바로 할 수 있는 정도만 준다.
     this.economy = new Economy({ gold: creative ? 999999 : 1200, wood: creative ? 99999 : 400, minerals: creative ? {} : {} });
+    this._waterCapacity = 0;
+    this._waterNextAt = 0;
     if (creative) for (const m of MINERAL_TYPES) this.economy.addMineral(m.id, 99);
 
     this.achievements = new AchievementSystem({
@@ -991,8 +997,12 @@ class Game {
       takeItem: (dest) => this.crafting?.takePortal?.(dest) ?? false
     });
     this.turrets.miningBonus = bonus.miningSpeed * (this.classes?.modifiers?.miningSpeed ?? 1);
-    // 기사단 길드 건설·철거·파괴 시 기사 능력치를 즉시 다시 계산한다.
-    this.turrets.onStructuresChanged = () => this._applyClassModifiers();
+    // 기사단 길드·물탱크 건설/철거/파괴 시 기사 능력치와 물 저장 용량을 즉시 다시 계산한다.
+    this.turrets.onStructuresChanged = () => {
+      this._applyClassModifiers();
+      this._syncWaterCapacity();
+    };
+    this._syncWaterCapacity();
     // 컨베이어벨트 승강 — 플레이어는 world 를 통해 벨트 밀림을 조회한다.
     this.world.conveyorPushAt = (pos) => this.turrets?.conveyorPushAt?.(pos) ?? null;
 
@@ -2486,6 +2496,49 @@ class Game {
     return this._storageCache ?? { count: 0, gold: 0, wood: 0, capacity: 0, powered: 0 };
   }
 
+  /** 물탱크 용량을 다시 계산하고, 넘치는 물을 버린다(탱크 철거·파괴 포함). */
+  _syncWaterCapacity() {
+    const cap = this.turrets?.waterCapacity?.() ?? 0;
+    this._waterCapacity = cap;
+    return clampWater(this.economy, cap);
+  }
+
+  /** HUD·패널용 물 요약 — 저장량/용량(L) */
+  waterSummary() {
+    const stored = Math.max(0, Math.floor(Number(this.economy?.water) || 0));
+    const capacity = Math.max(0, Math.floor(Number(this._waterCapacity) || 0));
+    const shown = Math.min(stored, capacity);
+    return {
+      stored: shown,
+      capacity,
+      amount: WATER.extractAmount,
+      cooldownMs: WATER.cooldownMs,
+      ratio: capacity > 0 ? shown / capacity : 0
+    };
+  }
+
+  /**
+   * L 키 — 지하수 추출 기능. 물탱크가 없거나 가득 차면 실패한다.
+   * @returns {{ok:boolean, reason:string|null, gained:number, stored:number, capacity:number, nextReadyAt:number}}
+   */
+  extractWater({ now = globalThis.performance?.now?.() ?? Date.now() } = {}) {
+    const result = extractWaterLogic({
+      economy: this.economy,
+      capacity: this._waterCapacity,
+      now,
+      nextReadyAt: this._waterNextAt
+    });
+    if (result.ok) {
+      this._waterNextAt = result.nextReadyAt;
+      this.audio?.play?.('build', { volume: 0.35 });
+    } else if (result.reason === 'no_tank') {
+      this.notify('💧 물탱크가 없습니다 — B 건설 → 🏗 시설 → 물탱크를 먼저 세우세요', 'warn');
+    } else if (result.reason === 'full') {
+      this.notify('💧 물탱크가 가득 찼습니다', 'info');
+    }
+    return result;
+  }
+
   /** 전력이 모자라면 12초에 한 번만 알린다 */
   _updatePowerWarn() {
     const st = this._powerCache;
@@ -3274,6 +3327,9 @@ class Game {
     }
 
     if (this.state !== 'playing') return;
+
+    // L 키 — 지하수 추출(물탱크 필요). 패널이 열려 있으면 입력을 소비하지 않는다.
+    if (!this.ui?.panels?.hasOpen?.() && actionPressed('water')) this.extractWater();
 
     if (actionHeld('sit')) {
       if (actionPressed('achievements')) {

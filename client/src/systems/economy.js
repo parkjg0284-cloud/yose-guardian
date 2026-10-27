@@ -1,6 +1,7 @@
 // 경제 시스템 — 순수 로직 모듈. THREE 를 import 하지 않는다 (헤드리스 테스트 대상).
 // 계약 §4.7: gold / wood / minerals(Record) + add·spend·canAfford·totalMinerals·toJSON·fromJSON.
 // 계약 §4.45: 가죽(leathers)과 같은 방식의 화살(arrows) 원장 — 활 계열의 소모품. spendArrow() 로 1발씩 소비한다.
+// 계약 §4.88: 물(water) — 물탱크 용량 안에서만 저장되는 지하수 자원. 탱크 용량 검사는 water.js/게임이 맡는다.
 // 음수/NaN/문자열 쓰레기 입력에 대해 절대 throw 하지 않고, 자원이 음수가 되지 않도록 방어한다.
 
 /** 유한한 숫자만 통과시키고 그 외에는 fallback(기본 0) 으로 본다. */
@@ -60,9 +61,10 @@ function arrowEntries(arrows) {
 }
 
 export class Economy {
-  constructor({ gold = 300, wood = 100, minerals = {}, leathers = {}, arrows = {} } = {}) {
+  constructor({ gold = 300, wood = 100, minerals = {}, leathers = {}, arrows = {}, water = 0 } = {}) {
     /** @type {number} 골드 */ this.gold = Math.max(0, num(gold));
     /** @type {number} 목재 */ this.wood = Math.max(0, num(wood));
+    /** @type {number} 물(L) — 물탱크 용량까지만 저장된다 */ this.water = Math.max(0, Math.floor(num(water)));
     /** @type {Record<string, number>} 광물 인벤토리 (mineralId -> 개수) */ this.minerals = {};
     for (const [id, count] of mineralEntries(minerals)) {
       const n = Math.floor(Math.max(0, count));
@@ -111,6 +113,24 @@ export class Economy {
     if (n <= 0) return true;
     if (this.wood < n) return false;
     this.wood -= n;
+    return true;
+  }
+
+  // ── 물 (지하수 · 물탱크) ─────────────────────────────────────────────────
+  /** 물 추가(L). 0/음수/NaN 은 무시. 반환: 현재 물 */
+  addWater(amount) {
+    const n = Math.floor(num(amount));
+    if (n > 0) this.water += n;
+    return this.water;
+  }
+
+  /** 물 소비(L). 부족하거나 음수 요청이면 false (상태 변화 없음) */
+  spendWater(amount) {
+    if (!isValidAmount(amount)) return false;
+    const n = Math.floor(num(amount));
+    if (n <= 0) return true;
+    if (this.water < n) return false;
+    this.water -= n;
     return true;
   }
 
@@ -270,6 +290,7 @@ export class Economy {
     return {
       gold: this.gold,
       wood: this.wood,
+      water: this.water,
       minerals: { ...this.minerals },
       leathers: { ...this.leathers },
       arrows: { ...this.arrows }
@@ -280,6 +301,7 @@ export class Economy {
     const src = o && typeof o === 'object' ? o : {};
     this.gold = Math.max(0, num(src.gold));
     this.wood = Math.max(0, num(src.wood));
+    this.water = Math.max(0, Math.floor(num(src.water)));
     this.minerals = {};
     for (const [id, count] of mineralEntries(src.minerals)) {
       const n = Math.floor(Math.max(0, count));

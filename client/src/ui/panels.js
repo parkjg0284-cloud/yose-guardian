@@ -1201,7 +1201,12 @@ export class PanelManager {
     demolishBtn.dataset.act = 'build-demolish';
     body.appendChild(demolishBtn);
     const sel = st.selected ? TURRET_BY_ID[st.selected] : null;
-    const selInfo = sel?.kind === 'knight_guild' ? '적용 범위 기지 전체' : `사거리 ${num(sel?.range)} m`;
+    const selInfo =
+      sel?.kind === 'knight_guild'
+        ? '적용 범위 기지 전체'
+        : sel?.kind === 'water_tank'
+          ? `저장 용량 ${fmt(num(sel?.waterCapacity))}L`
+          : `사거리 ${num(sel?.range)} m`;
     body.appendChild(row('선택한 포탑', sel ? `${sel.name} · ${selInfo}` : '없음 (카드 클릭 또는 1~9)'));
     if (sel) body.appendChild(row('설명', sel.desc || '-'));
 
@@ -1258,12 +1263,24 @@ export class PanelManager {
             )
           );
         }
+        const wt = safe(() => this.game?.waterSummary?.(), null);
+        if (wt) {
+          powerBox.appendChild(
+            row(
+              '💧 물탱크',
+              num(wt.capacity) > 0
+                ? `${fmt(num(wt.stored))} / ${fmt(num(wt.capacity))}L — L 키로 ${fmt(num(wt.amount, 20))}L 추출`
+                : '없음 — 물탱크를 세우면 L 키로 지하수를 저장합니다'
+            )
+          );
+        }
         body.appendChild(powerBox);
       }
 
       const groups = [
         { key: 'power', title: '⚡ 전력 (발전기 · 전선)', kinds: ['generator', 'cable'] },
         { key: 'base', title: '🏗 기본 시설', kinds: ['workbench', 'enchanter', 'arcana', 'storage', 'autominer'] },
+        { key: 'water', title: '💧 물탱크 (T1~T7)', kinds: ['water_tank'] },
         { key: 'guild', title: '🛡 기사단 길드 (T1~T7)', kinds: ['knight_guild'] },
         { key: 'conveyor', title: '⛓ 컨베이어벨트 (T1~T7)', kinds: ['conveyor'] },
         { key: 'spawner', title: '🌀 몬스터 소환문 (T1~T7)', kinds: ['spawner'] }
@@ -1354,6 +1371,9 @@ export class PanelManager {
         card.appendChild(row('수급', `골드 ${num(t.storeRate?.gold)}/s · 목재 ${num(t.storeRate?.wood)}/s`));
         card.appendChild(row('보관 용량', `${fmt(num(t.capacity))} — 가득 차면 멈춤`));
         card.appendChild(row('수거', `반경 ${fmt(num(t.range))}m 안에서 자동 · E 즉시 수거`));
+      } else if (t.kind === 'water_tank') {
+        card.appendChild(row('저장 용량', `${fmt(num(t.waterCapacity))}L`));
+        card.appendChild(row('채우기', '플레이어 기능 — L 키로 지하수 추출'));
       } else if (t.kind === 'generator') {
         card.appendChild(row('공급', `${num(t.output)}kW`));
         card.appendChild(row('연결', '건물 6m · 전선 8m 안으로 붙는다'));
@@ -1376,7 +1396,7 @@ export class PanelManager {
         drawKw > 0 ? `${drawKw}kW 소비` : t.kind === 'generator' ? '공급원' : '전기 불필요';
       card.appendChild(row('전력', powerText));
       if (t.kind === 'knight_guild') card.appendChild(row('적용 범위', '기지 전체 (기사 클래스)'));
-      else card.appendChild(row('사거리', num(t.range)));
+      else if (t.kind !== 'water_tank') card.appendChild(row('사거리', num(t.range)));
       card.appendChild(row('체력', fmt(t.hp)));
     } else if (t.category === 'factory') {
       const outs = (Array.isArray(t.outputs) ? t.outputs : [])

@@ -214,12 +214,12 @@ export const POWER = Object.freeze({
   /**
    * 시설별 소비 전력(kW).
    * 전기를 쓰는 것은 **생산 시설**뿐이다 — 채굴기·저장고·소환문.
-   * 작업대·마법부여대는 수동 시설, 컨베이어벨트는 기계식이라 전기가 필요 없다(0kW).
+   * 작업대·마법부여대는 수동 시설, 컨베이어벨트·물탱크는 기계식이라 전기가 필요 없다(0kW).
    */
-  draw: Object.freeze({ autominer: 3, storage: 2, spawner: 4, workbench: 0, enchanter: 0, factory: 3 })
+  draw: Object.freeze({ autominer: 3, storage: 2, spawner: 4, workbench: 0, enchanter: 0, water_tank: 0, factory: 3 })
 });
 
-// ──────────────────────────────────────────────── 포탑 (공격47·회복7·채굴7·벌목7·시설33·공장56·포탈8)
+// ──────────────────────────────────────────────── 포탑 (공격47·회복7·채굴7·벌목7·시설47·공장42·포탈8 = 165종)
 // ──────────────────────────────────────────────── 가죽 5종 (몬스터 사냥 보상)
 // 가죽은 광물처럼 인벤토리에 쌓이지만 **캐는 것이 아니라 몬스터를 잡아 얻는다.**
 // 지형 티어가 높은 지역의 몬스터일수록 상위 가죽(용 가죽·유물 가죽)을 떨군다.
@@ -377,7 +377,7 @@ export const TURRET_CATEGORIES = {
   heal: { id: 'heal', name: '회복탑', icon: '✚', desc: '주변 구조물·기지·아군을 회복시킨다.' },
   mining: { id: 'mining', name: '채굴탑', icon: '⛏', desc: '반경 내 광물을 자동으로 채굴한다.' },
   lumber: { id: 'lumber', name: '벌목탑', icon: '🪓', desc: '반경 내 나무를 자동으로 벌목한다.' },
-  facility: { id: 'facility', name: '시설', icon: '🏗', desc: '작업대·저장고·채굴기·컨베이어벨트·몬스터 소환문·기사단 길드를 세운다.' },
+  facility: { id: 'facility', name: '시설', icon: '🏗', desc: '작업대·저장고·물탱크·채굴기·컨베이어벨트·몬스터 소환문·기사단 길드를 세운다.' },
   factory: { id: 'factory', name: '공장', icon: '🏭', desc: '티어별 공장을 세워 골드·목재·광물을 자동 생산한다.' }
 };
 
@@ -586,6 +586,23 @@ const STORAGE_TABLE = [
   id: s.tier === 1 ? 'facility_storage' : 'facility_storage_t' + s.tier,
   name: s.tier === 1 ? '저장고' : '저장고 T' + s.tier,
   cost: { ...s.cost, minerals: tierMinerals(s.tier, 3 + s.tier, 2 + Math.floor(s.tier / 2)) }
+}));
+
+// 물탱크 7종 — 플레이어 기능(L)으로 뽑은 지하수를 저장한다. 전기 불필요.
+// 저장량은 **모든 물탱크 용량의 합**이며, 탱크를 철거하면 넘치는 물은 버려진다.
+const WATER_TANK_TABLE = [
+  { tier: 1, capacity: 100, hp: 600, color: 0x5fc4ff, cost: { gold: 600, wood: 160 } },
+  { tier: 2, capacity: 250, hp: 820, color: 0x5fb8f0, cost: { gold: 1600, wood: 380 } },
+  { tier: 3, capacity: 500, hp: 1100, color: 0x5fa8e0, cost: { gold: 3800, wood: 760 } },
+  { tier: 4, capacity: 900, hp: 1450, color: 0x6f9fe0, cost: { gold: 9000, wood: 1500 } },
+  { tier: 5, capacity: 1500, hp: 1900, color: 0x7f96e0, cost: { gold: 20000, wood: 2800 } },
+  { tier: 6, capacity: 2500, hp: 2450, color: 0x8f8ee0, cost: { gold: 45000, wood: 5200 } },
+  { tier: 7, capacity: 4000, hp: 3200, color: 0xa88fff, cost: { gold: 100000, wood: 9500 } }
+].map((t) => ({
+  ...t,
+  id: `facility_water_tank_t${t.tier}`,
+  name: t.tier === 1 ? '물탱크' : `물탱크 T${t.tier}`,
+  cost: { ...t.cost, minerals: tierMinerals(t.tier, 3 + t.tier, 1 + Math.floor(t.tier / 2)) }
 }));
 
 // 발전기 7종 — 전선으로 이어야 전기가 간다. 티어가 오를수록 공급(kW)이 크게 오른다.
@@ -810,6 +827,30 @@ const facilityTurrets = [
     drillRegion: false,
     cost: { gold: s.cost.gold, wood: s.cost.wood, minerals: { ...s.cost.minerals } },
     desc: '자원을 보관한다. 매 초 골드 ' + s.gold + ' · 목재 ' + s.wood + '를 모아 용량 ' + s.capacity + '까지 쌓고, 반경 ' + (10 + s.tier) + 'm 안에 들어오면(또는 E) 인벤토리로 들어간다. 전기 2kW 를 쓴다.'
+  })),
+  ...WATER_TANK_TABLE.map((w) => ({
+    id: w.id,
+    name: w.name,
+    category: 'facility',
+    tier: w.tier,
+    kind: 'water_tank',
+    icon: '💧',
+    effect: 'water',
+    element: 'water',
+    color: w.color,
+    damage: 0,
+    range: 0,
+    fireRate: 0,
+    hp: w.hp,
+    rate: 0,
+    waterCapacity: w.capacity,
+    storeRate: null,
+    capacity: 0,
+    draw: POWER.draw.water_tank,
+    drillPool: null,
+    drillRegion: false,
+    cost: { gold: w.cost.gold, wood: w.cost.wood, minerals: { ...w.cost.minerals } },
+    desc: '지하수를 저장하는 물탱크. 용량 ' + w.capacity + 'L. L 키로 물을 추출해 이 탱크에 채운다. 전기 불필요. 탱크를 철거하면 넘치는 물은 버려진다.'
   })),
   ...GENERATOR_TABLE.map((g) => ({
     id: g.id,

@@ -31,6 +31,7 @@ export const KEY_ACTIONS = [
   { id: 'arcana', label: '마법연성', group: '창', def: ['KeyY'] },
     { id: 'travel', label: '지형 이동(포탈)', group: '기타', def: ['KeyN'] },
   { id: 'interact', label: '상호작용 (수거 · 마법부여)', group: '기타', def: ['KeyE'] },
+  { id: 'water', label: '지하수 추출 (물탱크 필요)', group: '기타', def: ['KeyL'] },
   { id: 'preset', label: '프리셋 전환', group: '기타', def: ['KeyF'] },
   { id: 'wings', label: '날개 토글', group: '기타', def: ['KeyV'] },
   { id: 'camera', label: '시점 전환 (1인칭 ↔ 3인칭) — 설정에서 변경', group: '기타', def: ['KeyH'] },
