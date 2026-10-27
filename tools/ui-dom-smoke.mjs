@@ -1179,7 +1179,7 @@ if (menu) {
   ok('show("seeds") / show("help") render', menu.show('seeds') && menu.show('help') && menu.show('main'));
   const root = documentStub.getElementById('menu-root');
   ok('title screen has title + tabs + seed input', Boolean(root.querySelector('.menu-title')) && root.querySelectorAll('[data-act="menu-tab"]').length === 4 && Boolean(root.querySelector('[data-field="menu-seed"]')));
-  ok('mode/difficulty selectors rendered', root.querySelectorAll('[data-act="menu-mode"]').length === 4 && root.querySelectorAll('[data-act="menu-diff"]').length === 4);
+  ok('mode/difficulty selectors rendered', root.querySelectorAll('[data-act="menu-mode"]').length === 4 && root.querySelectorAll('[data-act="menu-diff"]').length === 5);
   ok('help control table lists every keybind', (() => {
     menu.show('help');
     const rows = documentStub.getElementById('menu-root').querySelectorAll('.row');
@@ -2273,7 +2273,7 @@ console.log('\n== 캐릭터 / 로그인 전환 ==');
 
   menu.show('character');
   const cards = menuRoot.querySelectorAll('[data-act="character-skin"]');
-  ok('캐릭터 탭 — 외형 8종 카드', cards.length === 8, 'cards=' + cards.length);
+  ok('캐릭터 탭 — 외형 9종 카드', cards.length === 9, 'cards=' + cards.length);
   ok(
     '캐릭터 탭 — 이름 입력 + 저장 버튼',
     Boolean(menuRoot.querySelector('[data-field="character-name"]')) && Boolean(menuRoot.querySelector('[data-act="character-save"]'))

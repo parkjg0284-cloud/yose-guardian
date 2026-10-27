@@ -706,7 +706,12 @@ export class MainMenu {
     const diffInfo = DIFFICULTIES.find((d) => d.id === this.state.difficulty);
     if (diffInfo) {
       diffField.appendChild(
-        h('span', 'solo-note', `적 HP ×${diffInfo.hpMult} · 적 수 ×${diffInfo.countMult} · 골드 ×${diffInfo.goldMult} — ${diffInfo.desc}`)
+        h(
+          'span',
+          'solo-note',
+          `적 HP ×${diffInfo.hpMult} · 공격력 ×${diffInfo.attackMult ?? 1} · 적 수 ×${diffInfo.countMult} · 골드 ×${diffInfo.goldMult}` +
+            `${diffInfo.maxWaves ? ` · ${diffInfo.maxWaves} 웨이브 고정` : ''} — ${diffInfo.desc}`
+        )
       );
     }
     grid.appendChild(diffField);
@@ -1159,6 +1164,7 @@ export class MainMenu {
       cell.title = skin.desc;
       cell.dataset.act = 'character-skin';
       cell.dataset.skin = skin.id;
+      cell.style.setProperty('--skin-color', '#' + Number(skin.color).toString(16).padStart(6, '0'));
       const swatch = h('span', 'character-swatch', skin.icon);
       swatch.style.background = '#' + Number(skin.color).toString(16).padStart(6, '0');
       cell.appendChild(swatch);

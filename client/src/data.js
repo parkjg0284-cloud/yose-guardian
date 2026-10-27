@@ -352,6 +352,16 @@ export const CHARACTER_ITEMS = [
     cost: { gold: 8000 },
     bonus: { flightSpeedPct: 0.2, flightCeilingPct: 0.1 },
     desc: '요정 친구만 받을 수 있는 날갯깃. 비행 속도 20% · 비행 상한 10% 늘어난다.'
+  },
+  {
+    id: 'charm_seraph',
+    skin: 'seraph',
+    name: '천상기사의 성광',
+    glyph: '✨',
+    color: 0xf2d27a,
+    cost: { gold: 9000 },
+    bonus: { damagePct: 0.1, damageTakenPct: 0.05 },
+    desc: '황금 성광 갑주의 빛을 담은 성표. 천상기사만 사용해 피해 10% 증가 · 받는 피해 5% 감소.'
   }
 ];
 
@@ -2421,6 +2431,13 @@ export const BOSS_TYPES = [
     damage: 1200, hp: 5000000, attack: 1200, gold: 250000, ability: 'judgment',
     barWidth: 64, barRange: 1400,
     desc: '하늘을 가르고 강림한 최종보스 — 웨이브 100(무한 모드에서는 300 웨이브마다). 심판의 빛으로 기지와 모든 포탑을 태운다.'
+  },
+  // ── 지옥 난이도 전용 최종보스: 디아블로. 표기한 체력/공격력은 난이도·웨이브 배율을 받지 않는 고정값.
+  {
+    id: 'diablo', name: '디아블로', color: 0x3a0b12, hpMult: 1, speedMult: 0.5, radius: 5.6,
+    damage: 1700000, hp: 1000000000, attack: 1700000, gold: 2000000, ability: 'apocalypse',
+    barWidth: 96, barRange: 1800,
+    desc: '지옥의 군주 — 100 웨이브에 강림한다. 지옥불로 모든 포탑과 기지를 태우는 최종보스.'
   }
 ];
 
@@ -2641,10 +2658,12 @@ export function waveRoster(wave, { prevId = null, boss = false } = {}) {
 }
 
 export const DIFFICULTIES = [
-  { id: 'peaceful', name: '평온', hpMult: 0.7, countMult: 0.8, goldMult: 1.3, desc: '느긋하게 즐기는 모드' },
-  { id: 'normal', name: '표준', hpMult: 1.0, countMult: 1.0, goldMult: 1.0, desc: '기본 밸런스' },
-  { id: 'hard', name: '도전', hpMult: 1.5, countMult: 1.25, goldMult: 0.85, desc: '숙련자용' },
-  { id: 'nightmare', name: '악몽', hpMult: 2.4, countMult: 1.6, goldMult: 0.7, desc: '모든 것이 적으로 변한다' }
+  { id: 'peaceful', name: '평온', hpMult: 0.7, attackMult: 0.7, countMult: 0.8, goldMult: 1.3, desc: '느긋하게 즐기는 모드' },
+  { id: 'normal', name: '표준', hpMult: 1.0, attackMult: 1.0, countMult: 1.0, goldMult: 1.0, desc: '기본 밸런스' },
+  { id: 'hard', name: '도전', hpMult: 1.8, attackMult: 1.35, countMult: 1.25, goldMult: 0.85, desc: '단단하고 사나운 적 — 숙련자용' },
+  { id: 'nightmare', name: '악몽', hpMult: 3.0, attackMult: 2.0, countMult: 1.6, goldMult: 0.7, desc: '모든 것이 적으로 변한다' },
+  // 지옥 — 100 웨이브 고정. 마지막 100 웨이브에 디아블로가 강림한다(HP 10억·공격력 170만, 고정).
+  { id: 'hell', name: '지옥', hpMult: 5.0, attackMult: 3.0, countMult: 1.8, goldMult: 0.55, maxWaves: 100, desc: '100 웨이브 고정 — 마지막에 디아블로 강림' }
 ];
 
 export const MODES = [

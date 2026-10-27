@@ -77,7 +77,7 @@ section('캐릭터 — 이름 경계값');
 
 section('캐릭터 — 외형(스킨) 오염·경계');
 {
-  check('외형 정확히 8종', CHARACTER_SKINS.length === 8);
+  check('외형 정확히 9종', CHARACTER_SKINS.length === 9);
   check('모든 외형 id/이름/아이콘/색 유효', CHARACTER_SKINS.every((s) => /^[a-z][a-z_]*$/.test(s.id) && s.name && s.icon && Number.isFinite(s.color) && Number.isFinite(s.accent)));
   for (const evil of ['__proto__', 'constructor', 'prototype', 'toString', 'valueOf', 'hasOwnProperty', '', ' Mage', 'mage ', 'MAge']) {
     check(`외형 "${evil}" 은 거부`, characterSkin(evil) === null, String(characterSkin(evil)));

@@ -43,7 +43,7 @@ function Get-DefaultUrl {
   return ''
 }
 
-# ── 업데이트 내역 (launcher\updates.json) ──────────────────────────────
+# ── 패치노트 (launcher\updates.json) ──────────────────────────────
 function Get-Updates {
   $path = Join-Path $here 'updates.json'
   if (-not (Test-Path $path)) { return @() }
@@ -56,8 +56,8 @@ function Get-Updates {
 
 function Get-UpdatesText {
   $entries = @(Get-Updates)
-  if (-not $entries.Count) { return '업데이트 내역이 없습니다.' }
-  $lines = @('요세의 수호자 — 업데이트 내역', '')
+  if (-not $entries.Count) { return '패치노트가 없습니다.' }
+  $lines = @('요세의 수호자 — 패치노트', '')
   foreach ($e in $entries) {
     $lines += ('v' + $e.version + '   ' + $e.date + '   ' + $e.title)
     foreach ($n in @($e.notes)) { $lines += ('  · ' + $n) }
@@ -68,7 +68,7 @@ function Get-UpdatesText {
 
 function Show-Updates {
   $f = New-Object System.Windows.Forms.Form
-  $f.Text = '요세의 수호자 — 업데이트 내역'
+  $f.Text = '요세의 수호자 — 패치노트'
   $f.Size = New-Object System.Drawing.Size(760, 620)
   $f.StartPosition = 'CenterParent'
   $f.BackColor = [System.Drawing.Color]::FromArgb(255, 218, 185)
@@ -257,7 +257,7 @@ $closeBtn.Add_Click({ $form.Close() })
 $form.Controls.Add($closeBtn)
 
 $updatesBtn = New-Object System.Windows.Forms.Button
-$updatesBtn.Text = '업데이트 내역'
+$updatesBtn.Text = '패치노트'
 $updatesBtn.Location = New-Object System.Drawing.Point(448, 570)
 $updatesBtn.Size = New-Object System.Drawing.Size(184, 46)
 $updatesBtn.Add_Click({ Show-Updates })
@@ -339,7 +339,7 @@ if ($SelfTest) {
   $missing = @($need | Where-Object { -not (Get-Variable -Name $_ -Scope 0 -ErrorAction SilentlyContinue) })
   Write-Host ('  컨트롤 ' + $form.Controls.Count + '개 · 누락 ' + $missing.Count + '개 · 창 ' + $form.Size.Width + 'x' + $form.Size.Height)
   Write-Host ('  버튼: ' + $dlBtn.Text + ' / ' + $startBtn.Text + ' / ' + $updatesBtn.Text + ' / ' + $closeBtn.Text)
-  Write-Host ('  업데이트 내역: ' + @(Get-Updates).Count + '개 버전 · ' + (Get-UpdatesText).Length + '자')
+  Write-Host ('  패치노트: ' + @(Get-Updates).Count + '개 버전 · ' + (Get-UpdatesText).Length + '자')
   if ($missing.Count) { Write-Host ('  X 누락: ' + ($missing -join ', ')); exit 1 }
   Write-Host '  OK 런처 구성 정상'; exit 0
 }
@@ -355,7 +355,7 @@ Write-Log '주소를 확인하고 [다운로드 & 설치] 를 누르세요.'
 $latest = @(Get-Updates) | Select-Object -First 1
 if ($latest) {
   Write-Log ('최신 업데이트 — v' + $latest.version + ' · ' + $latest.title)
-  Write-Log '  전체 내역은 [업데이트 내역] 버튼에서 확인할 수 있습니다.'
+  Write-Log '  전체 내역은 [패치노트] 버튼에서 확인할 수 있습니다.'
 }
 if (-not (Get-DefaultUrl)) { Write-Log '  (주소가 비어 있으면 함께 들어 있는 게임 파일로 설치합니다)' }
 [void]$form.ShowDialog()

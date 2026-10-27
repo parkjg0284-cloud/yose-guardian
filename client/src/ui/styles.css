@@ -3510,37 +3510,58 @@ body {
   flex: 1 1 100%;
 }
 .character-card {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
   align-items: flex-start;
-  padding: 8px 10px;
-  border-radius: 10px;
+  padding: 10px 11px;
+  border-radius: 12px;
   border: 1px solid rgba(150, 170, 210, 0.28);
-  background: rgba(14, 18, 32, 0.6);
+  background:
+    radial-gradient(120% 90% at 8% 0%, color-mix(in srgb, var(--skin-color, #5b8dd6) 26%, transparent), transparent 62%),
+    linear-gradient(160deg, rgba(24, 30, 48, 0.92), rgba(10, 13, 24, 0.84));
   color: #dfe7f5;
   cursor: pointer;
   text-align: left;
+  overflow: hidden;
+  transition: transform 0.16s ease, border-color 0.16s ease, box-shadow 0.16s ease;
+}
+.character-card::before {
+  content: '';
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, var(--skin-color, #5b8dd6), transparent 75%);
+  opacity: 0.8;
 }
 .character-card:hover {
-  border-color: rgba(190, 215, 255, 0.55);
+  transform: translateY(-2px);
+  border-color: color-mix(in srgb, var(--skin-color, #7fb0ff) 70%, #cfd8ea);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
 }
 .character-card.active,
 .character-card.is-active {
   border-color: #7fb0ff;
-  box-shadow: 0 0 0 1px rgba(127, 176, 255, 0.5) inset;
-  background: rgba(30, 44, 74, 0.75);
+  box-shadow: 0 0 0 1px rgba(127, 176, 255, 0.5) inset, 0 0 18px color-mix(in srgb, var(--skin-color, #7fb0ff) 35%, transparent);
+  background:
+    radial-gradient(120% 90% at 8% 0%, color-mix(in srgb, var(--skin-color, #5b8dd6) 40%, transparent), transparent 66%),
+    linear-gradient(160deg, rgba(34, 48, 80, 0.95), rgba(14, 18, 32, 0.9));
 }
 .character-swatch {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border-radius: 50%;
-  font-size: 17px;
+  font-size: 18px;
   line-height: 1;
-  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35) inset;
+  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.35) inset, 0 0 14px color-mix(in srgb, var(--skin-color, #5b8dd6) 65%, transparent);
+}
+.character-card[data-skin="seraph"] .character-swatch {
+  background: linear-gradient(145deg, #fff4d0, #e8c56a 62%, #b98a2e) !important;
 }
 .character-name-row {
   font-weight: 600;

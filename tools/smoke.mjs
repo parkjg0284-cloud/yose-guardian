@@ -286,7 +286,7 @@ check('업적 75+', ACHIEVEMENTS.length >= 75, `${ACHIEVEMENTS.length}개`);
 check('업적 카테고리 7종', ACHIEVEMENT_CATEGORIES.length === 7);
 check('스폰 패턴 5종', SPAWN_PATTERNS.length === 5);
 check('적 타입 11종', ENEMY_TYPES.length === 11, `${ENEMY_TYPES.length}종`);
-check('보스 5종', BOSS_TYPES.length === 5);
+check('보스 6종', BOSS_TYPES.length === 6);
 check(
   '신규 몬스터 3종(박쥐·거미·해골)',
   ['bat', 'spider', 'skeleton'].every((id) => ENEMY_TYPES.some((t) => t.id === id)),
@@ -349,7 +349,7 @@ check('일반 웨이브는 친위대 편성 제외', [1, 5, 9, 11, 15].every((w)
 check('편성표 조회 맵 일치', WAVE_ROSTER_BY_ID.imp_nest === WAVE_ROSTERS.find((r) => r.id === 'imp_nest'));
 check('프레임 프리셋 6종(초고속 500 FPS 포함)', FRAME_PRESETS.length === 6 && FRAME_PRESETS.some((p) => p.id === 'speed') && FRAME_PRESETS.filter((p) => p.id === 'speed').length === 1);
 check('추천 시드 8종', SEED_GALLERY.length === 8);
-check('난이도 4종', DIFFICULTIES.length === 4);
+check('난이도 5종', DIFFICULTIES.length === 5);
 check('부여대 조합식 11종', MINERAL_COMBO_RECIPES.length === 11, `${MINERAL_COMBO_RECIPES.length}종`);
 check('칭호 9종', TITLE_LIST.length === 9);
 
@@ -580,6 +580,17 @@ check('웨이브 1 적 수', countAt(1) === WAVE_CONFIG.baseCount, `${countAt(1)
 check('웨이브 20 적 수 증가', countAt(20) > countAt(1) * 3, `${countAt(1)} → ${countAt(20)}`);
 const nightmare = DIFFICULTIES.find((d) => d.id === 'nightmare');
 check('악몽 난이도 배수 적용', hpAt(10, nightmare.hpMult) > hpAt(10) * 2, `x${nightmare.hpMult}`);
+const hell = DIFFICULTIES.find((d) => d.id === 'hell');
+const diablo = BOSS_TYPES.find((b) => b.id === 'diablo');
+check(
+  '난이도 5종 — 체력·공격력이 단계마다 상승',
+  DIFFICULTIES.length === 5 &&
+    DIFFICULTIES.every((d) => d.attackMult > 0) &&
+    DIFFICULTIES.slice(1).every((d, i) => d.hpMult > DIFFICULTIES[i].hpMult && d.attackMult > DIFFICULTIES[i].attackMult),
+  DIFFICULTIES.map((d) => `${d.name} HP×${d.hpMult}/ATK×${d.attackMult}`).join(' · ')
+);
+check('지옥 난이도 — 100 웨이브 고정', hell?.maxWaves === 100 && hell?.hpMult === 5 && hell?.attackMult === 3, JSON.stringify(hell));
+check('디아블로 — HP 1,000,000,000 · 공격력 1,700,000 (고정)', diablo?.hp === 1000000000 && diablo?.attack === 1700000 && diablo?.damage === 1700000 && diablo?.ability === 'apocalypse', `${diablo?.hp} / ${diablo?.attack}`);
 check('보스 주기 10의 배수', WAVE_CONFIG.bossEvery === 10);
 check('완벽 방어 보너스 2배', WAVE_CONFIG.perfectBonus === 2);
 check('준비 시간 30초', WAVE_CONFIG.prepTime === 30);
@@ -1374,18 +1385,21 @@ section('지역 시스템 (티어 지역 · 히든 지역)');
 
   // ── 최종보스 셀레스티얼
   const celestial = BOSS_TYPE_BY_ID.celestial;
-  check('최종보스 셀레스티얼이 보스 5종에 포함', BOSS_TYPES.length === 5 && !!celestial, BOSS_TYPES.map((b) => b.id).join(','));
+  check('최종보스 셀레스티얼이 보스 6종에 포함', BOSS_TYPES.length === 6 && !!celestial, BOSS_TYPES.map((b) => b.id).join(','));
   check('셀레스티얼 체력 5,000,000 (고정)', celestial.hp === 5000000 && celestial.hpMult === 1, String(celestial.hp));
   check('셀레스티얼 공격력 1,200 (고정)', celestial.attack === 1200 && celestial.damage === 1200, String(celestial.attack));
-  check('셀레스티얼 크기 — 기존 최대 보스의 12배 이상', celestial.radius >= BOSS_TYPES.filter((b) => b.id !== 'celestial').reduce((a, b) => Math.max(a, b.radius), 0) * 12, `radius ${celestial.radius}`);
+  check('셀레스티얼 크기 — 기존 최대 보스의 12배 이상', celestial.radius >= BOSS_TYPES.filter((b) => b.id !== 'celestial' && b.id !== 'diablo').reduce((a, b) => Math.max(a, b.radius), 0) * 12, `radius ${celestial.radius}`);
   check('셀레스티얼 전용 능력 = 심판', celestial.ability === 'judgment' && celestial.barWidth >= 40 && celestial.barRange >= 1000);
+  const diablo = BOSS_TYPES.find((b) => b.id === 'diablo');
+  check('디아블로 — 지옥 전용 최종보스 스펙', diablo?.hp === 1000000000 && diablo?.attack === 1700000 && diablo?.barWidth >= 80, `${diablo?.hp} / ${diablo?.attack}`);
   check('최종 웨이브 100 = 보스 웨이브', WAVE_CONFIG.finalWave === 100 && WAVE_CONFIG.finalWave % WAVE_CONFIG.bossEvery === 0);
   const enemiesSrc = readFileSync(new URL('../client/src/systems/enemies.js', import.meta.url), 'utf8');
   check('enemies — 고정 체력/공격력 지원', enemiesSrc.includes('const fixedHp = num(this.type.hp, 0)') && enemiesSrc.includes('const fixedAttack = num(this.type.attack, 0)'));
   check('enemies — 셀레스티얼 전용 3D 메시 + 심판', enemiesSrc.includes('_buildCelestialMesh') && enemiesSrc.includes("case 'judgment'") && enemiesSrc.includes('celestialWing') && enemiesSrc.includes('celestialRing'));
-  check('enemies — 심판 쿨다운·사거리 등록', enemiesSrc.includes('judgment: 16') && enemiesSrc.includes('judgment: 120'));
+  check('enemies — 디아블로 전용 3D 메시 + 지옥불', enemiesSrc.includes('_buildDiabloMesh') && enemiesSrc.includes("case 'apocalypse'") && enemiesSrc.includes('_diabloParts') && enemiesSrc.includes('diabloLight'));
+  check('enemies — 심판·지옥불 쿨다운/사거리 등록', enemiesSrc.includes('judgment: 16') && enemiesSrc.includes('judgment: 120') && enemiesSrc.includes('apocalypse: 18') && enemiesSrc.includes('apocalypse: 180'));
   const hudSrc = readFileSync(new URL('../client/src/ui/hud.js', import.meta.url), 'utf8');
-  check('HUD — 심판 라벨 표시', hudSrc.includes('judgment:'));
+  check('HUD — 심판·지옥불 라벨 표시', hudSrc.includes('judgment:') && hudSrc.includes('apocalypse:'));
   const barsSrc = readFileSync(new URL('../client/src/ui/healthbars.js', import.meta.url), 'utf8');
   check('월드 체력바 — 거대 보스 표시 거리(type.barRange)', barsSrc.includes('enemy.type?.barRange'));
   check('모든 광물 업적 목표 = 전체 광물 수', ACHIEVEMENTS.some((a) => a.target === MINERAL_TYPES.length), `${MINERAL_TYPES.length}종`);
@@ -1613,7 +1627,7 @@ check(
   const g7 = runAdminCommand('/전체자원 999', { game, user: admin });
   check('전체 자원 소환 — 광물 27종 전부', g7.ok && MINERAL_TYPES.every((m) => eco.getMineral(m.id) >= 999), `${MINERAL_TYPES.length}종 · 골드 ${eco.gold.toLocaleString()}`);
   const g8 = runAdminCommand('/웨이브 30', { game: { waves: { wave: 0, reset() {}, forceStart() { return true; } } }, user: admin });
-  check('웨이브 이동 + 최종보스 안내', g8.ok && g8.lines.some((l) => l.includes('셀레스티얼')), g8.lines.join(' / ').slice(0, 50));
+  check('웨이브 이동 + 최종보스 안내', g8.ok && g8.lines.some((l) => l.includes('디아블로') && l.includes('최종보스')), g8.lines.join(' / ').slice(0, 60));
   const g9 = runAdminCommand('/치유', { game, user: admin });
   check('치유 — 체력·마나·기지', g9.ok && game.player.hp === 100 && game.player.mana === 50 && game.world.base.hp === 500);
   check('인자 없는 명령은 사용법 안내', runAdminCommand('/무기', { game, user: admin }).message.includes('사용법'));
@@ -2804,7 +2818,7 @@ section('캐릭터 — 멀티플레이 생성·전송·표시');
   const managerSrc = readFileSync(new URL('../server/game/RoomManager.js', import.meta.url), 'utf8');
 
   const charErrors = character.validateCharacterData();
-  check('캐릭터 데이터 무결성(외형 8종·이름 16자·색)', charErrors.length === 0, charErrors.join(' · '));
+  check('캐릭터 데이터 무결성(외형 9종·이름 16자·색)', charErrors.length === 0, charErrors.join(' · '));
   check('외형은 코스메틱 — 능력치 필드 없음', character.CHARACTER_SKINS.every((s) => !('damage' in s) && !('speed' in s) && !('hp' in s)));
   const payload = character.characterPayload({ name: '  요새   지기 ', skin: 'mage' }, '수호자');
   check(
@@ -2834,8 +2848,8 @@ section('캐릭터 — 멀티플레이 생성·전송·표시');
     const { CHARACTER_ITEMS } = await import('../client/src/data.js');
     const { CharacterItemSystem, validateCharacterItemData } = await import('../client/src/systems/character-items.js');
     const errors = validateCharacterItemData();
-    check('전용 아이템 무결성(8종·스킨 1:1·가격·보너스)', errors.length === 0, errors.join(' · '));
-    check('전용 아이템 8종', CHARACTER_ITEMS.length === 8, `${CHARACTER_ITEMS.length}종`);
+    check('전용 아이템 무결성(9종·스킨 1:1·가격·보너스)', errors.length === 0, errors.join(' · '));
+    check('전용 아이템 9종', CHARACTER_ITEMS.length === 9, `${CHARACTER_ITEMS.length}종`);
     const sys = new CharacterItemSystem({ persist: false });
     const guardian = { skin: 'guardian' };
     const knight = { skin: 'knight' };
@@ -2854,7 +2868,9 @@ section('캐릭터 — 멀티플레이 생성·전송·표시');
 
   // ── 메뉴 · 로비 · 서버 배선
   check('menu.js — 🧍 캐릭터 탭 + 생성 UI', menuSrc.includes("character: '🧍 캐릭터'") && menuSrc.includes('_renderCharacter') && menuSrc.includes("'character-save'"));
-  check('menu.js — 외형 8종 카드 + 이름 입력(16자)', menuSrc.includes("character-skin") && menuSrc.includes('CHARACTER_NAME_MAX'));
+  check('menu.js — 외형 9종 카드 + 이름 입력(16자)', menuSrc.includes("character-skin") && menuSrc.includes('CHARACTER_NAME_MAX'));
+  const avatarSrc = readFileSync(new URL('../client/src/avatar.js', import.meta.url), 'utf8');
+  check('avatar.js — 멀티 캐릭터 3D 모델·신규 천상기사', avatarSrc.includes('buildCharacterAvatar') && avatarSrc.includes("id === 'seraph'") && avatarSrc.includes('animateCharacterAvatar') && avatarSrc.includes('disposeCharacterAvatar'));
   check('menu.js — 저장 시 캐릭터 이벤트 발행', /this\.emit\('character', \{ character: saved \}\)/.test(menuSrc));
   check('lobby.js — 캐릭터를 방 만들기/참가에 전송', /character: this\._characterPayload\(\),?\n?\s*mode/.test(lobbySrc) && lobbySrc.includes('net.joinRoom({ code: c, nickname: this._nickname(), character: this._characterPayload() })'));
   check('lobby.js — 내 캐릭터 표시 + 만들기 버튼', lobbySrc.includes("'lobby-character'") && lobbySrc.includes('refreshCharacter'));
@@ -3020,7 +3036,7 @@ section('웨이브 100 · 셀레스티얼 · 무한 모드 (계약 §4.58)');
 {
   const celestial = BOSS_TYPES.find((b) => b.id === 'celestial');
   check('기본 모드 — 웨이브 100 까지', Number(WAVE_CONFIG.finalWave) === 100, 'finalWave=' + WAVE_CONFIG.finalWave);
-  check('셀레스티얼 — 웨이브 100 에 등장(최종보스)', Boolean(celestial) && BOSS_TYPES[BOSS_TYPES.length - 1]?.id === 'celestial', celestial ? celestial.name : '없음');
+  check('셀레스티얼 — 웨이브 100 에 등장(일반 최종보스)', Boolean(celestial) && BOSS_TYPES.some((b) => b.id === 'celestial'), celestial ? celestial.name : '없음');
   check('셀레스티얼 — 체력 5,000,000 · 공격력 1,200', celestial?.hp === 5000000 && celestial?.attack === 1200 && celestial?.damage === 1200, `hp=${celestial?.hp} attack=${celestial?.attack} damage=${celestial?.damage}`);
   check('무한 모드 — 300 웨이브마다 셀레스티얼(+35%)', Number(WAVE_CONFIG.endlessCelestialEvery) === 300 && Math.abs(Number(WAVE_CONFIG.endlessCelestialGrowth) - 1.35) < 1e-9);
   check('웨이브 100 도달 가능 — 마릿수 상한 · 성장 완만화', Number(WAVE_CONFIG.maxCount) === 240 && Number(WAVE_CONFIG.softenAfter) === 30 && Number(WAVE_CONFIG.growthSoftening) > 0 && Number(WAVE_CONFIG.growthSoftening) < 1, `maxCount=${WAVE_CONFIG.maxCount} softenAfter=${WAVE_CONFIG.softenAfter} x${WAVE_CONFIG.growthSoftening}`);

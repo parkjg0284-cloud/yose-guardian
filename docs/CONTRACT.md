@@ -2112,3 +2112,49 @@ GitHub 에 이미 올라가 있으면 다시 올리지 않는다.
 - `tools/headless.mjs` 594/594 · 버그테스트 변동 없음.
 - `npm run verify` — 2,274개 통과(빌드 포함). `tools/cmd-lint.mjs` 13/13.
 - 런처 `-DumpControls` 로 설치 전/최신 상태의 `게임 시작` enabled 값을 확인한다.
+
+---
+
+## §4.83 지옥 난이도 · 디아블로 · 캐릭터 리뉴얼 (v1.19.0)
+
+**난이도별 체력·공격력**
+- `client/src/data.js` 의 `DIFFICULTIES` 는 `hpMult`·`attackMult`·`countMult`·`goldMult`·(선택)`maxWaves` 를 가진다.
+  평온 `0.7/0.7` · 표준 `1.0/1.0` · 도전 `1.8/1.35` · 악몽 `3.0/2.0` · 지옥 `5.0/3.0`.
+- `client/src/systems/enemies.js` 의 일반 몬스터 피해는
+  `damage × (1 + 0.04 × (wave−1)) × difficulty.attackMult` 로 계산한다. 고정 스펙 보스(`type.attack`)는 배수를 타지 않는다.
+- `server/game/protocol.js` 의 검증용 난이도 목록도 같은 수치·`hell.maxWaves=100` 을 갖는다. 레거시 `easy` 는 평온과 동일.
+
+**지옥 = 100 웨이브 고정**
+- `WaveSystem` 은 `difficulty.maxWaves` 를 읽어 `this.maxWaves` 에 둔다.
+- 100 웨이브 완료 시 `phase='victory'`, `victory` 이벤트(`{ wave, wavesCleared, bossId, stats }`)를 한 번 발생시키고
+  더 이상 다음 웨이브를 만들지 않는다. `forceStart` 는 `victory` 에서 거부한다.
+- `main.js` 의 `_victory()` 는 상태를 `victory` 로 두고 점수를 등록한 뒤 일시정지 패널을 승리 화면으로 연다.
+  HUD/패널은 `승리 — 지옥 정복` 문구를 사용하며 [계속하기]를 숨긴다.
+
+**디아블로**
+- `BOSS_TYPES` 에 `id:'diablo'`, `hp:1000000000`, `attack:1700000`, `damage:1700000`, `ability:'apocalypse'`,
+  `radius:5.6`, `barWidth:96`, `barRange:1800` 을 추가한다. `hpMult:1` 이며 난이도/웨이브/엘리트 배수를 적용하지 않는다.
+- 일반 보스 순환에서는 제외하고, `maxWaves>0` 인 지옥의 마지막 웨이브에서만 최종보스로 등장한다.
+  일반 모드 웨이브 100은 기존 셀레스티얼이 맡는다.
+- `_buildDiabloMesh` 는 뿔·흉갑·불타는 심장·3쌍 날개·가시 꼬리·지옥 오라·`diabloLight` 를 만든다.
+  `_diabloParts`/`_diabloAura`/`_diabloSkin` 으로 날갯짓·오라 회전·피격 발광을 구동한다.
+- `apocalypse` 는 쿨다운 18초·사거리 180. 포탑 피해 ×2.5, 기지 피해 ×4, 플레이어 피해 ×2.5 + 넉백.
+
+**캐릭터 외형**
+- `client/src/avatar.js` — `buildCharacterAvatar` 가 판금 몸통·투구·어깨·망토·스킨별 장비를 조립한다.
+  `animateCharacterAvatar` 는 망토·날개·후광을 움직이고, `disposeCharacterAvatar` 는 재질만 해제한다(지오메트리는 공용).
+- 로컬 3인칭과 `RemotePlayers` 가 같은 빌더를 사용한다. 원격 외형(스킨·색)이 바뀌면 모델을 재생성한다.
+- 신규 스킨 `seraph`(천상기사) — 황금 성광 갑주·빛의 날개·후광·성표. `CHARACTER_SKINS` 9종,
+  `CHARACTER_ITEMS` 9종(1:1), 서버 `sanitizeCharacter` 기본값에도 추가한다. 외형은 능력치에 영향이 없다.
+
+**런처**
+- `downloader/downloader.ps1`·`launcher/launcher.ps1` 의 사용자 표기 `업데이트 내역` 을 전부 `패치노트` 로 바꾼다.
+- `downloader/updates.json` 에 v1.19.0 을 추가하고 `launcher`·`installer` 사본도 동일하게 유지한다.
+- 빌드 스크립트의 필수 문자열 검사도 `패치노트` 로 바꾼다. PowerShell 5.1 한글 스크립트는 **UTF-8 BOM** 필수.
+
+**검사**
+- `tools/smoke.mjs` 978/978 — 난이도 5종/공격력 상승, 지옥 100, 디아블로 고정 스펙, 9번째 외형·장비, 아바타 빌더.
+- `tools/headless.mjs` 600/600 — 지옥 큐의 디아블로, HP 10억/공격력 170만, 100 웨이브 완료 → `victory`.
+- `tools/ui-dom-smoke.mjs` 349/349 — 난이도 버튼 5개, 캐릭터 카드 9개.
+- `tools/character-bugtest.mjs` 71/71 — 외형 9종.
+- `npm run verify` — **2,286개 통과**(빌드 포함). `cmd-lint` 13/13, 멀티 38/38.

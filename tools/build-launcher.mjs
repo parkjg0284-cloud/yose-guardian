@@ -66,7 +66,7 @@ if (!conf.url || !/^https?:\/\//.test(conf.url)) {
   process.exit(1);
 }
 const ps1 = readFileSync(join(BUILD, 'downloader.ps1'), 'utf8');
-for (const needle of ['게임 다운로드 & 설치', '게임 시작', 'install.ps1', 'SELFTEST OK', 'Update-InstallButton', 'Set-PlayLocked', '업데이트 후 시작', '설치 파일 선택', '선택한 파일 설치', 'Test-GameZip', '업데이트 내역']) {
+for (const needle of ['게임 다운로드 & 설치', '게임 시작', 'install.ps1', 'SELFTEST OK', 'Update-InstallButton', 'Set-PlayLocked', '업데이트 후 시작', '설치 파일 선택', '선택한 파일 설치', 'Test-GameZip', '패치노트']) {
   if (!ps1.includes(needle)) {
     console.error(`  [실패] downloader.ps1 에 '${needle}' 가 없습니다`);
     process.exit(1);

@@ -38,6 +38,7 @@ import { createRNG, normalizeSeed } from './utils/rng.js';
 import { createWorld } from './world/world.js';
 import { Input, Player } from './player/player.js';
 import { characterPayload, createCharacterStore, sanitizeCharacter, sanitizeRemoteCharacter } from './character.js';
+import { animateCharacterAvatar, buildCharacterAvatar, disposeCharacterAvatar } from './avatar.js';
 import { WeaponRig, buildWeaponMesh } from './player/weaponRig.js';
 import { currentNickname } from './profile.js';
 import { arrivalPoint, destinationById } from './travel.js';
@@ -115,42 +116,28 @@ class RemotePlayers {
     this.group.name = 'remotePlayers';
     scene.add(this.group);
     this.map = new Map();
-    const geo = new THREE.CapsuleGeometry(0.42, 1.0, 6, 12);
-    const headGeo = new THREE.SphereGeometry(0.3, 12, 10);
-    this.geo = geo;
-    this.headGeo = headGeo;
+    this.elapsed = 0;
   }
 
   _make(id, nickname, character = null) {
     const look = character ? sanitizeRemoteCharacter(character) : null;
-    const color = look
-      ? new THREE.Color(look.color)
-      : new THREE.Color().setHSL(((id.length * 57) % 360) / 360, 0.65, 0.6);
-    const accent = look ? new THREE.Color(look.accent) : color.clone().offsetHSL(0, 0, 0.12);
-    const mat = new THREE.MeshStandardMaterial({ color, emissive: color.clone().multiplyScalar(0.25), roughness: 0.6 });
-    const headMat = new THREE.MeshStandardMaterial({
-      color: accent,
-      emissive: accent.clone().multiplyScalar(0.2),
-      roughness: 0.5
-    });
-    const body = new THREE.Mesh(this.geo, mat);
-    body.position.y = 0.95;
-    const head = new THREE.Mesh(this.headGeo, headMat);
-    head.position.y = 1.85;
+    const fallback = new THREE.Color().setHSL(((id.length * 57) % 360) / 360, 0.65, 0.6);
+    const color = look?.color ?? fallback.getHex();
+    const accent = look?.accent ?? fallback.clone().offsetHSL(0, 0, 0.12).getHex();
     const group = new THREE.Group();
-    group.add(body, head);
+    const avatar = buildCharacterAvatar({ color, accent, skin: look?.skin ?? 'guardian' });
+    group.add(avatar);
     // 캐릭터 아이콘 + 이름표 — 캔버스가 없는 환경(헤드리스)에서는 조용히 생략한다.
     const tag = this._nameTag(nickname || id.slice(0, 5), look?.icon ?? '');
     if (tag) {
-      tag.position.y = 2.35;
+      tag.position.y = 2.5;
       group.add(tag);
       group.userData.tag = tag;
     }
     group.userData.nickname = nickname || id.slice(0, 5);
-    group.userData.body = body;
-    group.userData.head = head;
+    group.userData.avatar = avatar;
     this.group.add(group);
-    const entry = { group, mat, headMat, body, head, target: new THREE.Vector3(), yaw: 0, sit: false, sitAmount: 0, look };
+    const entry = { group, avatar, tag, target: new THREE.Vector3(), yaw: 0, sit: false, sitAmount: 0, look };
     this.map.set(id, entry);
     return entry;
   }
@@ -185,14 +172,16 @@ class RemotePlayers {
   _applyLook(entry, character) {
     const look = sanitizeRemoteCharacter(character);
     const prev = entry.look;
-    if (prev && prev.color === look.color && prev.accent === look.accent) return;
+    if (prev && prev.skin === look.skin && prev.color === look.color && prev.accent === look.accent) return;
     entry.look = look;
-    entry.mat?.color?.setHex?.(look.color);
-    entry.mat?.emissive?.setHex?.(look.color);
-    entry.mat?.emissive?.multiplyScalar?.(0.25);
-    entry.headMat?.color?.setHex?.(look.accent);
-    entry.headMat?.emissive?.setHex?.(look.accent);
-    entry.headMat?.emissive?.multiplyScalar?.(0.2);
+    // 외형이 바뀌면 3D 모델을 다시 만든다(색만 바꾸면 스킨 장비가 남는다).
+    if (entry.avatar) {
+      entry.group.remove(entry.avatar);
+      disposeCharacterAvatar(entry.avatar);
+    }
+    entry.avatar = buildCharacterAvatar({ color: look.color, accent: look.accent, skin: look.skin });
+    entry.group.add(entry.avatar);
+    entry.group.userData.avatar = entry.avatar;
   }
 
   update(snapshot, localId) {
@@ -216,6 +205,7 @@ class RemotePlayers {
   }
 
   animate(dt, world) {
+    this.elapsed += Math.max(0, Number(dt) || 0);
     for (const entry of this.map.values()) {
       const g = entry.group;
       g.position.lerp(entry.target, Math.min(1, dt * 12));
@@ -224,11 +214,14 @@ class RemotePlayers {
         if (Number.isFinite(h)) g.position.y = h;
       }
       g.rotation.y = entry.yaw;
-      // 앉기 — 몸을 낮추고 살짝 기울인다(부드럽게 보간).
+      // 앉기 — 아바타 전체를 낮추고 살짝 기울인다(부드럽게 보간).
       entry.sitAmount += ((entry.sit ? 1 : 0) - entry.sitAmount) * Math.min(1, dt * 8);
-      if (entry.body) entry.body.position.y = 0.95 - entry.sitAmount * 0.42;
-      if (entry.head) entry.head.position.y = 1.85 - entry.sitAmount * 0.62;
-      g.scale.y = 1 - entry.sitAmount * 0.08;
+      if (entry.avatar) {
+        entry.avatar.position.y = -entry.sitAmount * 0.42;
+        entry.avatar.rotation.x = entry.sitAmount * 0.12;
+        animateCharacterAvatar(entry.avatar, this.elapsed, 0);
+      }
+      g.scale.y = 1 - entry.sitAmount * 0.04;
     }
   }
 
@@ -237,8 +230,7 @@ class RemotePlayers {
     if (!entry) return;
     this.group.remove(entry.group);
     try {
-      entry.mat?.dispose?.();
-      entry.headMat?.dispose?.();
+      disposeCharacterAvatar(entry.avatar);
       const tag = entry.group.userData?.tag ?? null;
       if (tag) {
         const tex = tag.material?.map ?? null;
@@ -515,6 +507,7 @@ class Game {
     this.ui.menu.on('character', ({ character } = {}) => {
       this.character = sanitizeCharacter(character, this.character?.name || '');
       this.ui.lobby?.refreshCharacter?.();
+      this._refreshAvatar?.();
       // 다른 캐릭터로 바뀌면 전용 아이템은 자동 해제된다
       const dropped = this.charItems?.syncCharacter?.(this.character) ?? null;
       if (dropped) {
@@ -1038,6 +1031,7 @@ class Game {
       }
     };
     this.waves.onGameOver = () => this._gameOver();
+    this.waves.onVictory = (payload) => this._victory(payload);
     // 무한 모드 셀레스티얼 강림 — 등장 차수와 스펙을 알린다.
     this.waves.onCelestial = (payload) => {
       recordCelestialKill();
@@ -1286,13 +1280,26 @@ class Game {
   }
 
   async _gameOver() {
-    if (this.state === 'gameover') return;
+    if (this.state === 'gameover' || this.state === 'victory') return;
     this.state = 'gameover';
     this.audio.play('defeat');
     this.audio.startBGM('menu');
     this.input.exitPointerLock?.();
     const wave = this.waves?.wave ?? 0;
     this.notify(`요새가 함락되었습니다 — 웨이브 ${wave}`, 'error');
+    await this.submitScore();
+    this.ui.panels.open('pause');
+  }
+
+  /** 지옥 100 웨이브 정복 — 디아블로 격파. 101 웨이브로 이어지지 않고 승리 화면으로 끝난다. */
+  async _victory(payload = {}) {
+    if (this.state === 'gameover' || this.state === 'victory') return;
+    this.state = 'victory';
+    const wave = Math.max(1, Number(payload?.wave) || this.waves?.wave || 100);
+    this.audio.play('victory');
+    this.audio.startBGM('menu');
+    this.input.exitPointerLock?.();
+    this.notify(`지옥 ${wave} 웨이브 정복 — 디아블로 격파!`, 'success');
     await this.submitScore();
     this.ui.panels.open('pause');
   }
@@ -3144,21 +3151,27 @@ class Game {
     return opened;
   }
 
-  /** 3인칭 아바타 — 내 캐릭터 스킨 색 그대로 (1인칭에서는 숨김) */
+  /** 3인칭 아바타 — 내 캐릭터 스킨 그대로 (1인칭에서는 숨김) */
   _buildAvatar() {
     const look = sanitizeRemoteCharacter(this.character ?? null);
-    const group = new THREE.Group();
+    const group = buildCharacterAvatar({ color: look.color, accent: look.accent, skin: look.skin });
     group.name = 'localAvatar';
     group.visible = false;
-    const bodyMat = new THREE.MeshStandardMaterial({ color: look.color, emissive: new THREE.Color(look.color).multiplyScalar(0.18), roughness: 0.65 });
-    const headMat = new THREE.MeshStandardMaterial({ color: look.accent, emissive: new THREE.Color(look.accent).multiplyScalar(0.15), roughness: 0.5 });
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.42, 1.0, 6, 12), bodyMat);
-    body.position.y = 0.95;
-    const head = new THREE.Mesh(new THREE.SphereGeometry(0.3, 12, 10), headMat);
-    head.position.y = 1.85;
-    group.add(body, head);
     this.scene.add(group);
     return group;
+  }
+
+  /** 캐릭터 탭에서 외형/색을 바꾸면 3인칭 아바타도 즉시 갱신한다. */
+  _refreshAvatar() {
+    if (!this.scene || !this.avatar) return;
+    const old = this.avatar;
+    const next = this._buildAvatar();
+    next.position.copy(old.position);
+    next.rotation.copy(old.rotation);
+    next.visible = old.visible;
+    this.scene.remove(old);
+    disposeCharacterAvatar(old);
+    this.avatar = next;
   }
 
   /** 아바타 위치·방향·표시 — 3인칭일 때만 보인다 */
@@ -3170,6 +3183,9 @@ class Game {
     if (!avatar.visible) return;
     avatar.position.set(player.position.x, player.position.y, player.position.z);
     avatar.rotation.y = player.yaw;
+    this._avatarTime = (this._avatarTime ?? 0) + 0.016;
+    const spd = Math.hypot(Number(player.velocity?.x) || 0, Number(player.velocity?.z) || 0);
+    animateCharacterAvatar(avatar, this._avatarTime, Math.min(1, spd / 8));
   }
 
   /** 가까이 지은 포탈 건물 — N 키로 그 지형으로 이동한다 */
@@ -3231,7 +3247,7 @@ class Game {
       else if (this.ui.panels.hasOpen?.()) this.ui.panels.close();
       else if (this.state === 'playing') this.pause({ screen: 'settings' });
       else if (this.state === 'paused') this.resume();
-      else if (this.state === 'gameover') this.quit();
+      else if (this.state === 'gameover' || this.state === 'victory') this.quit();
     }
 
     if (this.state !== 'playing') return;
@@ -4064,7 +4080,7 @@ class Game {
       //  설정·일시정지 패널은 9px 백드롭 블러(--glass-blur)를 쓴다. 그 위에서 매 프레임 3D 를
       //  새로 그리면 브라우저가 매 프레임 배경 전체를 다시 흐리게 만들어 화면이 멈춘 것처럼 보인다.
       //  상태가 바뀐 직후 한 번, 그리고 가끔(1.5초)만 다시 그려 화면이 맞게 유지되게 한다.
-      const frozenView = this.state === 'paused' || this.state === 'gameover' || this.state === 'menu';
+      const frozenView = this.state === 'paused' || this.state === 'gameover' || this.state === 'victory' || this.state === 'menu';
       if (this._lastViewState !== this.state) {
         this._lastViewState = this.state;
         this._viewDirty = true;
@@ -4224,7 +4240,7 @@ class Game {
     this._updateDemolishTarget();
     this._updatePerformance(dt);
 
-    const frozen = this.state === 'paused' || this.state === 'gameover' || document.hidden;
+    const frozen = this.state === 'paused' || this.state === 'gameover' || this.state === 'victory' || document.hidden;
     if (!frozen) {
       if (this.state === 'playing' || this.state === 'dead') {
         this.playTime += dt;

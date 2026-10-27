@@ -33,7 +33,8 @@ function sanitizeCharacter(raw) {
     rogue: [0x4a4f63, 0x8f9bb3, '🗡️'],
     alchemist: [0x66d9d0, 0xd0fffb, '⚗️'],
     bard: [0xffb066, 0xffe3c2, '🎻'],
-    fairy_friend: [0xff9fd2, 0xffe0f0, '🧚']
+    fairy_friend: [0xff9fd2, 0xffe0f0, '🧚'],
+    seraph: [0xf2d27a, 0xfff4d0, '✨']
   };
   const known = Object.prototype.hasOwnProperty.call(defaults, skin);
   const safeSkin = known ? skin : 'guardian';

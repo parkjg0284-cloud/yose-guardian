@@ -12,7 +12,9 @@ export const CHARACTER_SKINS = [
   { id: 'rogue', name: '도적', icon: '🗡️', color: 0x4a4f63, accent: 0x8f9bb3, desc: '먹색 두건 — 그림자 걸음' },
   { id: 'alchemist', name: '연금술사', icon: '⚗️', color: 0x66d9d0, accent: 0xd0fffb, desc: '청록 실험복 — 플라스크를 든 손' },
   { id: 'bard', name: '음유시인', icon: '🎻', color: 0xffb066, accent: 0xffe3c2, desc: '주황 망토 — 노래로 사기를 올린다' },
-  { id: 'fairy_friend', name: '요정 친구', icon: '🧚', color: 0xff9fd2, accent: 0xffe0f0, desc: '분홍 날개 — 요정과 친하다' }
+  { id: 'fairy_friend', name: '요정 친구', icon: '🧚', color: 0xff9fd2, accent: 0xffe0f0, desc: '분홍 날개 — 요정과 친하다' },
+  // 신규 외형 — 황금 성광 갑주 · 빛의 날개 · 후광. 능력치 차이는 없다(코스메틱).
+  { id: 'seraph', name: '천상기사', icon: '✨', color: 0xf2d27a, accent: 0xfff4d0, desc: '황금 성광 갑주 — 빛의 날개와 후광' }
 ];
 
 export const CHARACTER_SKIN_BY_ID = Object.fromEntries(CHARACTER_SKINS.map((s) => [s.id, s]));
@@ -122,7 +124,7 @@ export function createCharacterStore({ storage = null } = {}) {
 /** 데이터 무결성 — 스모크 테스트가 호출 */
 export function validateCharacterData() {
   const errors = [];
-  if (CHARACTER_SKINS.length !== 8) errors.push(`외형이 8종이 아니다(${CHARACTER_SKINS.length})`);
+  if (CHARACTER_SKINS.length !== 9) errors.push(`외형이 9종이 아니다(${CHARACTER_SKINS.length})`);
   const ids = new Set();
   for (const s of CHARACTER_SKINS) {
     if (!s.id || ids.has(s.id)) errors.push(`${s.id}: id 누락/중복`);

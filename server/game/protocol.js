@@ -59,11 +59,12 @@ export const MODE_IDS = Object.freeze(MODES.map((m) => m.id));
 /** 난이도 목록 (서버는 검증용으로만 사용) */
 // client/src/data.js 의 DIFFICULTIES 와 id/수치를 일치시킨다 ('easy' 는 평온의 레거시 별칭)
 export const DIFFICULTIES = Object.freeze([
-  { id: 'peaceful', name: '평온', hpMult: 0.7, countMult: 0.8, goldMult: 1.3, desc: '느긋하게 즐기는 모드' },
-  { id: 'normal', name: '표준', hpMult: 1.0, countMult: 1.0, goldMult: 1.0, desc: '기본 밸런스' },
-  { id: 'hard', name: '도전', hpMult: 1.5, countMult: 1.25, goldMult: 0.85, desc: '숙련자용' },
-  { id: 'nightmare', name: '악몽', hpMult: 2.4, countMult: 1.6, goldMult: 0.7, desc: '모든 것이 적으로 변한다' },
-  { id: 'easy', name: '쉬움 (레거시)', hpMult: 0.7, countMult: 0.8, goldMult: 1.3, desc: '평온의 이전 이름' },
+  { id: 'peaceful', name: '평온', hpMult: 0.7, attackMult: 0.7, countMult: 0.8, goldMult: 1.3, desc: '느긋하게 즐기는 모드' },
+  { id: 'normal', name: '표준', hpMult: 1.0, attackMult: 1.0, countMult: 1.0, goldMult: 1.0, desc: '기본 밸런스' },
+  { id: 'hard', name: '도전', hpMult: 1.8, attackMult: 1.35, countMult: 1.25, goldMult: 0.85, desc: '단단하고 사나운 적 — 숙련자용' },
+  { id: 'nightmare', name: '악몽', hpMult: 3.0, attackMult: 2.0, countMult: 1.6, goldMult: 0.7, desc: '모든 것이 적으로 변한다' },
+  { id: 'hell', name: '지옥', hpMult: 5.0, attackMult: 3.0, countMult: 1.8, goldMult: 0.55, maxWaves: 100, desc: '100 웨이브 고정 — 마지막에 디아블로 강림' },
+  { id: 'easy', name: '쉬움 (레거시)', hpMult: 0.7, attackMult: 0.7, countMult: 0.8, goldMult: 1.3, desc: '평온의 이전 이름' },
 ]);
 
 /** 난이도 id 목록 */

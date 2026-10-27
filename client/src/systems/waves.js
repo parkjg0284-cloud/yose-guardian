@@ -31,6 +31,7 @@ const DIRECT_HANDLER = {
   waveComplete: 'onWaveComplete',
   enemyKilled: 'onEnemyKilled',
   gameOver: 'onGameOver',
+  victory: 'onVictory',
   leatherGained: 'onLeatherGained',
   roamerSpawn: 'onRoamerSpawn'
 };
@@ -54,7 +55,7 @@ function weightedPick(rng, items, weightOf) {
 }
 
 export class WaveSystem {
-  constructor({ scene, world, economy, audio, projectiles, stats, rng, difficulty, mode, onWaveStart, onWaveComplete, onEnemyKilled, onGameOver } = {}) {
+  constructor({ scene, world, economy, audio, projectiles, stats, rng, difficulty, mode, onWaveStart, onWaveComplete, onEnemyKilled, onGameOver, onVictory } = {}) {
     // 게임 모드 — 무한 모드에서만 300 웨이브마다 셀레스티얼이 다시 온다(계약 §4.58).
     this.mode = String(mode ?? 'solo');
     this.celestialSpawns = 0;
@@ -66,6 +67,8 @@ export class WaveSystem {
     this.stats = stats ?? null;
     this.rng = rng ?? createRNG('waves');
     this.difficulty = resolveDifficulty(difficulty);
+    /** 이번 판의 마지막 웨이브(0 = 무한). 지옥은 100 웨이브 고정. */
+    this.maxWaves = Math.max(0, Math.round(num(this.difficulty.maxWaves, 0)));
 
     /** @type {import('./enemies.js').Enemy[]} */ this.enemies = [];
     this.phase = 'prep';
@@ -84,11 +87,12 @@ export class WaveSystem {
     this.isBossWave = false;
     this.currentBossId = null;
 
-    this._handlers = { waveStart: [], waveComplete: [], enemyKilled: [], gameOver: [] };
+    this._handlers = { waveStart: [], waveComplete: [], enemyKilled: [], gameOver: [], victory: [] };
     if (onWaveStart) this.onWaveStart(onWaveStart);
     if (onWaveComplete) this.onWaveComplete(onWaveComplete);
     if (onEnemyKilled) this.onEnemyKilled(onEnemyKilled);
     if (onGameOver) this.onGameOver(onGameOver);
+    if (onVictory) this.onVictory(onVictory);
 
     this.reset();
   }
@@ -98,6 +102,7 @@ export class WaveSystem {
   onWaveComplete(cb) { if (typeof cb === 'function') this._handlers.waveComplete.push(cb); return this; }
   onEnemyKilled(cb) { if (typeof cb === 'function') this._handlers.enemyKilled.push(cb); return this; }
   onGameOver(cb) { if (typeof cb === 'function') this._handlers.gameOver.push(cb); return this; }
+  onVictory(cb) { if (typeof cb === 'function') this._handlers.victory.push(cb); return this; }
 
   _emit(name, payload) {
     for (const cb of this._handlers[name] ?? []) {
@@ -221,7 +226,7 @@ export class WaveSystem {
   // ── 웨이브 시작/종료 ───────────────────────────────────────────────────
   /** 준비 카운트다운을 건너뛰고 즉시 웨이브를 시작한다. */
   forceStart() {
-    if (this.phase === 'gameover' || this.phase === 'combat') return false;
+    if (this.phase === 'gameover' || this.phase === 'victory' || this.phase === 'combat') return false;
     this._startWave();
     return true;
   }
@@ -324,10 +329,14 @@ export class WaveSystem {
     }
     if (this.isBossWave) {
       const celestial = BOSS_TYPES.find((b) => b.id === 'celestial') ?? null;
-      const finalBoss = this.isFinalBossWave || endlessBoss ? celestial : null;
-      const boss = finalBoss ?? BOSS_TYPES[this.bossIndex % BOSS_TYPES.length];
+      const diablo = BOSS_TYPES.find((b) => b.id === 'diablo') ?? null;
+      // 지옥(100 웨이브 고정)의 마지막 보스는 디아블로. 그 외 최종 웨이브는 셀레스티얼.
+      const finalBoss = this.isFinalBossWave || endlessBoss ? (this.maxWaves > 0 && diablo ? diablo : celestial) : null;
+      // 디아블로는 지옥 최종 웨이브 전용 — 일반 보스 로테이션에는 넣지 않는다.
+      const rotation = BOSS_TYPES.filter((b) => b.id !== 'diablo');
+      const boss = finalBoss ?? rotation[this.bossIndex % rotation.length];
       // 최종보스는 로테이션을 소모하지 않는다
-      if (!finalBoss) this.bossIndex = (this.bossIndex + 1) % BOSS_TYPES.length;
+      if (!finalBoss) this.bossIndex = (this.bossIndex + 1) % rotation.length;
       this.currentBossId = boss.id;
       this.currentBossIsFinal = !!finalBoss;
       // 무한 모드 차수마다 +35% — 등장할 때마다 강해진다.
@@ -692,9 +701,18 @@ export class WaveSystem {
     this.audio?.play?.('waveClear');
     this._completeTimer = COMPLETE_HOLD;
     this._emit('waveComplete', { wave: w, perfect, rewards, stats: this.snapshot() });
+    if (this.maxWaves > 0 && w >= this.maxWaves) {
+      // 지옥 — 100 웨이브 고정. 마지막 웨이브를 막아내면 101 웨이브로 이어지지 않고 승리한다.
+      this.phase = 'victory';
+      this.notice = `지옥 ${this.maxWaves} 웨이브 정복 — 디아블로 격파!`;
+      this._completeTimer = 0;
+      this.audio?.play?.('victory');
+      this._emit('victory', { wave: w, wavesCleared: this.wavesCleared, bossId: this.currentBossId, stats: this.snapshot() });
+    }
   }
 
   _beginPrep() {
+    if (this.phase === 'victory' || this.phase === 'gameover') return;
     this.phase = 'prep';
     this.timeLeft = num(WAVE_CONFIG.prepTime, 30);
     this.notice = null;
@@ -719,6 +737,7 @@ export class WaveSystem {
   snapshot() {
     return {
       wave: this.wave,
+      maxWaves: this.maxWaves,
       roster: this.rosterId,
       boss: this.currentBossId,
       eliteCount: num(this._eliteCount, 0),

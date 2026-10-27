@@ -36,7 +36,7 @@ if (Test-Path $conf) {
   } catch { }
 }
 
-# ── 업데이트 내역 (downloader\updates.json) ─────────────────────────────
+# ── 패치노트 (downloader\updates.json) ─────────────────────────────
 function Get-Updates {
   $path = Join-Path $here 'updates.json'
   if (-not (Test-Path $path)) { return @() }
@@ -49,8 +49,8 @@ function Get-Updates {
 
 function Get-UpdatesText {
   $entries = @(Get-Updates)
-  if (-not $entries.Count) { return '업데이트 내역이 없습니다.' }
-  $lines = @('요세의 수호자 — 업데이트 내역', '')
+  if (-not $entries.Count) { return '패치노트가 없습니다.' }
+  $lines = @('요세의 수호자 — 패치노트', '')
   foreach ($e in $entries) {
     $lines += ('v' + $e.version + '   ' + $e.date + '   ' + $e.title)
     foreach ($n in @($e.notes)) { $lines += ('  · ' + $n) }
@@ -61,7 +61,7 @@ function Get-UpdatesText {
 
 function Show-Updates {
   $f = New-Object System.Windows.Forms.Form
-  $f.Text = '요세의 수호자 — 업데이트 내역'
+  $f.Text = '요세의 수호자 — 패치노트'
   $f.Size = New-Object System.Drawing.Size(760, 620)
   $f.StartPosition = 'CenterParent'
   $f.BackColor = [System.Drawing.Color]::FromArgb(246, 248, 252)
@@ -441,7 +441,7 @@ $green = [System.Drawing.Color]::FromArgb(46, 158, 91)
 # 1줄 — 주요 동작(설치/시작) 크게
 $installBtn = New-FlatButton $installLabel 24 170 220 42 $true $blue
 $playBtn = New-FlatButton $playLabel 256 170 160 42 $true $green
-$updatesBtn = New-FlatButton '업데이트 내역' 424 170 172 42 $false $blue
+$updatesBtn = New-FlatButton '패치노트' 424 170 172 42 $false $blue
 
 # 2줄 — 보조 동작
 $selectBtn = New-FlatButton '설치 파일 선택' 24 222 150 32 $false $blue
@@ -565,7 +565,7 @@ Write-Log ('현재 설치된 버전: ' + (Get-InstalledVersion))
 $latestEntry = @(Get-Updates) | Select-Object -First 1
 if ($latestEntry) {
   Write-Log ('최신 업데이트 — v' + $latestEntry.version + ' · ' + $latestEntry.title)
-  Write-Log '  전체 내역은 [업데이트 내역] 버튼에서 확인할 수 있습니다.'
+  Write-Log '  전체 내역은 [패치노트] 버튼에서 확인할 수 있습니다.'
 }
 Update-InstallButton (Get-BundledTag) | Out-Null
 Update-FileLabel

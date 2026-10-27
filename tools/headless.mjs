@@ -1416,6 +1416,24 @@ try {
   check('보스 체력 비율 반영', Math.abs(hurtInfo.ratio - 0.5) < 0.02, `ratio ${hurtInfo.ratio.toFixed(2)}`);
   liveBoss.alive = false;
   check('쓰러진 보스는 조회에서 제외', liveWaves.bossEnemy === null);
+  // (6) 지옥 — 100 웨이브 고정 · 마지막 보스 디아블로(고정 스펙)
+  const hellWaves = new WaveSystem({ scene, world: world2, rng: rng.fork('wave-hell'), difficulty: 'hell' });
+  check('지옥 — maxWaves 100', hellWaves.maxWaves === 100, String(hellWaves.maxWaves));
+  hellWaves.wave = 100;
+  const hellQueue = hellWaves._buildQueue(100);
+  const hellBossEntry = hellQueue[hellQueue.length - 1];
+  check('지옥 100 웨이브 최종보스 = 디아블로', hellBossEntry?.isBoss === true && hellBossEntry?.typeId === 'diablo', String(hellBossEntry?.typeId));
+  check('지옥 100 웨이브 = 최종 보스 웨이브', hellWaves.currentBossId === 'diablo' && hellWaves.isFinalBossWave === true && hellWaves.isBossWave === true);
+  const hellBoss = spawnEnemy({ scene, world: world2, rng: createRNG('hell-diablo'), wave: 100, typeId: 'diablo', isBoss: true, difficulty: 'hell', pattern: null });
+  check('디아블로 고정 스펙 — HP 10억 · 공격력 170만', hellBoss.maxHp === 1000000000 && hellBoss.damage === 1700000, `${hellBoss.maxHp} / ${hellBoss.damage}`);
+  check('디아블로 전용 모델·능력', hellBoss.mesh?.getObjectByName?.('diabloLight') != null || hellBoss.type?.ability === 'apocalypse', hellBoss.type?.ability);
+  hellBoss.despawn?.();
+  let hellVictory = null;
+  hellWaves.onVictory((payload) => { hellVictory = payload; });
+  hellWaves.phase = 'combat';
+  hellWaves.wave = 100;
+  hellWaves._completeWave({ turrets: [] });
+  check('지옥 100 웨이브 완료 → 101 이 아니라 승리', hellWaves.phase === 'victory' && hellVictory?.wave === 100, `${hellWaves.phase} / ${hellVictory?.wave}`);
 } catch (err) {
   check('웨이브 편성 / 체력바', false, err.message);
   console.error(err);
@@ -2037,7 +2055,7 @@ section('관리자 명령어 (실제 경제 연동)');
   const waves = new WaveSystem({ seed: 'admin-wave', mode: 'solo', world: worldA });
   game.waves = waves;
   const r8 = runAdminCommand('/웨이브 30', { game, user: { role: 'admin' } });
-  check('웨이브 30 즉시 시작 + 최종보스 안내', r8.ok && waves.wave === 30 && r8.lines.some((l) => l.includes('셀레스티얼')), `wave ${waves.wave}`);
+  check('웨이브 30 즉시 시작 + 최종보스 안내', r8.ok && waves.wave === 30 && r8.lines.some((l) => l.includes('디아블로')), `wave ${waves.wave}`);
   check('웨이브 편성이 실제로 만들어진다', waves.enemies.length > 0 || waves._queue.length > 0, `큐 ${waves._queue?.length ?? 0}`);
   waves.reset?.();
   worldA.dispose();
@@ -2725,7 +2743,7 @@ section('캐릭터 만들기 / 앉기·점프 / 부드러운 회전');
   const ch = await import('../client/src/character.js');
   const charErrors = ch.validateCharacterData();
   check('캐릭터 데이터 무결성', charErrors.length === 0, charErrors.join(' · '));
-  check('외형 8종 · 기본 = 수호자', ch.CHARACTER_SKINS.length === 8 && ch.DEFAULT_CHARACTER.skin === 'guardian');
+  check('외형 9종 · 기본 = 수호자', ch.CHARACTER_SKINS.length === 9 && ch.DEFAULT_CHARACTER.skin === 'guardian');
   const payload = ch.characterPayload({ name: '  요새   지기 ', skin: 'mage' }, '수호자');
   check(
     '캐릭터 페이로드 — 이름 정리·아이콘·색',

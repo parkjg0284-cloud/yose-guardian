@@ -883,3 +883,23 @@ npm install 이 실패한다
     실브라우저 — 메인 불러오기 0개, 18개 패널 예외 0, 설정 세이브 불러오기 정상
     런처 — v1.18 설치본 게임 시작 enabled=True / v1.17 설치본 enabled=False
   끝.
+
+[55] v1.19.0 — 지옥 난이도 · 디아블로 · 캐릭터 리뉴얼 · 패치노트 명칭
+  · data.js — DIFFICULTIES 에 hpMult/attackMult/countMult/goldMult + hell(maxWaves 100)
+    BOSS_TYPES 에 diablo(hp 1,000,000,000 · attack 1,700,000 · apocalypse) 추가
+    CHARACTER_SKINS 9종(seraph 천상기사) · CHARACTER_ITEMS 9종(charm_seraph)
+  · enemies.js — 일반 피해에 attackMult 적용(고정 스펙 보스 예외), _buildDiabloMesh
+    (뿔/심장/3쌍 날개/꼬리/오라/diabloLight) · apocalypse 쿨다운 18/사거리 180
+  · waves.js — maxWaves·victory 이벤트, 지옥 마지막 웨이브에만 디아블로, 100 완료 시 승리
+  · main.js — _victory 상태/점수/패널, onVictory 배선, 상태 freeze, RemotePlayers/로컬 아바타 빌더
+  · avatar.js — 판금·망토·장비 3D 캐릭터 빌더/애니메이션/dispose, 로컬+원격 공용
+  · UI — HUD victory·apocalypse, 일시정지 승리/패배 제목·기록, 난이도 5종 공격력 표기,
+    캐릭터 카드 그라데이션/성광 스와치
+  · server — protocol DIFFICULTIES 5종+attackMult+hell, Room sanitizeCharacter seraph 기본값
+  · 런처 — downloader/launcher [업데이트 내역] → [패치노트], updates.json v1.19.0(5개 버전),
+    downloader.json tag=v1.19.0, build 스크립트 필수 문자열 갱신
+  · 문서 — README v1.19 절·패치노트 표, CONTRACT §4.83, HANDOFF, WEAPONS v1.19.0, docs/index 배지/패치노트
+  [검증] smoke 978/978 · headless 600/600 · ui-dom 349/349 · bugtest 21/21 · wings 88/88
+    character 71/71 · base 80/80 · mini 61/61 · cmd-lint 13/13 · mp 38/38
+    verify 2,286/2,286 · 실브라우저 hell 시작·9종 카드·3인칭 아바타·승리 패널 예외 0
+  끝.

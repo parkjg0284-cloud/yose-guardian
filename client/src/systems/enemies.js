@@ -23,8 +23,8 @@ import {
 
 const DEVOUR_INTERVAL = 0.6;   // 계약 §4.9: 적이 광물/나무를 부수는 주기
 const TELEGRAPH_TIME = 1.1;
-const ABILITY_COOLDOWN = { smash: 9, summon: 14, breath: 11, shield: 20, judgment: 16 };
-const ABILITY_RANGE = { smash: 4.5, summon: 60, breath: 15, shield: 9, judgment: 120 };
+const ABILITY_COOLDOWN = { smash: 9, summon: 14, breath: 11, shield: 20, judgment: 16, apocalypse: 18 };
+const ABILITY_RANGE = { smash: 4.5, summon: 60, breath: 15, shield: 9, judgment: 120, apocalypse: 180 };
 
 // 언데드 계열(신성 추가 피해 대상)
 const UNDEAD_TYPES = new Set(['wraith', 'shade', 'lich', 'skeleton']);
@@ -352,7 +352,7 @@ export class Enemy {
     const fixedAttack = num(this.type.attack, 0);
     this.damage = fixedAttack > 0
       ? Math.max(1, Math.round(fixedAttack))
-      : Math.max(1, Math.round(num(this.type.damage, 10) * (1 + 0.04 * (w - 1)) * (0.9 + 0.1 * num(diff.hpMult, 1))));
+      : Math.max(1, Math.round(num(this.type.damage, 10) * (1 + 0.04 * (w - 1)) * num(diff.attackMult, 1)));
     this.gold = Math.max(1, Math.round(num(this.type.gold, 5) * (1 + 0.05 * (w - 1))));
 
     // 웨이브 편성표의 개체 강화 → 정예 개체 → 실루엣/판정 배율
@@ -439,6 +439,12 @@ export class Enemy {
       this._meshKey = key;
       return;
     }
+    if (this.typeId === 'diablo') {
+      if (this.mesh && this._meshKey === key) return;
+      this._buildDiabloMesh(color);
+      this._meshKey = key;
+      return;
+    }
     if (this.mesh && this._meshKey === key) {
       // 풀에서 재사용: 스케일만 갱신한다(같은 종류는 같은 모델).
       this._applyMeshScale(r * wMul, r * hMul);
@@ -459,9 +465,12 @@ export class Enemy {
    *  드로우콜을 늘리지 않도록 부위를 한 지오메트리로 합치고(정점 색), 팔·눈·망토만 따로 둔다.
    */
   _buildMonster(color) {
-    // 셀레스티얼에서 넘어온 경우 전용 파츠 참조를 지운다
+    // 셀레스티얼·디아블로에서 넘어온 경우 전용 파츠 참조를 지운다
     this._celestialParts = null;
     this._celestialSkin = null;
+    this._diabloParts = null;
+    this._diabloSkin = null;
+    this._diabloAura = null;
     const model = buildMonsterModel(this.typeId, { boss: this.isBoss, color });
     this._monsterModel = model;
 
@@ -641,6 +650,142 @@ export class Enemy {
     const barWidth = num(this.type?.barWidth, r * 1.5);
     this.barY = barY;
     this.barWidth = barWidth;
+  }
+
+  /**
+   * 지옥의 군주 디아블로 전용 메시 — 거대한 악마.
+   *  검붉은 갑주 몸통 · 뿔 왕관 · 불타는 심장 · 갈라진 날개 · 가시 꼬리 · 지옥불 오라.
+   */
+  _buildDiabloMesh(color) {
+    if (!this.mesh) {
+      this.mesh = new THREE.Group();
+      this.mesh.userData.enemy = this;
+    }
+    this.mesh.clear?.();
+    const r = Math.max(4, num(this.radius, 5.6));
+    this._diabloParts = [];
+    const hide = new THREE.MeshStandardMaterial({
+      color: 0x22080e, emissive: 0x3a0008, emissiveIntensity: 0.35, roughness: 0.72, metalness: 0.18, flatShading: true
+    });
+    const plate = new THREE.MeshStandardMaterial({
+      color, emissive: 0x4a0610, emissiveIntensity: 0.4, roughness: 0.45, metalness: 0.55, flatShading: true
+    });
+    const lava = new THREE.MeshStandardMaterial({
+      color: 0xff5a20, emissive: 0xff3a00, emissiveIntensity: 1.4, roughness: 0.35, metalness: 0.2
+    });
+    const bone = new THREE.MeshStandardMaterial({ color: 0xe3cba8, roughness: 0.65, metalness: 0.05, flatShading: true });
+    const wingMat = new THREE.MeshStandardMaterial({
+      color: 0x1a060d, emissive: 0x5a0a12, emissiveIntensity: 0.35, roughness: 0.9,
+      metalness: 0.1, side: THREE.DoubleSide, flatShading: true
+    });
+    this._diabloSkin = plate;
+
+    const add = (geo, mat, x, y, z, sx = 1, sy = 1, sz = 1, name = '') => {
+      const mesh = new THREE.Mesh(geo, mat);
+      mesh.position.set(x, y, z);
+      mesh.scale.set(sx, sy, sz);
+      if (name) mesh.name = name;
+      this.mesh.add(mesh);
+      return mesh;
+    };
+
+    // 다리 · 발톱
+    for (const side of [-1, 1]) {
+      add(new THREE.CylinderGeometry(r * 0.2, r * 0.3, r * 0.78, 6), hide, side * r * 0.3, r * 0.45, 0);
+      add(new THREE.ConeGeometry(r * 0.26, r * 0.28, 5), bone, side * r * 0.3, r * 0.05, -r * 0.11);
+    }
+    // 골반 · 흉갑 · 허리 띠
+    add(new THREE.CylinderGeometry(r * 0.38, r * 0.34, r * 0.42, 8), plate, 0, r * 0.82, 0);
+    add(new THREE.CylinderGeometry(r * 0.34, r * 0.5, r * 0.95, 8), plate, 0, r * 1.32, 0);
+    add(new THREE.TorusGeometry(r * 0.35, r * 0.045, 5, 16), lava, 0, r * 0.88, 0).rotation.x = Math.PI / 2;
+    // 갈비뼈 갑주 — 가슴을 감싸는 뼈 판
+    for (let i = 0; i < 4; i++) {
+      const rib = add(new THREE.TorusGeometry(r * (0.31 + i * 0.025), r * 0.022, 4, 14), bone, 0, r * (1.12 + i * 0.13), 0);
+      rib.rotation.x = Math.PI / 2;
+      rib.rotation.z = (i % 2 ? 1 : -1) * 0.08;
+    }
+    // 불타는 심장
+    const core = add(new THREE.IcosahedronGeometry(r * 0.17, 1), lava, 0, r * 1.38, -r * 0.34, 1, 1, 0.75, 'core');
+    this._core = core;
+    this._coreMaterial = core.material;
+    // 어깨 · 팔 · 발톱
+    for (const side of [-1, 1]) {
+      add(new THREE.ConeGeometry(r * 0.22, r * 0.55, 5), bone, side * r * 0.62, r * 1.72, 0).rotation.z = side * -1.25;
+      add(new THREE.CylinderGeometry(r * 0.13, r * 0.18, r * 0.92, 6), hide, side * r * 0.66, r * 1.28, 0).rotation.z = side * 0.22;
+      add(new THREE.CylinderGeometry(r * 0.15, r * 0.11, r * 0.72, 6), plate, side * r * 0.76, r * 0.78, 0).rotation.z = side * 0.1;
+      add(new THREE.ConeGeometry(r * 0.09, r * 0.28, 4), bone, side * r * 0.82, r * 0.35, -r * 0.08).rotation.z = side * -0.4;
+    }
+    // 목 · 머리 · 뿔 왕관
+    add(new THREE.CylinderGeometry(r * 0.14, r * 0.2, r * 0.3, 6), hide, 0, r * 1.93, 0);
+    add(new THREE.DodecahedronGeometry(r * 0.31, 0), hide, 0, r * 2.18, -r * 0.02, 1, 0.9, 0.9, 'head');
+    add(new THREE.SphereGeometry(r * 0.09, 8, 6), lava, -r * 0.12, r * 2.23, -r * 0.27, 1, 0.65, 0.5, 'eyeL');
+    add(new THREE.SphereGeometry(r * 0.09, 8, 6), lava, r * 0.12, r * 2.23, -r * 0.27, 1, 0.65, 0.5, 'eyeR');
+    add(new THREE.ConeGeometry(r * 0.16, r * 0.7, 5), bone, -r * 0.25, r * 2.55, 0).rotation.z = 0.5;
+    add(new THREE.ConeGeometry(r * 0.16, r * 0.7, 5), bone, r * 0.25, r * 2.55, 0).rotation.z = -0.5;
+    for (let i = 0; i < 3; i++) {
+      const horn = add(
+        new THREE.ConeGeometry(r * (0.08 - i * 0.015), r * (0.4 - i * 0.06), 4),
+        bone,
+        (i - 1) * r * 0.16,
+        r * 2.48,
+        r * 0.18
+      );
+      horn.rotation.x = 0.7;
+    }
+    // 가시 갑주 — 등
+    for (let i = 0; i < 5; i++) {
+      add(new THREE.ConeGeometry(r * 0.07, r * 0.35, 4), bone, 0, r * (1.0 + i * 0.18), r * 0.34).rotation.x = -0.75;
+    }
+    // 갈라진 날개 3쌍 — 안쪽은 뼈, 바깥은 검은 막
+    for (const side of [-1, 1]) {
+      for (let i = 0; i < 3; i++) {
+        const pivot = new THREE.Group();
+        pivot.position.set(side * r * 0.3, r * 1.62, r * 0.16);
+        pivot.rotation.z = side * (0.25 + i * 0.3);
+        this.mesh.add(pivot);
+        const wing = new THREE.Mesh(new THREE.ConeGeometry(r * (0.28 - i * 0.04), r * (1.5 - i * 0.16), 4), wingMat);
+        wing.position.set(side * r * (0.55 + i * 0.3), r * (1.1 - i * 0.18), 0);
+        wing.scale.z = 0.18;
+        wing.rotation.z = side * -1.15;
+        pivot.add(wing);
+        const claw = new THREE.Mesh(new THREE.ConeGeometry(r * 0.05, r * 0.34, 4), bone);
+        claw.position.set(side * r * (0.95 + i * 0.28), r * (1.3 - i * 0.14), -r * 0.08);
+        claw.rotation.z = side * -0.9;
+        pivot.add(claw);
+        this._diabloParts.push({ mesh: pivot, baseZ: pivot.rotation.z, side, flap: 0.08 + i * 0.02 });
+      }
+    }
+    // 가시 꼬리
+    let tail = null;
+    for (let i = 0; i < 7; i++) {
+      const seg = add(
+        new THREE.CylinderGeometry(r * (0.08 - i * 0.007), r * (0.1 - i * 0.009), r * 0.34, 5),
+        i % 2 ? hide : plate,
+        0, r * 0.52, r * (0.34 + i * 0.24)
+      );
+      seg.rotation.x = -0.45 - i * 0.12;
+      if (i === 6) {
+        const sting = add(new THREE.ConeGeometry(r * 0.1, r * 0.42, 4), lava, 0, r * 0.38, r * 2.02);
+        sting.rotation.x = -1.4;
+        tail = sting;
+      }
+    }
+    if (tail) this._diabloParts.push({ mesh: tail, pulse: 1 });
+    // 지옥불 오라
+    const aura = add(
+      new THREE.TorusGeometry(r * 1.4, r * 0.05, 4, 32),
+      new THREE.MeshBasicMaterial({ color: 0xff3a00, transparent: true, opacity: 0.34 }),
+      0, r * 0.06, 0
+    );
+    aura.rotation.x = Math.PI / 2;
+    this._diabloAura = aura;
+    const light = new THREE.PointLight(0xff2a00, 3.2, Math.min(420, 80 + r * 6));
+    light.name = 'diabloLight';
+    light.position.y = r * 1.8;
+    this._light = light;
+    this.mesh.add(light);
+    this.barY = num(this.type?.barY, r * 3.15);
+    this.barWidth = num(this.type?.barWidth, r * 2.2);
   }
 
   _applyMeshScale(width, height) {
@@ -1037,6 +1182,23 @@ export class Enemy {
         this._celestialSkin.emissiveIntensity = 0.75 + Math.sin(this._animT * 2.2) * 0.18 + flash;
       }
     }
+    if (this._diabloParts) {
+      for (const part of this._diabloParts) {
+        if (part.baseZ != null) {
+          part.mesh.rotation.z = part.baseZ + Math.sin(this._animT * 1.35 + part.side) * part.flap;
+        }
+        if (part.pulse) part.mesh.scale.setScalar(1 + Math.sin(this._animT * 4) * 0.16);
+      }
+      if (this._diabloAura) {
+        this._diabloAura.rotation.z += dt * 0.55;
+        this._diabloAura.material.opacity = 0.26 + Math.sin(this._animT * 3) * 0.1 + (this._apocalypseFlash > 0 ? 0.3 : 0);
+      }
+      if (this._diabloSkin) {
+        const flash = this._hitFlash > 0 ? this._hitFlash * 2.4 : 0;
+        this._diabloSkin.emissiveIntensity = 0.4 + Math.sin(this._animT * 2.6) * 0.12 + flash + (this.telegraph ? 0.6 : 0);
+      }
+    }
+    if (this._apocalypseFlash > 0) this._apocalypseFlash = Math.max(0, this._apocalypseFlash - dt * 1.6);
     if (this._shieldRing) {
       this._shieldRing.visible = this.shieldTime > 0;
       if (this._shieldRing.visible) this._shieldRing.rotation.y += dt * 1.4;
@@ -1125,6 +1287,45 @@ export class Enemy {
           const d = Math.hypot(ox, oz);
           if (d <= range && (ox / d) * fx + (oz / d) * fz >= cos) player.takeDamage?.(Math.round(this.damage * 1.2), 'fire');
         }
+        break;
+      }
+      case 'apocalypse': {
+        // 지옥불 — 반경 180 안의 포탑·기지·플레이어를 동시에 태운다.
+        const range = ABILITY_RANGE.apocalypse;
+        this._apocalypseFlash = 1;
+        for (const t of ctx.turrets ?? []) {
+          if (!t || t.destroyed) continue;
+          const d = Math.hypot(t.position.x - this.position.x, t.position.z - this.position.z);
+          if (d <= range) t.takeDamage?.(Math.round(this.damage * 2.5));
+        }
+        if (basePos) {
+          const d = Math.hypot(basePos.x - this.position.x, basePos.z - this.position.z);
+          if (d <= range + num(base?.radius, 6)) {
+            const heavy = Math.round(this.damage * 4);
+            base?.damage?.(heavy);
+            ctx.onBaseDamage?.(heavy, this);
+            this._callbacks.onBaseDamage?.(heavy, this);
+          }
+        }
+        {
+          const player = ctx.player;
+          if (player?.position) {
+            const ox = player.position.x - this.position.x;
+            const oz = player.position.z - this.position.z;
+            const d = Math.hypot(ox, oz) || 1;
+            if (d <= range) {
+              player.takeDamage?.(Math.round(this.damage * 2.5), 'fire');
+              const push = 14;
+              player.position.x += (ox / d) * push;
+              player.position.z += (oz / d) * push;
+              if (player.velocity) {
+                player.velocity.x += (ox / d) * push * 2;
+                player.velocity.z += (oz / d) * push * 2;
+              }
+            }
+          }
+        }
+        ctx.onKnockback?.(this, range);
         break;
       }
       case 'judgment': {

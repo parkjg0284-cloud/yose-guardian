@@ -164,7 +164,7 @@ export class CharacterItemSystem {
 /** 데이터 무결성 — 스모크 테스트가 호출 */
 export function validateCharacterItemData() {
   const errors = [];
-  if (CHARACTER_ITEMS.length !== 8) errors.push(`전용 아이템이 8종이 아니다(${CHARACTER_ITEMS.length})`);
+  if (CHARACTER_ITEMS.length !== 9) errors.push(`전용 아이템이 9종이 아니다(${CHARACTER_ITEMS.length})`);
   const ids = new Set();
   const skins = new Set();
   for (const item of CHARACTER_ITEMS) {
@@ -180,7 +180,7 @@ export function validateCharacterItemData() {
       if (!Number.isFinite(Number(v)) || Number(v) <= 0) errors.push(`${item.id}: 보너스 값이 이상(${v})`);
     }
   }
-  if (skins.size !== 8) errors.push(`스킨 8종에 하나씩 배정되지 않았다(${skins.size})`);
+  if (skins.size !== 9) errors.push(`스킨 9종에 하나씩 배정되지 않았다(${skins.size})`);
   return errors;
 }
 

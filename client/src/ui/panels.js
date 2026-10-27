@@ -3835,11 +3835,21 @@ export class PanelManager {
   _renderPause(body) {
     const g = this.game;
     body.textContent = '';
-    body.appendChild(row('상태', String(g?.state ?? 'playing')));
+    const state = String(g?.state ?? 'playing');
+    const victory = state === 'victory';
+    const gameover = state === 'gameover';
+    const titleEl = this._panels?.get?.('pause')?.querySelector?.('.panel-title');
+    if (titleEl) titleEl.textContent = victory ? '승리 — 지옥 정복' : gameover ? '패배 — 요새 함락' : '일시정지';
+    body.appendChild(row('상태', victory ? '승리 — 지옥 정복' : gameover ? '요새 함락' : state));
     body.appendChild(row('모드', modeName(g?.mode)));
     body.appendChild(row('난이도', difficultyName(g?.difficulty)));
     body.appendChild(row('웨이브', String(num(safe(() => g?.waves?.wave, 1), 1))));
     body.appendChild(row('기지 HP', `${fmt(safe(() => g?.base?.hp, 0))} / ${fmt(safe(() => g?.base?.maxHp, 0))}`));
+    if (victory) {
+      body.appendChild(
+        row('정복 기록', `지옥 ${num(safe(() => g?.waves?.maxWaves, 100), 100)} 웨이브 · 디아블로 격파 · ${fmt(safe(() => g?.score?.(), 0))}점`)
+      );
+    }
 
     const acts = h('div', 'row');
     const resume = h('button', 'btn primary btn-primary', '계속하기');
@@ -3865,6 +3875,8 @@ export class PanelManager {
     acts.appendChild(settings);
     acts.appendChild(save);
     acts.appendChild(quit);
+    if (victory || gameover) resume.classList.add('hidden');
+    if (victory) quit.classList.add('is-primary');
     body.appendChild(acts);
     acts.appendChild(recipeBtn);
     body.appendChild(row('단축키', 'ESC — 닫기 / 일시정지'));
@@ -4151,7 +4163,11 @@ export class PanelManager {
     const diffSel = h('select', 'select');
     diffSel.dataset.act = 'mp-diff';
     for (const d of DIFFICULTIES) {
-      const opt = h('option', null, `${d.name} (HP ×${d.hpMult} · 수 ×${d.countMult} · 골드 ×${d.goldMult})`);
+      const opt = h(
+        'option',
+        null,
+        `${d.name} (HP ×${d.hpMult} · 공격 ×${d.attackMult ?? 1} · 수 ×${d.countMult} · 골드 ×${d.goldMult}${d.maxWaves ? ` · ${d.maxWaves}W` : ''})`
+      );
       opt.value = d.id;
       if (d.id === st.difficulty) opt.selected = true;
       diffSel.appendChild(opt);

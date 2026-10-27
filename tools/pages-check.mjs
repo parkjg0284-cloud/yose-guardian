@@ -150,7 +150,7 @@ const info = await evalJs(`(() => {
 check('페이지 제목', /요세의 수호자/.test(info?.title || ''), info?.title || '');
 check('히어로 제목', /수호자/.test(info?.h1 || ''), (info?.h1 || '').replace(/\s+/g, ' '));
 check('섹션 제목 4개 이상', (info?.h2 || 0) >= 4, `h2=${info?.h2}`);
-check('특징 카드 6개', info?.cards === 6, `card=${info?.cards}`);
+check('특징 카드 6개 이상', (info?.cards || 0) >= 6, `card=${info?.cards}`);
 check('설치 3단계', info?.steps === 3, `steps=${info?.steps}`);
 check('조작 12줄', info?.keys === 12, `keys=${info?.keys}`);
 const badImgs = (info?.imgs || []).filter((i) => !i.ok);

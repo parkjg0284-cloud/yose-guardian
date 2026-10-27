@@ -61,7 +61,7 @@ if (!conf.url || !/^https?:\/\//.test(conf.url)) {
   process.exit(1);
 }
 const ps1 = readFileSync(join(BUILD, 'downloader.ps1'), 'utf8');
-for (const needle of ['최신 버전 설치', 'install.ps1', 'SELFTEST OK', 'Update-InstallButton', 'Set-PlayLocked', '업데이트 후 시작', '업데이트 내역']) {
+for (const needle of ['최신 버전 설치', 'install.ps1', 'SELFTEST OK', 'Update-InstallButton', 'Set-PlayLocked', '업데이트 후 시작', '패치노트']) {
   if (!ps1.includes(needle)) {
     console.error(`  [실패] downloader.ps1 에 '${needle}' 가 없습니다`);
     process.exit(1);

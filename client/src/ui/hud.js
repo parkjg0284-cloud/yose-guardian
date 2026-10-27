@@ -17,7 +17,8 @@ const PHASE_LABEL = {
   complete: '웨이브 완료',
   paused: '일시정지',
   dead: '쓰러짐',
-  gameover: '요새 함락'
+  gameover: '요새 함락',
+  victory: '지옥 정복'
 };
 
 const PHASE_HINT = {
@@ -26,7 +27,8 @@ const PHASE_HINT = {
   prep: '포탑을 세우고 다음 웨이브를 맞이하세요.',
   combat: '적이 몰려옵니다! 요새를 사수하세요.',
   complete: '웨이브를 막아냈습니다. 보상을 정산합니다.',
-  gameover: '기지가 파괴되었습니다. 다시 도전해 보세요.'
+  gameover: '기지가 파괴되었습니다. 다시 도전해 보세요.',
+  victory: '지옥 100 웨이브를 정복했습니다 — 디아블로 격파!'
 };
 
 const TOAST_ICON = {
@@ -49,7 +51,8 @@ const BOSS_ABILITY_LABEL = {
   summon: '부하 소환 — 주기적으로 몬스터를 부른다',
   breath: '브레스 — 넓은 범위를 태운다',
   shield: '실드 전개 — 피해를 절반으로 줄인다',
-  judgment: '심판 — 기지·포탑·플레이어를 광역으로 태운다 (최종보스)'
+  judgment: '심판 — 기지·포탑·플레이어를 광역으로 태운다 (최종보스)',
+  apocalypse: '지옥불 — 반경 180의 모든 것을 태운다 (지옥 최종보스)'
 };
 
 const LOW_HP_RATIO = 0.3; // 비네트 발동
@@ -539,7 +542,7 @@ export class HUD {
     }
 
     const bannerVisible =
-      phase === 'prep' || phase === 'complete' || phase === 'gameover' || phase === 'idle' || this._bannerTimer > 0;
+      phase === 'prep' || phase === 'complete' || phase === 'gameover' || phase === 'victory' || phase === 'idle' || this._bannerTimer > 0;
     const bannerKey = `${phase}|${wave}|${phase === 'prep' ? Math.ceil(timeLeft) : ''}|${phase === 'gameover' ? 'over' : ''}`;
     if (bannerKey !== this._bannerKey) {
       this._bannerKey = bannerKey;
