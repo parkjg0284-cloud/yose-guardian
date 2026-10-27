@@ -78,6 +78,17 @@ if (-not $writeOk) {
   Write-Host ('  설치 위치 변경: ' + $app)
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem -ErrorAction SilentlyContinue
+# 기존 설치의 .env 에 관리자 비밀번호/해시가 있으면 보존한다 — 업데이트로 로그인하던 비밀번호가 바뀌지 않게.
+$envPath = Join-Path $app '.env'
+$oldEnvBytes = $null
+$keepOldEnv = $false
+if (Test-Path $envPath) {
+  try {
+    $oldEnvBytes = [IO.File]::ReadAllBytes($envPath)
+    $oldEnvText = [Text.Encoding]::UTF8.GetString($oldEnvBytes)
+    $keepOldEnv = [bool]($oldEnvText -match '(?m)^\s*ADMIN_PASSWORD(_HASH)?\s*=')
+  } catch { $keepOldEnv = $false }
+}
 try {
   $zip = [IO.Compression.ZipFile]::OpenRead($payload)
   foreach ($e in $zip.Entries) {
@@ -90,6 +101,10 @@ try {
 } catch {
   Write-Host ('  [안내] 파일 일부를 갱신하지 못했습니다')
   Write-Host '         이미 설치된 파일로 계속 진행합니다'
+}
+if ($keepOldEnv -and $oldEnvBytes) {
+  try { [IO.File]::WriteAllBytes($envPath, $oldEnvBytes); Write-Host '  기존 관리자 .env 보존 — 쓰던 비밀번호가 유지됩니다' }
+  catch { Write-Host '  [안내] 기존 .env 를 보존하지 못했습니다 — 새 관리자 비밀번호를 확인하세요' }
 }
 } else {
   $side = Join-Path (Split-Path $PSScriptRoot -Parent) 'client\dist'

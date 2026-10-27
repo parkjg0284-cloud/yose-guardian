@@ -26,6 +26,8 @@ jobs:
         run: npm run build
       - name: 스모크 테스트
         run: node tools/smoke.mjs
+      - name: 관리자 인증 테스트
+        run: node tools/admin-auth-test.mjs
       - name: 헤드리스 시뮬레이션
         run: node tools/headless.mjs
       - name: UI DOM 테스트

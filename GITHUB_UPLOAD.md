@@ -1,4 +1,4 @@
-﻿# GitHub 업로드 — 최종 안내
+# GitHub 업로드 — 최종 안내
 
 ## 준비 완료 상태
 
@@ -67,6 +67,22 @@ GitHub 웹에서도 확인:
 
 ---
 
+## 배포 관리자 비밀번호 (선택 · 권장)
+
+릴리스 워크플로는 기본적으로 저장소의 `release.env` 에 있는 **bcrypt 해시**를 `game.zip` 에 넣습니다.
+비밀번호를 바꾸려면 GitHub **Settings → Secrets and variables → Actions** 에 다음 중 하나를 추가하세요.
+
+| Secret | 의미 |
+|---|---|
+| `ADMIN_PASSWORD` | 평문 비밀번호 — 워크플로가 bcrypt 해시로 바꿔 `.env` 에 넣는다 |
+| `ADMIN_PASSWORD_HASH` | 이미 만든 bcrypt 해시 — 그대로 `.env` 에 넣는다 |
+
+- 평문 비밀번호는 **저장소에 커밋하지 않습니다.** `release.env` 에는 해시만 있습니다.
+- Secret 이 없으면 `release.env` 해시를 사용하므로, 관리자 로그인은 항상 동작합니다.
+- 관리자 아이디는 `admin` 입니다. 평문 비밀번호 원본은 배포 PC의 `secrets/admin-password.txt` 에만 보관합니다.
+
+---
+
 ## 업로드 후 24시간 운영
 
 ### A. 내 PC
@@ -79,21 +95,21 @@ install-service.cmd    (관리자 권한)
 git clone https://github.com/<아이디>/yose-guardian.git
 cd yose-guardian
 echo "ADMIN_PASSWORD=강력한비밀번호" > .env
-echo "AUTH_SECRET=$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")" >> .env
+node -e "console.log('JWT_SECRET='+require('crypto').randomBytes(32).toString('hex'))" >> .env
 docker compose up -d
 ```
 
 ### C. 무료 호스팅 (Render / Railway)
 - Build: `npm install && npm run build`
 - Start: `node server/index.js`
-- 환경변수: `NODE_ENV=production`, `ADMIN_PASSWORD`, `AUTH_SECRET`
+- 환경변수: `NODE_ENV=production`, `ADMIN_PASSWORD`(또는 `ADMIN_PASSWORD_HASH`), `JWT_SECRET`
 - ⚠️ 무료 플랜은 슬립 모드 있음 → 상시는 유료
 
 ---
 
 ## ⚠️ 업로드 전 필수
 
-1. **`AUTH_SECRET` 설정** — 없으면 로그인 토큰이 예측 가능해집니다
+1. **`JWT_SECRET` 설정** — 비워 두면 서버가 `server/data/jwt-secret.txt` 에 자동 생성합니다
    ```bash
    node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
    ```

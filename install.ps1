@@ -50,7 +50,21 @@ Set-Content -Path (Join-Path $base 'location.txt') -Value $app -Encoding UTF8
 # ── ② 파일 풀기 (game.zip 이 없으면 옆 폴더에서 복사 — 막지 않는다) ──
 if (Test-Path $payload) {
   Write-Host '  [1/4] 게임 파일을 푸는 중...'
+  # 기존 관리자 .env 는 보존 — 업데이트로 쓰던 비밀번호가 바뀌지 않게.
+  $envPath = Join-Path $app '.env'
+  $oldEnvBytes = $null
+  $keepOldEnv = $false
+  if (Test-Path $envPath) {
+    try {
+      $oldEnvBytes = [IO.File]::ReadAllBytes($envPath)
+      $keepOldEnv = [bool]([Text.Encoding]::UTF8.GetString($oldEnvBytes) -match '(?m)^\s*ADMIN_PASSWORD(_HASH)?\s*=')
+    } catch { $keepOldEnv = $false }
+  }
   Expand-Archive -Path $payload -DestinationPath $app -Force
+  if ($keepOldEnv -and $oldEnvBytes) {
+    try { [IO.File]::WriteAllBytes($envPath, $oldEnvBytes); Write-Host '  기존 관리자 .env 보존 — 쓰던 비밀번호가 유지됩니다' }
+    catch { Write-Host '  [안내] 기존 .env 를 보존하지 못했습니다 — 새 관리자 비밀번호를 확인하세요' }
+  }
 } else {
   $side = Join-Path (Split-Path $PSScriptRoot -Parent) 'client\dist'
   if (Test-Path $side) {

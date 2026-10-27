@@ -1,6 +1,6 @@
 // 릴리스 패키지 생성 — game.zip + 런처 zip
 //   사용: node tools/pack-release.mjs
-import { createWriteStream, existsSync, mkdirSync, rmSync, statSync, readdirSync, copyFileSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, rmSync, statSync, readdirSync, copyFileSync, readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { execSync, execFileSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
@@ -33,6 +33,27 @@ copyFileSync(join(ROOT, 'package.json'), join(STAGE, 'package.json'));
 for (const f of ['게임앱.vbs', '게임앱실행.cmd', 'app.js']) {
   const src = join(ROOT, f);
   if (existsSync(src)) copyFileSync(src, join(STAGE, f));
+}
+// 배포본에도 관리자 계정이 동작하도록 런타임 .env 를 넣는다.
+//  · release.env 에는 bcrypt 해시만 있고 평문 비밀번호는 없다.
+//  · JWT_SECRET 은 넣지 않는다 — 설치 PC마다 data/jwt-secret.txt 로 생성된다.
+{
+  const releaseEnv = join(ROOT, 'release.env');
+  if (!existsSync(releaseEnv)) {
+    console.error('  [실패] release.env 가 없습니다 — 배포본 관리자 로그인이 동작하지 않습니다');
+    process.exit(1);
+  }
+  const text = readFileSync(releaseEnv, 'utf8');
+  if (/^ADMIN_PASSWORD=/m.test(text)) {
+    console.error('  [실패] release.env 에 평문 ADMIN_PASSWORD 가 있습니다 — ADMIN_PASSWORD_HASH 만 넣으세요');
+    process.exit(1);
+  }
+  if (!/^ADMIN_PASSWORD_HASH=\$2[abxy]\$\d{2}\$[./A-Za-z0-9]{53}\s*$/m.test(text)) {
+    console.error('  [실패] release.env 의 ADMIN_PASSWORD_HASH 가 올바른 bcrypt 해시가 아닙니다');
+    process.exit(1);
+  }
+  copyFileSync(releaseEnv, join(STAGE, '.env'));
+  log('  런타임 .env 포함 (관리자 bcrypt 해시)');
 }
 log('[2/4] 스테이징 완료');
 

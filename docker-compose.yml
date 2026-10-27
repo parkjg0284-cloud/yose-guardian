@@ -11,9 +11,10 @@ services:
       NODE_ENV: production
       PORT: 3001
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD:?ADMIN_PASSWORD 를 .env 에 설정하세요}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      ADMIN_PASSWORD_HASH: ${ADMIN_PASSWORD_HASH:-}
       ADMIN_NICKNAME: ${ADMIN_NICKNAME:-관리자}
-      AUTH_SECRET: ${AUTH_SECRET:?AUTH_SECRET 를 .env 에 설정하세요}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 를 .env 에 설정하세요}
     volumes:
       - game-data:/app/server/data
     healthcheck:

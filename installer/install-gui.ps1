@@ -50,7 +50,23 @@ function Install-Game_Legacy([string]$target, [scriptblock]$progress) {
   Write-Log ("설치 위치: " + $target)
 
   if ($progress) { & $progress 10 '게임 파일을 푸는 중...' }
-  if (Test-Path $payload) { Expand-Archive -Path $payload -DestinationPath $target -Force }
+  if (Test-Path $payload) {
+    # 기존 관리자 .env 는 보존 — 업데이트로 쓰던 비밀번호가 바뀌지 않게.
+    $envPath = Join-Path $target '.env'
+    $oldEnvBytes = $null
+    $keepOldEnv = $false
+    if (Test-Path $envPath) {
+      try {
+        $oldEnvBytes = [IO.File]::ReadAllBytes($envPath)
+        $keepOldEnv = [bool]([Text.Encoding]::UTF8.GetString($oldEnvBytes) -match '(?m)^\s*ADMIN_PASSWORD(_HASH)?\s*=')
+      } catch { $keepOldEnv = $false }
+    }
+    Expand-Archive -Path $payload -DestinationPath $target -Force
+    if ($keepOldEnv -and $oldEnvBytes) {
+      try { [IO.File]::WriteAllBytes($envPath, $oldEnvBytes); Write-Log '기존 관리자 .env 보존 — 쓰던 비밀번호 유지' }
+      catch { Write-Log '[안내] 기존 .env 를 보존하지 못했습니다 — 새 관리자 비밀번호를 확인하세요' }
+    }
+  }
   Step '게임 파일 풀기' (Test-Path (Join-Path $target 'client\dist\index.html'))
 
   if ($progress) { & $progress 40 '필요한 라이브러리를 받는 중... (1~2분)' }

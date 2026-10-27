@@ -25,6 +25,8 @@ launcher-work/
 .env
 .env.*
 !.env.example
+# 로컬 전용 관리자 비밀번호 원본 — release.env 에는 bcrypt 해시만 올린다.
+secrets/
 
 # ── 압축 · 설치 산출물
 *.zip

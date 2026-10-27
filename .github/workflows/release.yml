@@ -29,6 +29,21 @@ jobs:
       - name: 클라이언트 빌드
         run: npm run build
 
+      - name: 런타임 관리자 비밀 설정 (선택 — GitHub Secret)
+        shell: pwsh
+        env:
+          ADMIN_USERNAME: ${{ secrets.ADMIN_USERNAME }}
+          ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+          ADMIN_PASSWORD_HASH: ${{ secrets.ADMIN_PASSWORD_HASH }}
+          ADMIN_NICKNAME: ${{ secrets.ADMIN_NICKNAME }}
+        run: |
+          if ($env:ADMIN_PASSWORD -or $env:ADMIN_PASSWORD_HASH) {
+            node tools/make-release-env.mjs --out .env.release.generated
+            Write-Host "GitHub Secret 기반 런타임 .env 생성 완료"
+          } else {
+            Write-Host "GitHub Secret 없음 — release.env 의 bcrypt 해시를 사용합니다"
+          }
+
       - name: 게임 패키지 생성 (game.zip)
         shell: pwsh
         run: |
@@ -42,6 +57,15 @@ jobs:
           Copy-Item app.js $stage -Force -ErrorAction SilentlyContinue
           Copy-Item 게임앱.vbs $stage -Force -ErrorAction SilentlyContinue
           Copy-Item 게임앱실행.cmd $stage -Force -ErrorAction SilentlyContinue
+          # 관리자 로그인 설정 — 평문 비밀번호는 절대 넣지 않고 bcrypt 해시만 넣는다.
+          if (Test-Path ".env.release.generated") {
+            Copy-Item ".env.release.generated" "$stage\.env" -Force
+          } else {
+            Copy-Item "release.env" "$stage\.env" -Force
+          }
+          $envText = Get-Content "$stage\.env" -Raw
+          if ($envText -match '(?m)^ADMIN_PASSWORD=') { throw "stage/.env 에 평문 ADMIN_PASSWORD 가 있습니다" }
+          if ($envText -notmatch '(?m)^ADMIN_PASSWORD_HASH=\$2') { throw "stage/.env 에 ADMIN_PASSWORD_HASH 가 없습니다" }
           Compress-Archive -Path "$stage\*" -DestinationPath game.zip -Force
           Write-Host "game.zip: $([Math]::Round((Get-Item game.zip).Length/1KB,1))KB"
 
@@ -94,7 +118,7 @@ jobs:
 
             ### 게임 다운로드 — 런처 exe (권장)
 
-            **[YoseGuardian-Launcher.exe](https://github.com/parkjg0284-cloud/yose-guardian/releases/latest/download/YoseGuardian-Launcher.exe)** 하나만 받으면 됩니다 (약 677KB).
+            **[YoseGuardian-Launcher.exe](https://github.com/parkjg0284-cloud/yose-guardian/releases/latest/download/YoseGuardian-Launcher.exe)** 하나만 받으면 됩니다 (약 689KB).
 
             1. 내려받기 → **더블클릭**
             2. 창에서 **[게임 다운로드 & 설치]** 한 번
@@ -103,7 +127,7 @@ jobs:
             | 상태 | 버튼 |
             | --- | --- |
             | 설치 전 | **게임 다운로드 & 설치** |
-            | 새 버전이 있을 때 | **업데이트 (v1.19.4 → v1.19.5)** · [게임 시작] 잠김 |
+            | 새 버전이 있을 때 | **업데이트 (v1.19.5 → v1.19.6)** · [게임 시작] 잠김 |
             | 설치/업데이트 중 | **[게임 시작] 잠김** (`설치/업데이트 중…`) |
             | 이미 최신 | 버튼이 사라지고 **[게임 시작]** 활성화 |
 
@@ -111,6 +135,14 @@ jobs:
             - 설치 폴더를 지우면 **[게임 다운로드 & 설치]** 버튼이 다시 나타납니다.
             - **[설치 파일 선택]** 으로 내려받아 둔 game.zip 을 골라 설치할 수도 있습니다.
             - 설치·업데이트 후 게임을 자동 실행하지 않습니다. **[게임 시작]** 을 눌러 주세요.
+
+            ### v1.19.6 변경 내용
+
+            - **관리자 로그인 수정** — 새로 설치한 게임에도 런타임 `.env` 가 포함되어 관리자 계정이 자동 생성됩니다.
+            - **평문 비밀번호 비공개** — `game.zip` 에는 bcrypt 해시만 넣고, 관리자 비밀번호는 배포 PC의 `secrets/admin-password.txt` 에만 보관합니다.
+            - **JWT 키 자동 생성** — `.env` 에 `JWT_SECRET` 이 없으면 설치 PC마다 `server/data/jwt-secret.txt` 에 한 번 만들어 재사용합니다.
+            - **기존 설치의 `.env` 는 업데이트해도 보존** — 쓰던 관리자 비밀번호가 그대로 유지됩니다.
+            - 관리자 아이디는 `admin` 입니다. 새로 설치한 경우 비밀번호는 배포 PC의 `secrets/admin-password.txt` 를 확인하세요.
 
             ### v1.19.5 변경 내용
 

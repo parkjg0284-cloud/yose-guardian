@@ -10,10 +10,35 @@ import path from 'node:path';
 
 const USERNAME_RE = /^[a-zA-Z0-9_]{3,20}$/;
 const BCRYPT_ROUNDS = 10;
+const BCRYPT_HASH_RE = /^\$2[abxy]\$\d{2}\$[./A-Za-z0-9]{53}$/;
+let cachedJwtSecret = '';
 
-/** JWT 비밀키 (.env) */
+/**
+ * JWT 비밀키 — `.env JWT_SECRET` 우선, 없으면 DB 옆 `jwt-secret.txt` 에 한 번 만들어 보관한다.
+ *  release.env 에는 관리자 해시만 넣고 JWT 키는 설치 PC마다 다르게 생성한다(공개 저장소 노출 방지).
+ */
 export function jwtSecret() {
-  return process.env.JWT_SECRET || 'fortress_guardian_dev_secret_change_me';
+  const fromEnv = String(process.env.JWT_SECRET ?? process.env.AUTH_SECRET ?? '').trim();
+  if (fromEnv) return fromEnv;
+  if (cachedJwtSecret) return cachedJwtSecret;
+  const file = path.join(path.dirname(resolveDbPath()), 'jwt-secret.txt');
+  try {
+    const saved = readFileSync(file, 'utf8').trim();
+    if (saved.length >= 32) {
+      cachedJwtSecret = saved;
+      return saved;
+    }
+  } catch {
+    /* 첫 실행 — 아래에서 생성 */
+  }
+  cachedJwtSecret = randomBytes(32).toString('hex');
+  try {
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, `${cachedJwtSecret}\n`, { encoding: 'utf8', mode: 0o600 });
+  } catch (err) {
+    console.warn('[보안] JWT 비밀키 파일 저장 실패:', err?.message || err);
+  }
+  return cachedJwtSecret;
 }
 
 /** `{id, username}` 페이로드로 토큰 발급 */
@@ -117,31 +142,46 @@ function writeAdminPasswordFile(password) {
   }
 }
 
-/** .env 의 ADMIN_* 값을 검증해 확정한다(잘못된 값은 기본값으로 되돌린다). */
+/**
+ * .env 의 ADMIN_* 값을 검증해 확정한다(잘못된 값은 기본값으로 되돌린다).
+ *  - ADMIN_PASSWORD       : 평문(로컬 개발·기존 설치 호환)
+ *  - ADMIN_PASSWORD_HASH  : bcrypt 해시(배포 game.zip — 평문을 공개하지 않기 위함)
+ *  - 둘 다 없으면 data/admin-password.txt 를 읽거나 한 번만 생성한다.
+ */
 export function adminCredentials() {
   const rawName = String(process.env.ADMIN_USERNAME ?? "").trim();
   const rawPass = typeof process.env.ADMIN_PASSWORD === "string" ? process.env.ADMIN_PASSWORD : "";
+  const rawHash = String(process.env.ADMIN_PASSWORD_HASH ?? "").trim();
   const rawNick = sanitizeText(process.env.ADMIN_NICKNAME, 16);
-  return {
-    username: USERNAME_RE.test(rawName) ? rawName : ADMIN_DEFAULT.username,
-    password: (() => {
-      if (rawPass.length >= 4 && rawPass.length <= 72) return rawPass;
+  // 평문이 있으면 기존 동작을 그대로 우선한다. 배포본은 평문 없이 해시만 넣는다.
+  const passwordHash = rawPass ? '' : (BCRYPT_HASH_RE.test(rawHash) ? rawHash : '');
+  let password = '';
+  if (!passwordHash) {
+    if (rawPass.length >= 4 && rawPass.length <= 72) {
+      password = rawPass;
+    } else {
       // .env 에 비밀번호가 없으면 data/admin-password.txt 를 먼저 읽는다.
       // 예전에는 매 시작마다 무작위로 새로 만들어 **관리자 계정에 영영 로그인할 수 없었다**.
       const persisted = readAdminPasswordFile();
       if (persisted) {
         ADMIN_DEFAULT.password = persisted;
-        return persisted;
+        password = persisted;
+      } else {
+        // 코드에 박힌 기본값을 쓰지 않고, 한 번만 생성해 파일에 남긴다.
+        if (!ADMIN_DEFAULT.password) {
+          ADMIN_DEFAULT.password = randomPassword();
+          const file = writeAdminPasswordFile(ADMIN_DEFAULT.password);
+          console.warn(`[보안] ADMIN_PASSWORD 가 없어 임시 비밀번호를 생성해 ${file || '저장 실패'} 에 보관했습니다.`);
+          console.warn('[보안] 위 파일을 열어 비밀번호를 확인하거나, .env ADMIN_PASSWORD 로 직접 지정하세요.');
+        }
+        password = ADMIN_DEFAULT.password;
       }
-      // 코드에 박힌 기본값을 쓰지 않고, 한 번만 생성해 파일에 남긴다.
-      if (!ADMIN_DEFAULT.password) {
-        ADMIN_DEFAULT.password = randomPassword();
-        const file = writeAdminPasswordFile(ADMIN_DEFAULT.password);
-        console.warn(`[보안] ADMIN_PASSWORD 가 없어 임시 비밀번호를 생성해 ${file || '저장 실패'} 에 보관했습니다.`);
-        console.warn('[보안] 위 파일을 열어 비밀번호를 확인하거나, .env ADMIN_PASSWORD 로 직접 지정하세요.');
-      }
-      return ADMIN_DEFAULT.password;
-    })(),
+    }
+  }
+  return {
+    username: USERNAME_RE.test(rawName) ? rawName : ADMIN_DEFAULT.username,
+    password,
+    passwordHash,
     nickname: rawNick || ADMIN_DEFAULT.nickname
   };
 }
@@ -153,19 +193,25 @@ export function adminCredentials() {
  */
 export function ensureAdminAccount(opts = {}) {
   const cred = { ...adminCredentials(), ...opts };
+  if (!cred.passwordHash && !cred.password) throw new Error("관리자 비밀번호가 설정되지 않았습니다");
   const row = db.prepare("SELECT id, role, password_hash FROM users WHERE username = ?").get(cred.username);
   if (row) {
     // 관리자 계정은 .env 의 비밀번호와 항상 맞춘다 — 예전 비밀번호로 로그인이 안 되는 일을 막는다.
-    const needReset = !bcrypt.compareSync(cred.password, row.password_hash ?? "");
+    //  해시가 있으면 해시 문자열을 그대로 맞추고(재해시로 매번 바뀌지 않게), 평문이면 bcrypt 비교한다.
+    const needReset = cred.passwordHash
+      ? row.password_hash !== cred.passwordHash
+      : !bcrypt.compareSync(cred.password, row.password_hash ?? "");
     if (row.role !== "admin" || needReset) {
+      const nextHash = cred.passwordHash || bcrypt.hashSync(cred.password, BCRYPT_ROUNDS);
       db.prepare("UPDATE users SET role = 'admin', password_hash = ? WHERE id = ?")
-        .run(bcrypt.hashSync(cred.password, BCRYPT_ROUNDS), row.id);
+        .run(nextHash, row.id);
     }
     return { created: false, id: row.id, username: cred.username, role: "admin", reset: needReset };
   }
+  const passwordHash = cred.passwordHash || bcrypt.hashSync(cred.password, BCRYPT_ROUNDS);
   const info = db
     .prepare("INSERT INTO users (username, password_hash, nickname, role, created_at) VALUES (?, ?, ?, 'admin', ?)")
-    .run(cred.username, bcrypt.hashSync(cred.password, BCRYPT_ROUNDS), cred.nickname, new Date().toISOString());
+    .run(cred.username, passwordHash, cred.nickname, new Date().toISOString());
   return { created: true, id: Number(info.lastInsertRowid), username: cred.username, role: "admin" };
 }
 

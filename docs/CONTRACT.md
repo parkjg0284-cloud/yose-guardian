@@ -2348,3 +2348,36 @@ GitHub 에 이미 올라가 있으면 다시 올리지 않는다.
 - `tools/smoke.mjs` 1008/1008 — 물탱크 7종·용량 단조 증가·전기 불필요·승급 경로, 추출/쿨다운/가득 참/철거 폐기/저장 왕복, L 키 배선, 전체 165.
 - `tools/headless.mjs` 612/612 — 물탱크 T1 100L → T2 250L 업그레이드, 파괴 시 0L.
 - `tools/ui-dom-smoke.mjs` 358/358 — 시설 탭 47종, T4 6종, 물탱크 카드, HUD 💧 칩.
+
+---
+
+## §4.89 관리자 로그인 수정 · 배포 비밀 설정 (v1.19.6)
+
+**요청** — 관리자 계정으로 로그인이 안 되는 문제를 고치고, 비밀 값을 시크릿 파일로 분리해 GitHub에 올린다.
+
+**원인**
+- 릴리스 `game.zip` 에 `.env` 가 빠져 있었다. 새로 설치한 서버는 `.env ADMIN_PASSWORD` 가 없어
+  `server/data/admin-password.txt` 에 **무작위 비밀번호**를 만들고, 사용자는 그 값을 알 수 없어 로그인에 실패했다.
+- 기존 설치본은 예전 `.env` 가 남아 있어 로그인되지만, 새 설치·다른 PC에서는 재현됐다.
+- `JWT_SECRET` 이 없으면 코드에 박힌 개발용 키로 토큰을 서명해 공개 배포에 부적절했다.
+
+**수정**
+- `server/api/auth.js`
+  - `ADMIN_PASSWORD_HASH`(bcrypt) 지원. 평문 `ADMIN_PASSWORD` 가 있으면 기존처럼 평문 우선.
+  - `adminCredentials()` 가 `{username, password, passwordHash, nickname}` 을 반환하고,
+    `ensureAdminAccount()` 는 해시가 있으면 **해시 문자열 그대로** DB에 저장한다(재해시로 매 시작 바뀌지 않게).
+  - `jwtSecret()` 은 `JWT_SECRET`/`AUTH_SECRET` 우선, 없으면 DB 옆 `jwt-secret.txt` 에 64자 키를 1회 생성해 재사용.
+- `release.env` — `game.zip` 에 포함되는 런타임 설정. **평문 없이 `ADMIN_PASSWORD_HASH` 만** 넣는다.
+  `JWT_SECRET` 은 넣지 않는다(설치 PC마다 생성).
+- `tools/make-release-env.mjs` — GitHub Actions Secret `ADMIN_PASSWORD` 를 bcrypt 해시로 바꿔 `.env` 생성.
+  `ADMIN_PASSWORD_HASH` Secret 이 있으면 그대로 사용. 평문 줄은 만들지 않는다.
+- `tools/pack-release.mjs` / `.github/workflows/release.yml` — 스테이징에 `.env` 를 넣고,
+  평문 `ADMIN_PASSWORD=` 가 있으면 배포를 중단한다. `release.env` 가 없거나 해시가 아니어도 중단.
+- `.gitignore` — `secrets/` 추가. 평문 관리자 비밀번호는 이 PC의 `secrets/admin-password.txt` 에만 둔다.
+- 기존 로컬 `.env`(평문)는 그대로 동작한다. 설치 스크립트는 기존 `.env` 에 관리자 설정이 있으면 **그 파일을 보존**하므로,
+  업데이트해도 쓰던 관리자 비밀번호가 바뀌지 않는다. 새로 설치할 때만 `release.env` 해시가 적용된다.
+
+**검사**
+- `tools/admin-auth-test.mjs` 21/21 — 해시 생성·저장·재시작 유지·해시 교체·평문 경로·JWT 영속화·`release.env` 평문 부재.
+- `tools/pack-release.mjs` 실행 후 `game.zip` 에 `.env` 포함 확인, 새로 푼 설치본에서 `admin` 로그인 200/role=admin 실측.
+- `npm run verify` — 스모크·관리자 인증·헤드리스·UI·버그 스위트 + 빌드 통과.

@@ -189,7 +189,7 @@
   <section class="hero">
     <div class="wrap">
       <div>
-        <span class="badge"><i></i>v1.19.5 · Windows 10/11 · 무료</span>
+        <span class="badge"><i></i>v1.19.6 · Windows 10/11 · 무료</span>
         <h1>무너지는 요새,<br>마지막 <em>수호자</em>가 되어라</h1>
         <p class="lede">
           웨이브를 막아내며 포탑을 세우고, 자원을 캐고, 마법을 연성하세요.
@@ -280,6 +280,17 @@
       <h2>패치노트</h2>
       <p class="sub">런처의 <b>[패치노트]</b> 버튼에서도 같은 내용을 볼 수 있습니다.</p>
       <div class="grid">
+        <article class="card">
+          <div class="ico">🔐</div>
+          <h3>v1.19.6 · 관리자 로그인 수정 · 배포 비밀 설정</h3>
+          <p>새로 설치한 게임에서도 관리자 계정으로 바로 로그인할 수 있게 고쳤습니다.</p>
+          <ul>
+            <li><b>game.zip</b> 에 런타임 <b>.env</b> 포함 — 관리자 계정 자동 생성</li>
+            <li>공개 릴리스에는 <b>bcrypt 해시만</b> — 평문 비밀번호는 <b>secrets/admin-password.txt</b> 에만</li>
+            <li><b>JWT 키</b> 는 설치 PC마다 <b>server/data/jwt-secret.txt</b> 에 자동 생성</li>
+            <li>관리자 아이디 <b>admin</b> · GitHub Secret 으로 비밀번호 교체 가능</li>
+          </ul>
+        </article>
         <article class="card">
           <div class="ico">💧</div>
           <h3>v1.19.5 · 물 추출 기능 · 물탱크 T1~T7</h3>

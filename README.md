@@ -102,6 +102,17 @@ npm start
 **`게임앱.vbs`** 더블클릭 — 서버가 자동으로 켜지고 **전용 앱 창**으로 열립니다.
 (브라우저 주소창 없음)
 
+### 관리자 로그인 · 배포 비밀 설정 (v1.19.6)
+
+- **game.zip 안에 런타임 `.env` 를 포함**해, 새로 설치한 게임에서도 관리자 계정이 바로 만들어집니다.
+  - 공개 릴리스에는 **bcrypt 해시(`ADMIN_PASSWORD_HASH`)만** 넣고 평문 비밀번호는 넣지 않습니다.
+  - 관리자 아이디는 `admin` 이고, 비밀번호는 배포 담당자가 `secrets/admin-password.txt` 에 보관합니다.
+- `.env` 의 `ADMIN_PASSWORD`(평문)는 기존처럼 로컬 개발·개인 서버에서 그대로 쓸 수 있습니다.
+- `JWT_SECRET` 이 없으면 서버가 **설치 PC마다** `server/data/jwt-secret.txt` 에 64자 키를 한 번 생성합니다.
+  → 공개 릴리스에 JWT 키가 노출되지 않고, 재시작해도 로그인 토큰이 유지됩니다.
+- GitHub Actions 를 쓰면 저장소 Secret `ADMIN_PASSWORD` 또는 `ADMIN_PASSWORD_HASH` 로 배포 비밀번호를 바꿀 수 있습니다.
+  (Secret 이 없으면 저장소의 `release.env` 해시를 사용합니다.)
+
 ### 물 추출 기능 · 물탱크 T1~T7 (v1.19.5)
 
 - **물탱크 7종**을 건설 **🏗 시설** 탭에 추가했습니다. 저장 용량은 **T1 100L → T7 4,000L**이고, 전기가 필요 없습니다.
@@ -317,11 +328,13 @@ PORT=3001
 NODE_ENV=production
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=여기에_강력한_비밀번호
+# 배포용은 평문 대신: ADMIN_PASSWORD_HASH=$2b$10$...
 ADMIN_NICKNAME=관리자
-AUTH_SECRET=여기에_무작위_문자열
+JWT_SECRET=여기에_64자_무작위_문자열
 ```
 
-> ⚠️ `AUTH_SECRET` 은 **반드시** 바꾸세요. 이 값으로 로그인 토큰을 서명합니다.
+> ⚠️ `JWT_SECRET` 은 **반드시** 바꾸세요. 이 값으로 로그인 토큰을 서명합니다.
+> 비워 두면 서버가 `server/data/jwt-secret.txt` 에 한 번 생성해 보관합니다.
 > 무작위 값 만들기: `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
 
 `PORT` 는 게임 안 **설정 → 서버 · 포트**에서도 바꿀 수 있습니다. 이때 `.env` 의 `PORT` 줄만 바뀌고
@@ -332,10 +345,16 @@ AUTH_SECRET=여기에_무작위_문자열
 서버를 켜면 `.env` 의 값으로 **자동 생성/갱신**됩니다.
 관리자만 `` ` `` 콘솔에서 명령어를 쓸 수 있습니다 (`/돈`, `/무기`, `/웨이브` 등).
 
-- `.env` 에 `ADMIN_PASSWORD` 가 있으면 그 값이 항상 적용됩니다(서버 재시작 포함).
-- 없으면 `server/data/admin-password.txt` 에 **한 번만 생성해 보관**하고, 다음 시작부터는 그 값을 씁니다.
+- `.env` 에 `ADMIN_PASSWORD`(평문)가 있으면 그 값이 항상 적용됩니다(서버 재시작 포함).
+- 배포용 `.env` 는 `ADMIN_PASSWORD_HASH`(bcrypt)만 넣습니다. `release.env` 가 `game.zip` 에 포함되며,
+  평문 비밀번호는 저장소·릴리스에 올리지 않고 **이 PC의 `secrets/admin-password.txt`** 에만 보관합니다.
+- 둘 다 없으면 `server/data/admin-password.txt` 에 **한 번만 생성해 보관**하고, 다음 시작부터는 그 값을 씁니다.
   예전처럼 매 시작마다 무작위로 바뀌어 로그인할 수 없는 일은 없습니다.
-- 비밀번호를 잊었다면 위 파일을 확인하거나 `.env` 의 `ADMIN_PASSWORD` 를 바꾼 뒤 서버를 다시 시작하세요.
+- 비밀번호를 잊었다면 `secrets/admin-password.txt` 또는 `server/data/admin-password.txt` 를 확인하거나,
+  `.env` 의 `ADMIN_PASSWORD` 를 바꾼 뒤 서버를 다시 시작하세요.
+- GitHub Actions 배포에서는 저장소 Secret `ADMIN_PASSWORD`(또는 `ADMIN_PASSWORD_HASH`)를 설정하면
+  `release.env` 대신 그 값으로 런타임 `.env` 를 만듭니다.
+- 기존 설치를 업데이트할 때는 **쓰던 `.env` 의 관리자 설정을 보존**합니다. 새로 설치할 때만 `release.env` 해시가 적용됩니다.
 - `/api/net` 의 공유 주소는 **실제 `PORT` 환경변수**를 사용합니다. 테스트(`node tools/e2e-net.mjs`)도
   `E2E_BASE` 의 포트를 읽으므로 3001 이 아닌 포트에서도 그대로 검증됩니다.
 
@@ -347,6 +366,7 @@ AUTH_SECRET=여기에_무작위_문자열
 
 | 버전 | 날짜 | 무엇이 바뀌었나 |
 |---|---|---|
+| **v1.19.6** | 2026-10-27 | **관리자 로그인 수정** · game.zip 런타임 `.env` 포함 · **bcrypt 해시만 배포**(평문 비밀번호 비공개) · JWT 키 설치 PC별 자동 생성·보관 |
 | **v1.19.5** | 2026-10-27 | **L 키 지하수 추출 기능**(20L · 0.8초) · **물탱크 T1~T7**(100~4,000L · 전기 불필요) · HUD 💧 저장량/용량 · 물 세이브 저장 |
 | **v1.19.4** | 2026-10-27 | **물추출기·물통로 삭제** · 공장 **6종 × T1~T7 = 42종** · 물통로 생산 보너스 제거 · 기존 세이브의 두 건물 자동 정리 |
 | **v1.19.3** | 2026-10-27 | **🛡 기사단 길드 T1~T7** · 건물 티어마다 **기사 공격력 +6~50% · 받는 피해 -3~22% · 이동 +2~15%** · 최고 티어만 적용 · 전기/설치 제한 없음 |
