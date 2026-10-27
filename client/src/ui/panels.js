@@ -1286,7 +1286,7 @@ export class PanelManager {
     }
     if (st.category === 'factory') {
       body.appendChild(sectionTitle('🏭 공장 — 티어별 생산 시설'));
-      body.appendChild(row('안내', '공장은 전기가 필요합니다. 물통로를 공장 옆에 두면 생산량이 늘어납니다.'));
+      body.appendChild(row('안내', '공장은 전기가 필요합니다. 전력이 끊기면 생산이 멈춥니다.'));
       const groups = new Map();
       for (const t of list) {
         const key = t.factoryType || 'factory';
@@ -1385,15 +1385,10 @@ export class PanelManager {
           return `${label} ${Math.round(num(o.amount) * 1000) / 1000}/s`;
         })
         .join(' · ');
-      card.appendChild(row('생산', outs || '직접 생산 없음'));
-      if (t.factoryType === 'waterway') {
-        card.appendChild(row('공장 지원', `반경 ${num(t.range)}m 안 공장 생산 +${Math.round(num(t.factoryBoost) * 100)}%`));
-        card.appendChild(row('연결', '여러 물통로를 겹치면 최대 +150%'));
-      } else {
-        card.appendChild(row('전력', `${num(t.draw)}kW 소비`));
-        card.appendChild(row('사거리', num(t.range)));
-        card.appendChild(row('체력', fmt(t.hp)));
-      }
+      card.appendChild(row('생산', outs));
+      card.appendChild(row('전력', `${num(t.draw)}kW 소비`));
+      card.appendChild(row('사거리', num(t.range)));
+      card.appendChild(row('체력', fmt(t.hp)));
     } else {
       card.appendChild(row(t.category === 'mining' ? '채굴' : '벌목', `${num(t.rate ?? t.fireRate)}/s`));
       card.appendChild(row('사거리', num(t.range)));

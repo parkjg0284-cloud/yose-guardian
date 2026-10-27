@@ -433,50 +433,30 @@ function buildTurretObject(type, ghost = false) {
       head.add(tip);
     }
   } else if (type.category === 'factory') {
-    const isPipe = type.factoryType === 'waterway';
-    if (isPipe) {
-      // 물통로 — 낮게 누운 관 + 연결 고리
-      const pipe = new THREE.Mesh(GEO.arm(), metal);
-      pipe.scale.set(1.8, 1.2, 3.2);
-      pipe.position.y = 0.82;
-      group.add(pipe);
-      for (const z of [-1.1, 1.1]) {
-        const ring = new THREE.Mesh(GEO.ring(), accent);
-        ring.rotation.x = -Math.PI / 2;
-        ring.scale.setScalar(0.72);
-        ring.position.set(0, 0.84, z);
-        group.add(ring);
-      }
-      head.position.y = 1.25;
-      const valve = new THREE.Mesh(GEO.gem(), accent);
-      valve.scale.setScalar(0.8);
-      head.add(valve);
-    } else {
-      // 공장 — 본체 탱크 + 굴뚝 + 회전하는 마력 코어
-      const body = new THREE.Mesh(GEO.plinth(), metal);
-      body.scale.set(1.75, 1.85, 1.55);
-      body.position.y = 1.0;
-      group.add(body);
-      for (const x of [-0.82, 0.82]) {
-        const tank = new THREE.Mesh(GEO.tower(), stone);
-        tank.scale.set(0.52, 1.15, 0.52);
-        tank.position.set(x, 0.9, -0.18);
-        group.add(tank);
-      }
-      const chimney = new THREE.Mesh(GEO.tower(), stone);
-      chimney.scale.set(0.34, 1.9, 0.34);
-      chimney.position.set(0.55, 2.0, 0.35);
-      group.add(chimney);
-      head.position.y = 2.15;
-      const core = new THREE.Mesh(GEO.gem(), accent);
-      core.scale.setScalar(1.0);
-      head.add(core);
-      const ring = new THREE.Mesh(GEO.ring(), accent);
-      ring.rotation.x = -Math.PI / 2;
-      ring.scale.setScalar(0.85);
-      ring.position.y = -0.25;
-      head.add(ring);
+    // 공장 — 본체 탱크 + 굴뚝 + 회전하는 마력 코어
+    const body = new THREE.Mesh(GEO.plinth(), metal);
+    body.scale.set(1.75, 1.85, 1.55);
+    body.position.y = 1.0;
+    group.add(body);
+    for (const x of [-0.82, 0.82]) {
+      const tank = new THREE.Mesh(GEO.tower(), stone);
+      tank.scale.set(0.52, 1.15, 0.52);
+      tank.position.set(x, 0.9, -0.18);
+      group.add(tank);
     }
+    const chimney = new THREE.Mesh(GEO.tower(), stone);
+    chimney.scale.set(0.34, 1.9, 0.34);
+    chimney.position.set(0.55, 2.0, 0.35);
+    group.add(chimney);
+    head.position.y = 2.15;
+    const core = new THREE.Mesh(GEO.gem(), accent);
+    core.scale.setScalar(1.0);
+    head.add(core);
+    const ring = new THREE.Mesh(GEO.ring(), accent);
+    ring.rotation.x = -Math.PI / 2;
+    ring.scale.setScalar(0.85);
+    ring.position.y = -0.25;
+    head.add(ring);
   } else if (type.category === 'portal') {
     // 포탈 — 기둥 2개 + 떠 있는 고리 + 안쪽 빛판 (지형 색)
     for (const side of [-1, 1]) {
@@ -617,11 +597,9 @@ export class Turret {
     this._spawnTimer = null;
     this._spawnPhase = 0;
     this._spawnPulse = 0;
-    /** 공장 생산 누적(산출물별 소수점) · 물통로 보너스 · 생산 펄스 */
+    /** 공장 생산 누적(산출물별 소수점) · 생산 펄스 */
     this.factoryType = type.factoryType ?? null;
     this._factoryAcc = {};
-    this._factoryBoost = 0;
-    this._factoryBoostT = -1;
     this._factoryPulse = 0;
     this.factoryProduced = 0;
     this._animT = 0;
@@ -765,7 +743,6 @@ export class Turret {
     this.family = type.family ?? this.family;
     this.factoryType = type.factoryType ?? this.factoryType ?? null;
     this._factoryAcc = {};
-    this._factoryBoostT = -1;
     this.damage = num(type.damage);
     this.range = num(type.range, 20);
     this.fireRate = num(type.fireRate, 1);
@@ -1136,22 +1113,7 @@ export class Turret {
     // 작업대: 대기(무기 제작은 제작 패널에서)
   }
 
-  // ── 공장: 산출물 생산 + 물통로 지원 ────────────────────────────────
-  /** 주변 물통로의 생산 보너스 합(최대 150%) */
-  _factoryAura() {
-    const list = this.system?.turrets;
-    if (!Array.isArray(list)) return 0;
-    let sum = 0;
-    for (const t of list) {
-      if (t === this || t.destroyed || t.powered === false) continue;
-      if (t.type?.factoryType !== 'waterway') continue;
-      const d = Math.hypot(t.position.x - this.position.x, t.position.z - this.position.z);
-      if (d > num(t.range, 10)) continue;
-      sum += num(t.type?.factoryBoost, 0);
-    }
-    return Math.min(1.5, sum);
-  }
-
+  // ── 공장: 산출물 생산 ────────────────────────────────────────────────
   _creditFactoryOutput(out, whole) {
     if (whole <= 0 || !out) return;
     const system = this.system;
@@ -1174,26 +1136,16 @@ export class Turret {
   _updateFactory(dt) {
     this._factoryPulse = Math.max(0, num(this._factoryPulse) - dt * 1.8);
     if (this.powered === false) return;
-    if (this.type?.factoryType === 'waterway') {
-      this._factoryPulse = Math.max(num(this._factoryPulse), 0.25);
-      return;
-    }
-    this._factoryBoostT = num(this._factoryBoostT, -1) - dt;
-    if (this._factoryBoostT <= 0) {
-      this._factoryBoost = this._factoryAura();
-      this._factoryBoostT = 0.5;
-    }
     const outputs = Array.isArray(this.type?.outputs) ? this.type.outputs : [];
     if (!outputs.length) return;
     const rate = num(this.type?.rate, 1);
-    const mult = Math.max(0, 1 + num(this._factoryBoost));
     this._factoryAcc = this._factoryAcc ?? {};
     let produced = 0;
     for (const out of outputs) {
       const amount = Math.max(0, num(out?.amount));
       if (amount <= 0) continue;
       const key = `${out.kind}:${out.id ?? ''}`;
-      this._factoryAcc[key] = num(this._factoryAcc[key]) + dt * rate * amount * mult;
+      this._factoryAcc[key] = num(this._factoryAcc[key]) + dt * rate * amount;
       const whole = Math.floor(this._factoryAcc[key]);
       if (whole <= 0) continue;
       this._factoryAcc[key] -= whole;
@@ -1613,9 +1565,8 @@ export class Turret {
       } else this.head.position.y = 1.5 + Math.sin(this._animT * 1.4) * 0.04;
     }
     if (this.head && this.category === 'factory') {
-      const isPipe = this.type?.factoryType === 'waterway';
-      this.head.rotation.y += dt * (this.powered === false ? 0.2 : isPipe ? 0.8 : 1.8);
-      this.head.position.y = (isPipe ? 1.25 : 2.15) + Math.sin(this._animT * 1.8) * 0.05;
+      this.head.rotation.y += dt * (this.powered === false ? 0.2 : 1.8);
+      this.head.position.y = 2.15 + Math.sin(this._animT * 1.8) * 0.05;
       this.head.scale.setScalar(1 + num(this._factoryPulse) * 0.18);
     }
     const base = this._baseScale ?? 1;

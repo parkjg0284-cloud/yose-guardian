@@ -378,7 +378,7 @@ export const TURRET_CATEGORIES = {
   mining: { id: 'mining', name: '채굴탑', icon: '⛏', desc: '반경 내 광물을 자동으로 채굴한다.' },
   lumber: { id: 'lumber', name: '벌목탑', icon: '🪓', desc: '반경 내 나무를 자동으로 벌목한다.' },
   facility: { id: 'facility', name: '시설', icon: '🏗', desc: '작업대·저장고·채굴기·컨베이어벨트·몬스터 소환문·기사단 길드를 세운다.' },
-  factory: { id: 'factory', name: '공장', icon: '🏭', desc: '티어별 공장을 세워 골드·목재·광물을 자동 생산한다. 물통로는 주변 공장을 돕는다.' }
+  factory: { id: 'factory', name: '공장', icon: '🏭', desc: '티어별 공장을 세워 골드·목재·광물을 자동 생산한다.' }
 };
 
 // 공격 계열 7종 — 계열별 이펙트/속성/색
@@ -640,24 +640,10 @@ const SPAWNER_TABLE = [
   { tier: 7, spawnInterval: 6, spawnCount: 4, hp: 1200, color: 0xff5252, cost: { gold: 96000, wood: 9600, minerals: tierMinerals(7, 13, 9) } }
 ];
 
-// ── 공장 8종 × 티어 7단계 ────────────────────────────────────────────────
+// ── 공장 6종 × 티어 7단계 ────────────────────────────────────────────────
 //  · 모든 공장은 전기를 쓰고, 전기가 없으면 생산이 멈춘다.
-//  · 물통로만 직접 생산하지 않고 **반경 안 공장의 생산 속도**를 높인다.
 //  · 산출물은 기존 경제(골드·목재·광물)로 들어가므로 별도 재화·저장 형식이 필요 없다.
 const FACTORY_TABLE = [
-  {
-    key: 'water', name: '물추출기', icon: '💧', color: 0x5fc4ff, element: 'water',
-    gold: 520, wood: 120, hp: 500, draw: 2,
-    outputs: [{ kind: 'gold', amount: 2.2, label: '물 판매' }],
-    desc: '지하수를 끌어올려 정수한 뒤 팔아 골드를 만든다.'
-  },
-  {
-    key: 'waterway', name: '물통로', icon: '🌊', color: 0x3fb6d9, element: 'water',
-    gold: 380, wood: 90, hp: 360, draw: 1,
-    factoryBoost: 0.12,
-    outputs: [],
-    desc: '물을 흘려보내 주변 공장의 기계를 식힌다 — 반경 안 공장 생산량을 높인다.'
-  },
   {
     key: 'clay', name: '점토·씨맛 제조기', icon: '🧱', color: 0xb57a4a, element: 'earth',
     gold: 900, wood: 180, hp: 620, draw: 2,
@@ -720,10 +706,7 @@ const factoryTurrets = [];
 for (const f of FACTORY_TABLE) {
   for (let tier = 1; tier <= 7; tier += 1) {
     const rateMult = Math.pow(1.5, tier - 1);
-    const isPipe = f.key === 'waterway';
-    const draw = isPipe ? 1 : Math.max(2, Math.round(Number(f.draw) + (tier - 1) * 0.8));
-    const range = isPipe ? 10 + tier * 2 : 10;
-    const boost = isPipe ? Math.round((Number(f.factoryBoost) + (tier - 1) * 0.035) * 1000) / 1000 : 0;
+    const draw = Math.max(2, Math.round(Number(f.draw) + (tier - 1) * 0.8));
     const outputs = (f.outputs ?? []).map((o) => ({
       ...o,
       amount: Math.round(Number(o.amount) * rateMult * 1000) / 1000
@@ -740,16 +723,15 @@ for (const f of FACTORY_TABLE) {
       tier,
       kind: 'factory',
       icon: f.icon,
-      effect: isPipe ? 'boost' : 'produce',
+      effect: 'produce',
       element: f.element,
       color: f.color,
       damage: 0,
-      range,
+      range: 10,
       fireRate: 1,
       hp: Math.round(f.hp * Math.pow(1.32, tier - 1)),
       rate: 1,
       outputs,
-      factoryBoost: boost,
       draw,
       storeRate: null,
       capacity: 0,
@@ -760,9 +742,7 @@ for (const f of FACTORY_TABLE) {
         wood: Math.round((f.wood * Math.pow(2.1, tier - 1)) / 10) * 10,
         minerals: tierMinerals(tier, 3 + tier, 1 + Math.floor(tier / 2))
       },
-      desc: isPipe
-        ? `${f.desc} 반경 ${range}m 안 공장 생산 +${Math.round(boost * 100)}%. 전기 ${draw}kW.`
-        : `${f.desc} 초당 ${outputText} 생산. 전기 ${draw}kW 가 필요하다.`
+      desc: `${f.desc} 초당 ${outputText} 생산. 전기 ${draw}kW 가 필요하다.`
     });
   }
 }

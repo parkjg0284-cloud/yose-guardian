@@ -2985,8 +2985,8 @@ section('캐릭터 만들기 / 앉기·점프 / 부드러운 회전');
   check('원격이 아닌 건물은 removeRemote 거부', smoothSys.removeRemote(sTurret.id) === false && Boolean(smoothSys.find(sTurret.id)));
 }
 
-// ───────────────────────────── 12. 공장 생산·물통로·승급 (계약 §4.85)
-section('공장 — 생산 · 물통로 · 티어 승급');
+// ───────────────────────────── 12. 공장 생산·전력·승급 (계약 §4.87)
+section('공장 — 생산 · 전력 차단 · 티어 승급');
 {
   const fEco = new Economy({
     gold: 10000000,
@@ -2999,30 +2999,32 @@ section('공장 — 생산 · 물통로 · 티어 승급');
     rng: rng.fork('factory')
   });
   const gen = fSys.place('facility_generator_t7', { x: 0, z: 0 }, 'local');
-  const water = fSys.place('factory_water_t1', { x: 5, z: 0 }, 'local');
+  const clay = fSys.place('factory_clay_t1', { x: 5, z: 0 }, 'local');
   fSys.updatePower(true);
-  check('공장 건설 + 전력 공급', Boolean(gen) && Boolean(water) && water.powered === true, `powered=${water?.powered}`);
+  check('공장 건설 + 전력 공급', Boolean(gen) && Boolean(clay) && clay.powered === true, `powered=${clay?.powered}`);
   const goldBefore = fEco.gold;
+  const clayBefore = fEco.minerals.clay;
   for (let i = 0; i < 20; i++) fSys.update(0.5, {});
   check(
-    '물추출기 — 골드 자동 생산',
-    water.factoryProduced > 0 && fEco.gold > goldBefore,
-    `+${water.factoryProduced} · ${goldBefore} → ${fEco.gold}`
+    '점토·씨맛 제조기 — 점토 + 골드 자동 생산',
+    clay.factoryProduced > 0 && fEco.gold > goldBefore && fEco.minerals.clay > clayBefore,
+    `+${clay.factoryProduced} · 점토 ${clayBefore} → ${fEco.minerals.clay}`
   );
-  const pipe = fSys.place('factory_waterway_t1', { x: 2, z: 4 }, 'local');
+  fSys.sell(gen.id);
   fSys.updatePower(true);
-  for (let i = 0; i < 4; i++) fSys.update(0.5, {});
+  const producedBefore = clay.factoryProduced;
+  for (let i = 0; i < 20; i++) fSys.update(0.5, {});
   check(
-    '물통로 — 주변 공장 생산 보너스',
-    Boolean(pipe) && pipe.powered === true && water._factoryBoost > 0,
-    `boost=${(water._factoryBoost * 100).toFixed(1)}%`
+    '공장 전력 차단 — 생산 정지',
+    clay.powered === false && clay.factoryProduced === producedBefore,
+    `powered=${clay.powered} · ${producedBefore} → ${clay.factoryProduced}`
   );
-  const t1Amount = water.type.outputs[0].amount;
-  const upgraded = fSys.upgrade(water.id);
+  const t1Amount = clay.type.outputs[0].amount;
+  const upgraded = fSys.upgrade(clay.id);
   check(
     '공장 승급 — T1 → T2 생산량 증가',
-    upgraded === true && water.typeId === 'factory_water_t2' && water.type.outputs[0].amount > t1Amount,
-    `${water.typeId} ${t1Amount} → ${water.type.outputs[0].amount}/s`
+    upgraded === true && clay.typeId === 'factory_clay_t2' && clay.type.outputs[0].amount > t1Amount,
+    `${clay.typeId} ${t1Amount} → ${clay.type.outputs[0].amount}/s`
   );
 }
 

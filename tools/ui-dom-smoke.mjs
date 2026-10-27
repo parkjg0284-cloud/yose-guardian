@@ -806,26 +806,26 @@ if (pm) {
     const text = root.textContent || '';
     return text.includes('기사단 강화') && text.includes('공격력 +6%') && text.includes('받는 피해 -3%') && text.includes('이동 +2%');
   });
-  attempt('건설 패널 — 🏭 공장 탭 56종(8종 × T1~T7)', () => {
+  attempt('건설 패널 — 🏭 공장 탭 42종(6종 × T1~T7)', () => {
     pm.state.build.category = 'factory';
     pm.state.build.tier = 0;
     pm.open('build');
     const root = documentStub.getElementById('panel-root');
     const picks = root.querySelectorAll('[data-act="build-pick"]');
     return (
-      picks.length === 56 &&
-      picks.some((b) => b.dataset.type === 'factory_water_t1') &&
-      picks.some((b) => b.dataset.type === 'factory_waterway_t7') &&
+      picks.length === 42 &&
+      picks.some((b) => b.dataset.type === 'factory_clay_t1') &&
+      picks.some((b) => b.dataset.type === 'factory_mana_t7') &&
       picks.some((b) => b.dataset.type === 'factory_purifier_t7')
     );
   });
-  attempt('건설 패널 — 공장 티어 탭(T4 = 8종)', () => {
+  attempt('건설 패널 — 공장 티어 탭(T4 = 6종)', () => {
     pm.state.build.category = 'factory';
     pm.state.build.tier = 4;
     pm.open('build');
     const root = documentStub.getElementById('panel-root');
     const picks = root.querySelectorAll('[data-act="build-pick"]');
-    return picks.length === 8 && picks.every((b) => b.dataset.type.endsWith('_t4'));
+    return picks.length === 6 && picks.every((b) => b.dataset.type.endsWith('_t4'));
   });
   attempt('건설 패널 — 설치 제한 없음 안내', () => {
     pm.state.build.category = 'factory';

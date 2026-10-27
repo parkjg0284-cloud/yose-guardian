@@ -268,7 +268,7 @@ function section(title) {
 // ─────────────────────────────────────── 1. 데이터 무결성
 section('데이터 무결성');
 check('VERSION 존재', typeof VERSION === 'string' && VERSION.length > 0, VERSION);
-check('포탑 172종 (공격47·지원21·시설40·공장56·포탈8)', TURRETS.length === 172, `${TURRETS.length}종`);
+check('포탑 158종 (공격47·지원21·시설40·공장42·포탈8)', TURRETS.length === 158, `${TURRETS.length}종`);
 check('포탈 8종 (기지 + T1~T7)', turretsByCategory('portal').length === 8, `${turretsByCategory('portal').length}종`);
 check('포탈마다 목적지가 있다', turretsByCategory('portal').every((t) => typeof t.portalDest === 'string' && t.portalDest.length > 0), turretsByCategory('portal').map((t) => t.portalDest).join(','));
 check('공격형 47종', turretsByCategory('attack').length === 47, `${turretsByCategory('attack').length}종`);
@@ -709,7 +709,7 @@ section('건설 시설 (작업대·저장고·채굴기)');
   check('기본 시설 4종 — 작업대·마법부여대·저장고·채굴기 (T1)', baseFour.length === 4 && baseFacilities.filter((t) => t.kind === 'storage').length === 7, baseFacilities.map((t) => t.name).join(' · '));
   check('컨베이어벨트 7종 (T1~T7)', facilities.filter((t) => t.kind === 'conveyor').length === 7 && facilities.filter((t) => t.kind === 'conveyor').every((t, i) => t.tier === i + 1));
   check('몬스터 소환문 7종 (T1~T7)', facilities.filter((t) => t.kind === 'spawner').length === 7 && facilities.filter((t) => t.kind === 'spawner').every((t, i) => t.tier === i + 1));
-  check('시설 합계 40종 (기본5 + 저장고7 + 발전기7 + 전선1 + 벨트7 + 소환문7 + 기사단 길드7)', facilities.length === 40, `${facilities.length}종`);
+  check('시설 합계 40종 (기본4 + 저장고7 + 발전기7 + 전선1 + 벨트7 + 소환문7 + 기사단 길드7)', facilities.length === 40, `${facilities.length}종`);
   const wbDef = facilities.find((t) => t.kind === 'workbench');
   const stDef = facilities.find((t) => t.kind === 'storage');
   const amDef = facilities.find((t) => t.kind === 'autominer');
@@ -728,11 +728,11 @@ check('채굴기 — 맨땅에서 지형 티어 광물 자동 채굴(drillRegion
   );
   const factoryDefs = turretsByCategory('factory');
   check('공장 카테고리 등록', Boolean(TURRET_CATEGORIES.factory) && TURRET_CATEGORIES.factory.name === '공장', TURRET_CATEGORIES.factory?.name);
-  check('공장 56종 (8종 × T1~T7)', factoryDefs.length === 56 && [...new Set(factoryDefs.map((t) => t.factoryType))].length === 8 && factoryDefs.every((t) => t.tier >= 1 && t.tier <= 7), `${factoryDefs.length}종`);
-  check('공장마다 티어별 이름·생산량', factoryDefs.filter((t) => t.factoryType === 'water').sort((a, b) => a.tier - b.tier).every((t, i, a) => i === 0 || t.outputs[0].amount > a[i - 1].outputs[0].amount));
-  check('물통로 — 생산 없이 주변 공장 보너스', factoryDefs.filter((t) => t.factoryType === 'waterway').every((t) => t.outputs.length === 0 && t.factoryBoost > 0));
+  check('공장 42종 (6종 × T1~T7)', factoryDefs.length === 42 && [...new Set(factoryDefs.map((t) => t.factoryType))].length === 6 && factoryDefs.every((t) => t.tier >= 1 && t.tier <= 7), `${factoryDefs.length}종`);
+  check('공장마다 티어별 이름·생산량', factoryDefs.filter((t) => t.factoryType === 'clay').sort((a, b) => a.tier - b.tier).every((t, i, a) => i === 0 || t.outputs[0].amount > a[i - 1].outputs[0].amount));
+  check('물추출기·물통로 삭제 — 데이터/ID에 없음', !TURRET_BY_ID.factory_water_t1 && !TURRET_BY_ID.factory_waterway_t1 && !factoryDefs.some((t) => ['water', 'waterway'].includes(t.factoryType)));
   check('공장 전력 — 모두 소비', factoryDefs.every((t) => Number(t.draw) > 0));
-  check('계열 합계 = 164 (공격47 + 지원21 + 시설40 + 공장56)', turretsByCategory('attack').length === 47 && turretsByCategory('heal').length + turretsByCategory('mining').length + turretsByCategory('lumber').length === 21 && facilities.length === 40 && factoryDefs.length === 56);
+  check('계열 합계 = 150 (공격47 + 지원21 + 시설40 + 공장42)', turretsByCategory('attack').length === 47 && turretsByCategory('heal').length + turretsByCategory('mining').length + turretsByCategory('lumber').length === 21 && facilities.length === 40 && factoryDefs.length === 42);
   const t2MineDef = TURRET_BY_ID.mining_t2;
   check('T2 채굴탑 — 은이 빠지고 골드·목재만', Boolean(t2MineDef) && t2MineDef.cost.minerals.silver === undefined && Object.keys(t2MineDef.cost.minerals).length === 0, JSON.stringify(t2MineDef?.cost));
   const turretSrcLimits = readFileSync(new URL('../client/src/systems/turrets.js', import.meta.url), 'utf8');
@@ -3398,7 +3398,7 @@ section('메뉴 버튼 → 창 닫고 패널 · 설정에서 로그인/회원가
   const room = new Room({ code: 'CAPTEST' });
   let created = 0;
   for (let i = 0; i < 300; i++) {
-    const res = room.placeTurret(`cap-${i}`, { id: `cap-${i}`, typeId: 'factory_water_t1', x: i, z: 0 });
+    const res = room.placeTurret(`cap-${i}`, { id: `cap-${i}`, typeId: 'factory_clay_t1', x: i, z: 0 });
     if (res.created) created += 1;
   }
   check('서버 설치 제한 없음 — 300개 공장 수용', created === 300 && room.turrets.size === 300, `${created}개`);
