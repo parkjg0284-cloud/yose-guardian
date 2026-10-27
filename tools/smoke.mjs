@@ -268,7 +268,7 @@ function section(title) {
 // ─────────────────────────────────────── 1. 데이터 무결성
 section('데이터 무결성');
 check('VERSION 존재', typeof VERSION === 'string' && VERSION.length > 0, VERSION);
-check('포탑 165종 (공격47·지원21·시설33·공장56·포탈8)', TURRETS.length === 165, `${TURRETS.length}종`);
+check('포탑 172종 (공격47·지원21·시설40·공장56·포탈8)', TURRETS.length === 172, `${TURRETS.length}종`);
 check('포탈 8종 (기지 + T1~T7)', turretsByCategory('portal').length === 8, `${turretsByCategory('portal').length}종`);
 check('포탈마다 목적지가 있다', turretsByCategory('portal').every((t) => typeof t.portalDest === 'string' && t.portalDest.length > 0), turretsByCategory('portal').map((t) => t.portalDest).join(','));
 check('공격형 47종', turretsByCategory('attack').length === 47, `${turretsByCategory('attack').length}종`);
@@ -709,7 +709,7 @@ section('건설 시설 (작업대·저장고·채굴기)');
   check('기본 시설 4종 — 작업대·마법부여대·저장고·채굴기 (T1)', baseFour.length === 4 && baseFacilities.filter((t) => t.kind === 'storage').length === 7, baseFacilities.map((t) => t.name).join(' · '));
   check('컨베이어벨트 7종 (T1~T7)', facilities.filter((t) => t.kind === 'conveyor').length === 7 && facilities.filter((t) => t.kind === 'conveyor').every((t, i) => t.tier === i + 1));
   check('몬스터 소환문 7종 (T1~T7)', facilities.filter((t) => t.kind === 'spawner').length === 7 && facilities.filter((t) => t.kind === 'spawner').every((t, i) => t.tier === i + 1));
-  check('시설 합계 33종 (기본5 + 저장고7 + 발전기7 + 전선1 + 벨트7 + 소환문7)', facilities.length === 33, `${facilities.length}종`);
+  check('시설 합계 40종 (기본5 + 저장고7 + 발전기7 + 전선1 + 벨트7 + 소환문7 + 기사단 길드7)', facilities.length === 40, `${facilities.length}종`);
   const wbDef = facilities.find((t) => t.kind === 'workbench');
   const stDef = facilities.find((t) => t.kind === 'storage');
   const amDef = facilities.find((t) => t.kind === 'autominer');
@@ -732,7 +732,7 @@ check('채굴기 — 맨땅에서 지형 티어 광물 자동 채굴(drillRegion
   check('공장마다 티어별 이름·생산량', factoryDefs.filter((t) => t.factoryType === 'water').sort((a, b) => a.tier - b.tier).every((t, i, a) => i === 0 || t.outputs[0].amount > a[i - 1].outputs[0].amount));
   check('물통로 — 생산 없이 주변 공장 보너스', factoryDefs.filter((t) => t.factoryType === 'waterway').every((t) => t.outputs.length === 0 && t.factoryBoost > 0));
   check('공장 전력 — 모두 소비', factoryDefs.every((t) => Number(t.draw) > 0));
-  check('계열 합계 = 157 (공격47 + 지원21 + 시설33 + 공장56)', turretsByCategory('attack').length === 47 && turretsByCategory('heal').length + turretsByCategory('mining').length + turretsByCategory('lumber').length === 21 && facilities.length === 33 && factoryDefs.length === 56);
+  check('계열 합계 = 164 (공격47 + 지원21 + 시설40 + 공장56)', turretsByCategory('attack').length === 47 && turretsByCategory('heal').length + turretsByCategory('mining').length + turretsByCategory('lumber').length === 21 && facilities.length === 40 && factoryDefs.length === 56);
   const t2MineDef = TURRET_BY_ID.mining_t2;
   check('T2 채굴탑 — 은이 빠지고 골드·목재만', Boolean(t2MineDef) && t2MineDef.cost.minerals.silver === undefined && Object.keys(t2MineDef.cost.minerals).length === 0, JSON.stringify(t2MineDef?.cost));
   const turretSrcLimits = readFileSync(new URL('../client/src/systems/turrets.js', import.meta.url), 'utf8');
@@ -811,6 +811,23 @@ check('채굴기 — 맨땅에서 지형 티어 광물 자동 채굴(drillRegion
   check('소환문 비용 광물이 실재', spawners.every((s) => Object.keys(s.cost.minerals).every((id) => MINERAL_TYPES.some((m) => m.id === id))));
   check('소환문 승급 경로 (facility_spawner_t1..t7)', TURRET_BY_ID['facility_spawner_t7']?.name === '몬스터 소환문 T7');
   check('소환문은 웨이브와 무관한 파밍 시설로 설명됨', spawners.every((s) => s.desc.includes('파밍') || s.desc.includes('웨이브와 무관')));
+
+  // ── 기사단 길드: 티어가 오를수록 기사 능력치 강화
+  const guilds = facilities.filter((t) => t.kind === 'knight_guild')
+    .slice()
+    .sort((a, b) => a.tier - b.tier);
+  check('기사단 길드 7종 (T1~T7)', guilds.length === 7 && guilds.every((g, i) => g.tier === i + 1), guilds.map((g) => g.name).join(' · '));
+  check(
+    '기사단 길드 — 티어마다 공격력 증가 · 받는 피해 감소 · 이동 속도 증가',
+    guilds.every((g, i) => {
+      const b = g.knightBonus || {};
+      return b.damage > 1 && b.damageTaken > 0 && b.damageTaken < 1 && b.moveSpeed > 1 && (i === 0 || b.damage > guilds[i - 1].knightBonus.damage);
+    }),
+    guilds.map((g) => `T${g.tier} 공격+${Math.round((g.knightBonus.damage - 1) * 100)}%`).join(' · ')
+  );
+  check('기사단 길드 — 최고 티어 T7 보너스', guilds[6].knightBonus.damage === 1.5 && guilds[6].knightBonus.damageTaken === 0.78 && guilds[6].knightBonus.moveSpeed === 1.15);
+  check('기사단 길드 — 전기 불필요 · 비용 광물 실재', guilds.every((g) => Number(g.draw) === 0) && guilds.every((g) => Object.keys(g.cost.minerals).every((id) => MINERAL_TYPES.some((m) => m.id === id))));
+  check('기사단 길드 승급 경로 (facility_knight_guild_t1..t7)', TURRET_BY_ID['facility_knight_guild_t1']?.kind === 'knight_guild' && TURRET_BY_ID['facility_knight_guild_t7']?.tier === 7);
 }
 
 // ─────────────────────────────────────── 7-2. 작업대 = 전체 무기 제작
@@ -2830,6 +2847,13 @@ section('마법부여 — 모든 무기 속성 부여 · 맨손 시작');
   check('turrets.js — 포탑·시설 철거 환불 25%', turretSrc.includes('export const SELL_REFUND = 0.25') && turretSrc.includes('sell(turretId)'));
   check('main.js — 철거 모드(조준 레이캐스트·25% 환불·멀티 전송)', mainSrc.includes('setDemolish(') && mainSrc.includes('_findTurretAtCrosshair(') && mainSrc.includes('_tryDemolish(') && mainSrc.includes('sendTurretSell('));
   check('panels.js — 건설 패널 철거 버튼', panelSrc.includes("'build-demolish'") && panelSrc.includes("'demolish:start'"));
+  check(
+    'main.js — 기사단 길드 보너스가 무기 피해·받는 피해·이동 속도에 붙는다',
+    mainSrc.includes('_knightGuildBonus()') && mainSrc.includes('_weaponDamageMult()') &&
+      mainSrc.includes('guild.damageTaken') && mainSrc.includes('guild.moveSpeed')
+  );
+  check('turrets.js — 기사단 길드 최고 티어 조회·구조물 변경 콜백', turretSrc.includes('guildBonus()') && turretSrc.includes("kind !== 'knight_guild'") && turretSrc.includes('_notifyStructuresChanged()'));
+  check('panels.js — 기사단 길드 카드·직업 패널 표시', panelSrc.includes("kind === 'knight_guild'") && panelSrc.includes('기사단 강화') && panelSrc.includes('기사단 길드'));
 }
 
 // ────────────────────────────────────────── 캐릭터 · 앉기 · 로그인 전환 · 부드러운 회전

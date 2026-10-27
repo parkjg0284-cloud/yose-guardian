@@ -1063,6 +1063,31 @@ try {
   check('builtByCategory.facility 누적', facTurrets.builtByCategory.facility === 1);
   check('시설 건설 통계', facStats.get('facilitiesBuilt') === 1);
 
+  // ── 기사단 길드: 건설하면 기사 보너스, 높은 티어가 이전 티어를 덮어쓴다
+  let guildEvents = 0;
+  facTurrets.onStructuresChanged = () => { guildEvents += 1; };
+  const guild1 = facTurrets.place('facility_knight_guild_t1', placeAt(76, 50), 'local');
+  check('기사단 길드 T1 건설', Boolean(guild1) && guild1.type.kind === 'knight_guild', guild1 ? guild1.typeId : '실패');
+  check(
+    '기사단 길드 T1 — 기사 보너스',
+    Boolean(guild1) && facTurrets.guildBonus()?.tier === 1 && Math.abs(facTurrets.guildBonus().damage - 1.06) < 1e-9,
+    JSON.stringify(facTurrets.guildBonus())
+  );
+  const guild2 = facTurrets.place('facility_knight_guild_t2', placeAt(88, 50), 'local');
+  check(
+    '기사단 길드 — 가장 높은 티어 하나만 적용',
+    Boolean(guild2) && facTurrets.guildBonus()?.tier === 2 && Math.abs(facTurrets.guildBonus().damage - 1.12) < 1e-9,
+    JSON.stringify(facTurrets.guildBonus())
+  );
+  check('기사단 길드 — 건설 콜백 발생', guildEvents >= 2, `${guildEvents}회`);
+  if (guild2) guild2.takeDamage(guild2.maxHp + 1, 'test', null);
+  check(
+    '기사단 길드 파괴 — 이전 티어로 복귀',
+    facTurrets.guildBonus()?.tier === 1,
+    JSON.stringify(facTurrets.guildBonus())
+  );
+  facTurrets.onStructuresChanged = null;
+
   // Round C — 저장고·채굴기는 전기가 있어야 돈다: 옆에 발전기를 세운다(건물 6m 이내 연결).
   const genDef = TURRETS.find((t) => t.id === 'facility_generator_t1');
   const stGen = facTurrets.place(genDef.id, placeAt(91, 34), 'local');

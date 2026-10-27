@@ -153,6 +153,14 @@ const capBefore = storage.capacity;
 check('업그레이드 성공', turrets.upgrade(storage.id) === true && storage.typeId === 'facility_storage_t2' && storage.capacity > capBefore,
   `${capBefore} → ${storage.capacity}`);
 
+console.log('\n── ⑤-2 기사단 길드 — 티어 업그레이드 경로·기사 보너스');
+const kg1 = TURRETS.find((t) => t.id === 'facility_knight_guild_t1');
+const kg7 = TURRETS.find((t) => t.id === 'facility_knight_guild_t7');
+check('기사단 길드 T1~T7 + 보너스 상승', Boolean(kg1 && kg7) && TURRETS.filter((t) => t.kind === 'knight_guild').length === 7 &&
+  kg7.knightBonus.damage > kg1.knightBonus.damage && kg7.knightBonus.damageTaken < kg1.knightBonus.damageTaken,
+  `T1 공격×${kg1.knightBonus.damage} → T7 공격×${kg7.knightBonus.damage}`);
+check('기사단 길드 업그레이드 경로(T1→T2)', turrets.nextTierType({ category: 'facility', type: { kind: 'knight_guild' }, tier: 1 })?.id === 'facility_knight_guild_t2');
+
 console.log('\n── ⑥ 발전기 티어·연결 규칙·재료 규칙');
 const g1 = TURRETS.find((t) => t.id === 'facility_generator_t1');
 const g7 = TURRETS.find((t) => t.id === 'facility_generator_t7');

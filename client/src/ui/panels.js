@@ -1201,7 +1201,8 @@ export class PanelManager {
     demolishBtn.dataset.act = 'build-demolish';
     body.appendChild(demolishBtn);
     const sel = st.selected ? TURRET_BY_ID[st.selected] : null;
-    body.appendChild(row('선택한 포탑', sel ? `${sel.name} · 사거리 ${num(sel.range)} m` : '없음 (카드 클릭 또는 1~9)'));
+    const selInfo = sel?.kind === 'knight_guild' ? '적용 범위 기지 전체' : `사거리 ${num(sel?.range)} m`;
+    body.appendChild(row('선택한 포탑', sel ? `${sel.name} · ${selInfo}` : '없음 (카드 클릭 또는 1~9)'));
     if (sel) body.appendChild(row('설명', sel.desc || '-'));
 
     body.appendChild(
@@ -1263,6 +1264,7 @@ export class PanelManager {
       const groups = [
         { key: 'power', title: '⚡ 전력 (발전기 · 전선)', kinds: ['generator', 'cable'] },
         { key: 'base', title: '🏗 기본 시설', kinds: ['workbench', 'enchanter', 'arcana', 'storage', 'autominer'] },
+        { key: 'guild', title: '🛡 기사단 길드 (T1~T7)', kinds: ['knight_guild'] },
         { key: 'conveyor', title: '⛓ 컨베이어벨트 (T1~T7)', kinds: ['conveyor'] },
         { key: 'spawner', title: '🌀 몬스터 소환문 (T1~T7)', kinds: ['spawner'] }
       ];
@@ -1364,12 +1366,17 @@ export class PanelManager {
       } else if (t.kind === 'spawner') {
         card.appendChild(row('소환', `${num(t.spawnInterval)}초마다 몬스터 ${num(t.spawnCount)}마리`));
         card.appendChild(row('주의', '웨이브와 무관하게 계속 나옵니다'));
+      } else if (t.kind === 'knight_guild') {
+        const gb = t.knightBonus || {};
+        card.appendChild(row('기사단 강화', `공격력 +${Math.round((num(gb.damage, 1) - 1) * 100)}% · 받는 피해 -${Math.round((1 - num(gb.damageTaken, 1)) * 100)}% · 이동 +${Math.round((num(gb.moveSpeed, 1) - 1) * 100)}%`));
+        card.appendChild(row('적용', '기사 클래스 · 가장 높은 길드 1개 (중첩 없음)'));
       } else card.appendChild(row('채굴', `${num(t.rate)}/s · 맨땅에서 지형 티어 광물 · 업그레이드하면 저티어 광물 채굴량 +35%/등급, 낮은 등급 광물도 랜덤 채굴`));
       const drawKw = num(t.draw);
       const powerText =
         drawKw > 0 ? `${drawKw}kW 소비` : t.kind === 'generator' ? '공급원' : '전기 불필요';
       card.appendChild(row('전력', powerText));
-      card.appendChild(row('사거리', num(t.range)));
+      if (t.kind === 'knight_guild') card.appendChild(row('적용 범위', '기지 전체 (기사 클래스)'));
+      else card.appendChild(row('사거리', num(t.range)));
       card.appendChild(row('체력', fmt(t.hp)));
     } else if (t.category === 'factory') {
       const outs = (Array.isArray(t.outputs) ? t.outputs : [])
@@ -2842,6 +2849,17 @@ export class PanelManager {
     body.appendChild(row('단계', `${(CLASS_STAGES[stage] || CLASS_STAGES[0]).name} — ${(CLASS_STAGES[stage] || CLASS_STAGES[0]).desc}`));
     body.appendChild(row('사용 가능 등급', `${(CLASS_STAGES[stage] || CLASS_STAGES[0]).maxTier}등급까지 · 공용 계열(가위·꿈나무)은 제한 없음`));
     body.appendChild(row('패시브', cls ? this._classPassiveText(cls.def, stage) : '—'));
+    if (cls?.classId === 'knight') {
+      const gb = safe(() => game?.turrets?.guildBonus?.(), null);
+      body.appendChild(
+        row(
+          '기사단 길드',
+          gb
+            ? `T${num(gb.tier, 1)} — 공격력 +${Math.round((num(gb.damage, 1) - 1) * 100)}% · 받는 피해 -${Math.round((1 - num(gb.damageTaken, 1)) * 100)}% · 이동 +${Math.round((num(gb.moveSpeed, 1) - 1) * 100)}%`
+            : '없음 — 건설 패널의 🛡 기사단 길드를 세우면 기사 능력치가 오릅니다'
+        )
+      );
+    }
     if (cls) {
       const usable = owned.filter((w) => cls.canUse(w.id)).length;
       body.appendChild(row('보유 무기', `${fmt(usable)} / ${fmt(owned.length)}종 사용 가능 — 나머지 ${fmt(owned.length - usable)}종은 잠김`));

@@ -766,7 +766,7 @@ if (pm) {
       msg.includes('보유 150발')
     );
   });
-  attempt('건설 패널 — 🏗 시설 탭 33종(기본·연성대·저장고·발전기·전선·벨트·소환문)', () => {
+  attempt('건설 패널 — 🏗 시설 탭 40종(기본·연성대·저장고·발전기·전선·벨트·소환문·기사단 길드)', () => {
     pm.state.build.category = 'facility';
     pm.state.build.tier = 0;
     pm.open('build');
@@ -774,27 +774,37 @@ if (pm) {
     const picks = root.querySelectorAll('[data-act="build-pick"]');
     const hasBelt = picks.some((b) => b.dataset.type === 'facility_conveyor_t1' && b.dataset.type !== 'facility_conveyor_t7');
     return (
-      picks.length === 33 &&
+      picks.length === 40 &&
       picks.some((b) => b.dataset.type === 'facility_workbench') &&
       picks.some((b) => b.dataset.type === 'facility_storage_t7') &&
       picks.some((b) => b.dataset.type === 'facility_generator_t1') &&
       picks.some((b) => b.dataset.type === 'facility_cable') &&
-      picks.some((b) => b.dataset.type === 'facility_spawner_t7')
+      picks.some((b) => b.dataset.type === 'facility_spawner_t7') &&
+      picks.some((b) => b.dataset.type === 'facility_knight_guild_t7')
     );
   });
-  attempt('건설 패널 — 시설 티어 탭(T4 = 저장고·발전기·벨트·소환문 각 1종)', () => {
+  attempt('건설 패널 — 시설 티어 탭(T4 = 저장고·발전기·벨트·소환문·기사단 길드 각 1종)', () => {
     pm.state.build.category = 'facility';
     pm.state.build.tier = 4;
     pm.open('build');
     const root = documentStub.getElementById('panel-root');
     const picks = root.querySelectorAll('[data-act="build-pick"]');
     return (
-      picks.length === 4 &&
+      picks.length === 5 &&
       picks.some((b) => b.dataset.type === 'facility_storage_t4') &&
       picks.some((b) => b.dataset.type === 'facility_generator_t4') &&
       picks.some((b) => b.dataset.type === 'facility_conveyor_t4') &&
-      picks.some((b) => b.dataset.type === 'facility_spawner_t4')
+      picks.some((b) => b.dataset.type === 'facility_spawner_t4') &&
+      picks.some((b) => b.dataset.type === 'facility_knight_guild_t4')
     );
+  });
+  attempt('건설 패널 — 기사단 길드 카드에 기사 강화 수치', () => {
+    pm.state.build.category = 'facility';
+    pm.state.build.tier = 1;
+    pm.open('build');
+    const root = documentStub.getElementById('panel-root');
+    const text = root.textContent || '';
+    return text.includes('기사단 강화') && text.includes('공격력 +6%') && text.includes('받는 피해 -3%') && text.includes('이동 +2%');
   });
   attempt('건설 패널 — 🏭 공장 탭 56종(8종 × T1~T7)', () => {
     pm.state.build.category = 'factory';

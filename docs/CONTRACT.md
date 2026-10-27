@@ -2234,3 +2234,47 @@ GitHub 에 이미 올라가 있으면 다시 올리지 않는다.
 - `tools/headless.mjs` 603/603 — 물추출기 골드 생산, 물통로 +12%, T1→T2 승급, 60개 집계.
 - `tools/ui-dom-smoke.mjs` 354/354 — 공장 탭 56종/T4 8종, 설치 제한 없음 안내.
 - `tools/base-bugtest.mjs` 80/80 — 전선 5개 제한 없이 설치.
+
+---
+
+## §4.86 기사단 길드 — 건물 티어별 기사 능력치 강화 (v1.19.3)
+
+**데이터**
+- `client/src/data.js` 의 `KNIGHT_GUILD_TABLE` 이 **기사단 길드 7종(T1~T7)** 을 만든다.
+  id 는 `facility_knight_guild_t1` ~ `facility_knight_guild_t7`, `kind:'knight_guild'`, `category:'facility'`.
+- 티어별 보너스는 `knightBonus:{ damage, damageTaken, moveSpeed }` 로 저장한다.
+
+| 티어 | 공격력 | 받는 피해 | 이동 속도 | 건설 비용(골드/목재) |
+|---|---|---|---|---|
+| T1 | +6% | -3% | +2% | 1,200 / 240 |
+| T2 | +12% | -6% | +4% | 2,800 / 520 |
+| T3 | +18% | -9% | +6% | 6,200 / 1,100 |
+| T4 | +25% | -12% | +8% | 13,000 / 2,200 |
+| T5 | +32% | -15% | +10% | 27,000 / 4,200 |
+| T6 | +40% | -18% | +12% | 56,000 / 8,000 |
+| T7 | +50% | -22% | +15% | 115,000 / 15,000 |
+
+- 광물 재료는 `tierMinerals(tier, 4+tier, 2+floor(tier/2))` 로 생성해 **티어 N 길드 = 티어 N 지형 광물** 규칙을 지킨다.
+- 길드는 **전기를 쓰지 않는다**(`draw:0`). 건설 개수 제한도 없다.
+- 여러 길드를 세워도 **가장 높은 티어 하나만** 적용한다(중첩 없음). 파괴되면 그다음 높은 길드로 자동 복귀한다.
+
+**적용**
+- `TurretSystem.guildBonus()` 가 살아 있는 길드 중 최고 티어의 `{tier, damage, damageTaken, moveSpeed}` 를 반환한다.
+- `main.js` 의 `_knightGuildBonus()` 는 **현재 직업이 기사(knight)일 때만** 이 값을 채택한다.
+- `_weaponDamageMult()` = 직업 패시브 × 길드 공격력. 일반 공격·강공격·스킬·화살 피해 계산에 모두 사용한다.
+- `_applyClassModifiers()` 는 `player.damageTakenMult` 에 길드 받는 피해 배율을, `player.speedMult` 에 길드 이동 배율을 곱한다.
+- `TurretSystem.onStructuresChanged` 콜백을 건설·철거·파괴·업그레이드·원격 동기화·저장 복원 후 호출해,
+  길드가 생기거나 사라지면 즉시 능력치를 다시 계산한다. `main.js` 가 이 콜백을 `_applyClassModifiers()` 에 연결한다.
+
+**모델·패널**
+- `buildTurretObject` 의 `kind:'knight_guild'` 분기 — 석조 회관·지붕·양쪽 깃발·방패 문장. 문장은 천천히 회전/발광한다.
+- `_renderBuild` 의 시설 묶음에 `🛡 기사단 길드 (T1~T7)` 섹션을 추가한다.
+- 길드 카드는 `기사단 강화 — 공격력 +n% · 받는 피해 -n% · 이동 +n%`, `적용 — 기사 클래스 · 가장 높은 길드 1개` 를 보여준다.
+- 직업 패널에서 기사일 때 현재 적용 중인 길드 티어와 수치를 함께 보여준다.
+
+**검사**
+- `tools/smoke.mjs` 995/995 — 시설 40종·길드 7종·티어별 보너스 단조 증가·T7 수치·승급 경로·배선 문자열.
+- `tools/headless.mjs` 608/608 — 길드 T1 건설·T2가 T1을 덮음·파괴 시 T1 복귀·구조물 변경 콜백.
+- `tools/ui-dom-smoke.mjs` 355/355 — 시설 탭 40종, T4 5종(길드 포함), 길드 카드 수치.
+- `tools/base-bugtest.mjs` 82/82 — 길드 T1~T7 보너스 상승·T1→T2 경로.
+- 전체 건물 수: **172종**(공격47·지원21·시설40·공장56·포탈8).

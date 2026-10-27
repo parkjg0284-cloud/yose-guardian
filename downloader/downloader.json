@@ -1,6 +1,6 @@
 {
   "api": "https://api.github.com/repos/parkjg0284-cloud/yose-guardian/releases/latest",
   "url": "https://github.com/parkjg0284-cloud/yose-guardian/releases/latest/download/game.zip",
-  "tag": "v1.19.2",
+  "tag": "v1.19.3",
   "note": "다운로더가 확인하는 주소와 내장 버전입니다. 저장소를 옮기면 api/url/tag 만 바꾸면 됩니다."
 }

@@ -377,7 +377,7 @@ export const TURRET_CATEGORIES = {
   heal: { id: 'heal', name: '회복탑', icon: '✚', desc: '주변 구조물·기지·아군을 회복시킨다.' },
   mining: { id: 'mining', name: '채굴탑', icon: '⛏', desc: '반경 내 광물을 자동으로 채굴한다.' },
   lumber: { id: 'lumber', name: '벌목탑', icon: '🪓', desc: '반경 내 나무를 자동으로 벌목한다.' },
-  facility: { id: 'facility', name: '시설', icon: '🏗', desc: '작업대·저장고·채굴기·컨베이어벨트·몬스터 소환문을 세운다.' },
+  facility: { id: 'facility', name: '시설', icon: '🏗', desc: '작업대·저장고·채굴기·컨베이어벨트·몬스터 소환문·기사단 길드를 세운다.' },
   factory: { id: 'factory', name: '공장', icon: '🏭', desc: '티어별 공장을 세워 골드·목재·광물을 자동 생산한다. 물통로는 주변 공장을 돕는다.' }
 };
 
@@ -545,7 +545,7 @@ for (const [category, T] of Object.entries(SUPPORT_TABLE)) {
   }
 }
 
-// ── 시설 — 기본 4종 + 저장고 7종(T1~T7) + 발전기 7종(T1~T7) + 전선 + 컨베이어벨트 7종 + 소환문 7종 ──
+// ── 시설 — 기본 4종 + 저장고 7종(T1~T7) + 발전기 7종(T1~T7) + 전선 + 컨베이어벨트 7종 + 소환문 7종 + 기사단 길드 7종 ──
 // 규칙: 티어 N 건물의 광물 재료는 **티어 N 지형에서 캘 수 있는 광물**뿐이다(티어 지형을 돌아야 다음 티어가 열린다).
 const FACILITY_TABLE = [
   {
@@ -767,6 +767,23 @@ for (const f of FACTORY_TABLE) {
   }
 }
 
+// 기사단 길드 7종 — 기사 클래스의 공격력·방어력(받는 피해)·이동 속도를 올린다.
+// 여러 길드를 세워도 **가장 높은 티어 하나만** 적용한다(중첩 없음).
+const KNIGHT_GUILD_TABLE = [
+  { tier: 1, damage: 1.06, damageTaken: 0.97, moveSpeed: 1.02, hp: 650, gold: 1200, wood: 240 },
+  { tier: 2, damage: 1.12, damageTaken: 0.94, moveSpeed: 1.04, hp: 850, gold: 2800, wood: 520 },
+  { tier: 3, damage: 1.18, damageTaken: 0.91, moveSpeed: 1.06, hp: 1100, gold: 6200, wood: 1100 },
+  { tier: 4, damage: 1.25, damageTaken: 0.88, moveSpeed: 1.08, hp: 1450, gold: 13000, wood: 2200 },
+  { tier: 5, damage: 1.32, damageTaken: 0.85, moveSpeed: 1.10, hp: 1900, gold: 27000, wood: 4200 },
+  { tier: 6, damage: 1.40, damageTaken: 0.82, moveSpeed: 1.12, hp: 2500, gold: 56000, wood: 8000 },
+  { tier: 7, damage: 1.50, damageTaken: 0.78, moveSpeed: 1.15, hp: 3300, gold: 115000, wood: 15000 }
+].map((g) => ({
+  ...g,
+  id: `facility_knight_guild_t${g.tier}`,
+  name: g.tier === 1 ? '기사단 길드' : `기사단 길드 T${g.tier}`,
+  cost: { gold: g.gold, wood: g.wood, minerals: tierMinerals(g.tier, 4 + g.tier, 2 + Math.floor(g.tier / 2)) }
+}));
+
 const facilityTurrets = [
   ...FACILITY_TABLE.map((f) => ({
     id: f.id,
@@ -914,6 +931,30 @@ const facilityTurrets = [
     drillRegion: false,
     cost: { gold: s.cost.gold, wood: s.cost.wood, minerals: { ...s.cost.minerals } },
     desc: s.spawnInterval + '초마다 몬스터 ' + s.spawnCount + '마리가 나오는 소환문. 웨이브와 무관하게 계속 나오니 방어선을 세워 두고 파밍하자. 전기 4kW 를 쓴다.'
+  })),
+  ...KNIGHT_GUILD_TABLE.map((g) => ({
+    id: g.id,
+    name: g.name,
+    category: 'facility',
+    tier: g.tier,
+    kind: 'knight_guild',
+    icon: '🛡',
+    effect: 'inspire',
+    element: 'light',
+    color: 0xffd24a,
+    damage: 0,
+    range: 0,
+    fireRate: 0,
+    hp: g.hp,
+    rate: 0,
+    knightBonus: { damage: g.damage, damageTaken: g.damageTaken, moveSpeed: g.moveSpeed },
+    storeRate: null,
+    capacity: 0,
+    draw: 0,
+    drillPool: null,
+    drillRegion: false,
+    cost: { gold: g.cost.gold, wood: g.cost.wood, minerals: { ...g.cost.minerals } },
+    desc: `기사단 길드 — 기사 클래스의 공격력 +${Math.round((g.damage - 1) * 100)}% · 받는 피해 -${Math.round((1 - g.damageTaken) * 100)}% · 이동 속도 +${Math.round((g.moveSpeed - 1) * 100)}%. 여러 길드를 세워도 가장 높은 티어 하나만 적용된다. 전기 불필요.`
   }))
 ];
 

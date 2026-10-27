@@ -991,6 +991,8 @@ class Game {
       takeItem: (dest) => this.crafting?.takePortal?.(dest) ?? false
     });
     this.turrets.miningBonus = bonus.miningSpeed * (this.classes?.modifiers?.miningSpeed ?? 1);
+    // 기사단 길드 건설·철거·파괴 시 기사 능력치를 즉시 다시 계산한다.
+    this.turrets.onStructuresChanged = () => this._applyClassModifiers();
     // 컨베이어벨트 승강 — 플레이어는 world 를 통해 벨트 밀림을 조회한다.
     this.world.conveyorPushAt = (pos) => this.turrets?.conveyorPushAt?.(pos) ?? null;
 
@@ -1850,6 +1852,26 @@ class Game {
     return found;
   }
 
+  /** 기사단 길드 보너스 — 기사 클래스에게만, 가장 높은 길드 하나만 적용한다. */
+  _knightGuildBonus() {
+    const none = { tier: 0, damage: 1, damageTaken: 1, moveSpeed: 1 };
+    if (this.classes?.classId !== 'knight') return none;
+    const g = this.turrets?.guildBonus?.();
+    if (!g) return none;
+    const n = (v, d = 1) => (Number.isFinite(Number(v)) ? Number(v) : d);
+    return {
+      tier: n(g.tier, 0),
+      damage: n(g.damage, 1),
+      damageTaken: n(g.damageTaken, 1),
+      moveSpeed: n(g.moveSpeed, 1)
+    };
+  }
+
+  /** 무기 피해 배율 — 직업 패시브 × 기사단 길드 */
+  _weaponDamageMult() {
+    return (this.classes?.weaponDamageMult ?? 1) * this._knightGuildBonus().damage;
+  }
+
   _applyClassModifiers() {
     const m = this.classes?.modifiers;
     if (!m) return;
@@ -1857,10 +1879,11 @@ class Game {
     const fx = (v, d = 1) => (Number.isFinite(v) ? Number(v) : d);
     const gear = this._mergedGearBonus();
     const gx = (v) => 1 + (Number(v) || 0);
+    const guild = this._knightGuildBonus();
     if (this.player) {
       this.player.manaRegenMult = fx(bonus.manaRegen) * fx(m.manaRegen) * gx(gear?.manaRegenPct);
-      this.player.speedMult = fx(bonus.moveSpeed) * fx(m.moveSpeed) * gx(gear?.moveSpeedPct);
-      this.player.damageTakenMult = fx(m.damageTaken) * (1 - Math.min(0.6, Number(gear?.damageTakenPct) || 0));
+      this.player.speedMult = fx(bonus.moveSpeed) * fx(m.moveSpeed) * guild.moveSpeed * gx(gear?.moveSpeedPct);
+      this.player.damageTakenMult = fx(m.damageTaken) * guild.damageTaken * (1 - Math.min(0.6, Number(gear?.damageTakenPct) || 0));
       // 스태미나 회복은 기본값 대비 비율이므로 매번 기본값에서 다시 계산한다
       if (Number.isFinite(this._staminaRegenBase)) {
         this.player.staminaRegen = this._staminaRegenBase * gx(gear?.staminaRegenPct);
@@ -2776,7 +2799,7 @@ class Game {
         const enchantMult = Number(ench?.damageMult) || 1;
         const power = Math.max(
           1,
-          Math.round((Number(weapon.damage) || 1) * (this.classes?.weaponDamageMult ?? 1) * gearDamage * enchantMult)
+          Math.round((Number(weapon.damage) || 1) * this._weaponDamageMult() * gearDamage * enchantMult)
         );
         enemy.takeDamage?.(power, ench?.element ?? weapon.element ?? null, 'player');
         this.impacts?.hit?.(enemy.position, { weaponId: weapon.id, power: 1 });
@@ -2814,7 +2837,7 @@ class Game {
     const arcanaMult = Number(this.arcana?.mult?.('playerDamage')) || 1;
     const power = Math.max(
       1,
-      Math.round((Number(weapon.damage) || 1) * (this.classes?.weaponDamageMult ?? 1) * gearDamage * enchantMult * arcanaMult)
+      Math.round((Number(weapon.damage) || 1) * this._weaponDamageMult() * gearDamage * enchantMult * arcanaMult)
     );
     const tracer = weaponImpact(weapon.id)?.tracer ?? weapon.color ?? 0xffd27a;
     const right = new THREE.Vector3(-dir.z, 0, dir.x);
@@ -2883,7 +2906,7 @@ class Game {
     const arcanaMult = Number(this.arcana?.mult?.('playerDamage')) || 1;
     const power = Math.max(
       1,
-      Math.round((Number(weapon.damage) || 1) * (this.classes?.weaponDamageMult ?? 1) * gearDamage * enchantMult * arcanaMult)
+      Math.round((Number(weapon.damage) || 1) * this._weaponDamageMult() * gearDamage * enchantMult * arcanaMult)
     );
     const spawnOrigin = origin.clone ? origin.clone() : origin;
     const res = this.projectiles.spawn({
@@ -2974,7 +2997,7 @@ class Game {
     const power = Math.max(
       1,
       Math.round(
-        (Number(weapon.damage) || 1) * arrowMult * (this.classes?.weaponDamageMult ?? 1) * gearDamage * enchantMult * (Number(this.arcana?.mult?.('playerDamage')) || 1)
+        (Number(weapon.damage) || 1) * arrowMult * this._weaponDamageMult() * gearDamage * enchantMult * (Number(this.arcana?.mult?.('playerDamage')) || 1)
       )
     );
     const spawnOrigin = origin.clone ? origin.clone() : origin;

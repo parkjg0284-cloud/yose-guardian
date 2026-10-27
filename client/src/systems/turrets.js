@@ -362,6 +362,35 @@ function buildTurretObject(type, ghost = false) {
         rune.position.set(Math.cos(a) * 1.15, Math.sin(a) * 1.15, 0.05);
         head.add(rune);
       }
+    } else if (kind === 'knight_guild') {
+      // 기사단 길드 — 석조 회관 + 양쪽 깃발 + 방패 문장
+      const hall = new THREE.Mesh(GEO.plinth(), stone);
+      hall.scale.set(1.8, 1.25, 1.5);
+      hall.position.y = 0.95;
+      group.add(hall);
+      const roof = new THREE.Mesh(GEO.plinth(), metal);
+      roof.scale.set(2.0, 0.32, 1.7);
+      roof.position.y = 1.82;
+      group.add(roof);
+      for (const side of [-1, 1]) {
+        const pole = new THREE.Mesh(GEO.tower(), metal);
+        pole.scale.set(0.12, 2.1, 0.12);
+        pole.position.set(side * 1.25, 1.05, -0.72);
+        group.add(pole);
+        const banner = new THREE.Mesh(GEO.plate(), accent);
+        banner.scale.set(0.7, 1.0, 0.08);
+        banner.position.set(side * 1.25, 1.35, -0.66);
+        group.add(banner);
+      }
+      head.position.y = 2.15;
+      const crest = new THREE.Mesh(GEO.head(), accent);
+      crest.scale.set(0.9, 1.05, 0.18);
+      head.add(crest);
+      const ring = new THREE.Mesh(GEO.ring(), metal);
+      ring.rotation.x = -Math.PI / 2;
+      ring.scale.setScalar(0.9);
+      ring.position.y = -0.35;
+      head.add(ring);
     } else if (kind === 'generator') {
       // 발전기: 원통 본체 + 코일 다리 + 빛나는 코어 + 회전자 링
       const body = new THREE.Mesh(GEO.tower(), metal);
@@ -1567,6 +1596,11 @@ export class Turret {
         this.head.rotation.z += dt * 0.4;
         this._spawnPulse = Math.max(0, num(this._spawnPulse) - dt * 1.6);
         this.head.scale.setScalar(1 + num(this._spawnPulse) * 0.3);
+      } else if (kind === 'knight_guild') {
+        // 깃발과 문장이 천천히 빛난다
+        this.head.rotation.y += dt * 0.25;
+        this.head.position.y = 2.15 + Math.sin(this._animT * 1.3) * 0.05;
+        this.head.scale.setScalar(1 + Math.sin(this._animT * 2.1) * 0.04);
       } else if (kind === 'generator') {
         // 전력이 흐르면 회전자가 빨리 돈다
         const spin = this.powered === false ? 0.4 : 3.2;
@@ -1650,6 +1684,8 @@ export class TurretSystem {
     this._powerAcc = POWER.interval; // 첫 프레임에 바로 계산
     this._powerState = this.power.status();
     this.powerShort = false;
+    /** 건설·철거·파괴·업그레이드 후 호출 — 기사단 길드처럼 구조물에 따라 달라지는 효과를 다시 계산한다. */
+    this.onStructuresChanged = null;
   }
 
   get count() {
@@ -1666,6 +1702,39 @@ export class TurretSystem {
 
   countByCategory(category) {
     return this.turrets.filter((t) => t.category === category).length;
+  }
+
+  /**
+   * 기사단 길드의 최고 티어 보너스 — 여러 길드를 세워도 가장 높은 것 하나만 적용한다.
+   * @returns {{tier:number, damage:number, damageTaken:number, moveSpeed:number, id:string, name:string}|null}
+   */
+  guildBonus() {
+    let best = null;
+    for (const t of this.turrets) {
+      if (!t || t.destroyed || t.type?.kind !== 'knight_guild') continue;
+      const bonus = t.type.knightBonus;
+      if (!bonus) continue;
+      const tier = num(t.tier, num(t.type?.tier, 1));
+      if (best && tier <= best.tier) continue;
+      best = {
+        tier,
+        id: t.id,
+        name: t.type.name,
+        damage: num(bonus.damage, 1),
+        damageTaken: num(bonus.damageTaken, 1),
+        moveSpeed: num(bonus.moveSpeed, 1)
+      };
+    }
+    return best;
+  }
+
+  _notifyStructuresChanged() {
+    try {
+      this.onStructuresChanged?.();
+    } catch (err) {
+      // UI 콜백 오류가 건설 자체를 막지 않게 한다.
+      console.warn('[turrets] 구조물 변경 콜백 실패', err);
+    }
   }
 
   find(turretId) {
@@ -1830,6 +1899,7 @@ export class TurretSystem {
     this.maxTurrets = Math.max(this.maxTurrets, this.structureCounts().total);
     st?.set?.('maxTurrets', this.maxTurrets);
     this.updatePower(true); // 새 건물의 전력 상태를 즉시 반영
+    if (type.kind === 'knight_guild') this._notifyStructuresChanged();
     this.audio?.play?.('build');
     return turret;
   }
@@ -1861,6 +1931,7 @@ export class TurretSystem {
     this.turrets.push(turret);
     this.scene?.add?.(turret.mesh);
     this.updatePower(true);
+    if (type.kind === 'knight_guild') this._notifyStructuresChanged();
     return turret;
   }
 
@@ -1868,8 +1939,10 @@ export class TurretSystem {
   removeRemote(turretId) {
     const turret = this.find(turretId);
     if (!turret || !turret.remote) return false;
+    const wasGuild = turret.type?.kind === 'knight_guild';
     this._remove(turret);
     this.updatePower(true);
+    if (wasGuild) this._notifyStructuresChanged();
     return true;
   }
 
@@ -1892,6 +1965,7 @@ export class TurretSystem {
       this._remove(turret);
       n += 1;
     }
+    if (n > 0) this._notifyStructuresChanged();
     return n;
   }
 
@@ -1930,7 +2004,9 @@ export class TurretSystem {
     }
     if (refund.gold > 0) this.economy?.addGold?.(refund.gold);
     if (refund.wood > 0) this.economy?.addWood?.(refund.wood);
+    const wasGuild = turret.type?.kind === 'knight_guild';
     this._remove(turret);
+    if (wasGuild) this._notifyStructuresChanged();
     this.audio?.play?.('sell');
     return { gold: refund.gold, wood: refund.wood, minerals: refund.minerals };
   }
@@ -1946,9 +2022,11 @@ export class TurretSystem {
     if (this.economy && typeof this.economy.canAfford === 'function' && !this.economy.canAfford(cost)) return false;
     if (this.economy && typeof this.economy.spend === 'function' && !this.economy.spend(cost)) return false;
     this._addInvested(turret, cost);
+    const wasGuild = turret.type?.kind === 'knight_guild';
     if (nextType) turret.applyType(nextType, { keepHpRatio: true });
     else turret.applyScaledTier(turret.tier + 1, nextScale);
     if (cost.gold > 0) this.stats?.track?.('goldSpent', cost.gold);
+    if (wasGuild || turret.type?.kind === 'knight_guild') this._notifyStructuresChanged();
     this.audio?.play?.('upgrade');
     return true;
   }
@@ -1986,6 +2064,7 @@ export class TurretSystem {
 
   _onTurretDestroyed(turret, source) {
     this.destroyedCount += 1;
+    if (turret?.type?.kind === 'knight_guild') this._notifyStructuresChanged();
     this.audio?.play?.('explosion');
   }
 
@@ -2260,6 +2339,7 @@ export class TurretSystem {
     this.mineralTypesMined = new Set(Array.isArray(src.mineralTypesMined) ? src.mineralTypesMined : []);
     this.power.reset();
     this.updatePower(true);
+    this._notifyStructuresChanged();
     return this;
   }
 
