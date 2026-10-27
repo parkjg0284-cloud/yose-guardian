@@ -153,7 +153,7 @@ check('히어로 제목', /수호자/.test(info?.h1 || ''), (info?.h1 || '').rep
 check('섹션 제목 4개 이상', (info?.h2 || 0) >= 4, `h2=${info?.h2}`);
 check('특징 카드 6개 이상', (info?.cards || 0) >= 6, `card=${info?.cards}`);
 check('설치 3단계', info?.steps === 3, `steps=${info?.steps}`);
-check('조작 12줄', info?.keys === 12, `keys=${info?.keys}`);
+check('조작 13줄', info?.keys === 13, `keys=${info?.keys}`);
 const badImgs = (info?.imgs || []).filter((i) => !i.ok);
 check('스크린샷 로드', (info?.imgs || []).length >= 2 && badImgs.length === 0, badImgs.map((i) => i.src).join(',') || `${info?.imgs?.length}장`);
 check('런처 다운로드 링크', (info?.launcher || 0) >= 1, `links=${info?.launcher}`);
